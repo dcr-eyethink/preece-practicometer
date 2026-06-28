@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metronome</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+  body { margin: 0; padding: 0; font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; }
+  .metro-wrap { padding: 1.5rem 1rem; max-width: 520px; margin: 0 auto; }
+  .beat-row { display: flex; justify-content: center; align-items: center; gap: 16px; margin-bottom: 2rem; height: 56px; }
+  .beat-dot { border-radius: 50%; transition: background 0.05s ease, box-shadow 0.05s ease; flex-shrink: 0; }
+  .beat-dot.accent       { width: 36px; height: 36px; background: #1a4a8a; }
+  .beat-dot.normal       { width: 24px; height: 24px; background: #1a4a8a; }
+  .beat-dot.lit-accent   { width: 36px; height: 36px; background: #1565ff; box-shadow: 0 0 20px 8px rgba(30,120,255,0.55); }
+  .beat-dot.lit-normal   { width: 24px; height: 24px; background: #3b8bff; box-shadow: 0 0 12px 4px rgba(60,140,255,0.45); }
+  .bpm-display { text-align: center; margin-bottom: 1.5rem; }
+  .bpm-num { font-size: 52px; font-weight: 500; color: #1a1a1a; line-height: 1; }
+  .bpm-label { font-size: 14px; color: #888; margin-top: 2px; }
+  .bpm-input { width: 80px; font-size: 20px; text-align: center; border: 1px solid #ccc; border-radius: 8px; padding: 4px 8px; background: #f9f9f9; color: #1a1a1a; margin-top: 8px; }
+  .slider-row { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; }
+  .slider-label { font-size: 12px; color: #888; min-width: 28px; }
+  .slider-row input[type=range], .vol-row input[type=range] { flex: 1; }
+  .vol-row { display: flex; align-items: center; gap: 12px; margin-bottom: 1.5rem; }
+  .vol-icon { font-size: 18px; color: #888; }
+  .time-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 1.5rem; }
+  .time-btn { padding: 6px 18px; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9; color: #555; font-size: 15px; cursor: pointer; }
+  .time-btn.active { background: #e8f0fe; color: #1a56db; border-color: #a0b4f0; font-weight: 500; }
+  .action-row { display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 1.5rem; }
+  .adj-btn { width: 64px; height: 64px; border-radius: 50%; border: none; cursor: pointer; font-size: 28px; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; color: #fff; }
+  .adj-btn:active { transform: scale(0.93); }
+  .adj-btn.minus { background: #c0392b; }
+  .adj-btn.plus  { background: #27ae60; }
+  .play-btn { padding: 12px 36px; border-radius: 24px; border: none; font-size: 17px; font-weight: 500; cursor: pointer; background: #1a1a1a; color: #fff; letter-spacing: 0.02em; }
+  .play-btn:hover { opacity: 0.85; }
+  .divider { border: none; border-top: 1px solid #eee; margin: 0 0 1.5rem; }
+</style>
+</head>
+<body>
+<div class="metro-wrap" role="main" aria-label="Metronome">
+
+  <div class="beat-row" id="beatRow"></div>
+
+  <div class="bpm-display">
+    <div class="bpm-num" id="bpmNum">120</div>
+    <div class="bpm-label">BPM</div>
+    <input class="bpm-input" type="number" id="bpmInput" min="30" max="240" value="120" aria-label="BPM value">
+  </div>
+
+  <div class="slider-row">
+    <span class="slider-label">30</span>
+    <input type="range" min="30" max="240" value="120" step="1" id="bpmSlider" aria-label="Tempo slider">
+    <span class="slider-label">240</span>
+  </div>
+
+  <div class="vol-row">
+    <i class="ti ti-volume vol-icon" aria-hidden="true"></i>
+    <input type="range" min="0" max="100" value="80" step="1" id="volSlider" aria-label="Volume slider">
+    <i class="ti ti-volume-2 vol-icon" aria-hidden="true"></i>
+  </div>
+
+  <div class="time-row" id="timeRow">
+    <button class="time-btn active" data-beats="4">4/4</button>
+    <button class="time-btn" data-beats="3">3/4</button>
+    <button class="time-btn" data-beats="2">2/2</button>
+  </div>
+
+  <hr class="divider">
+
+  <div class="action-row">
+    <button class="adj-btn minus" id="minusBtn" aria-label="Decrease BPM by 10">
+      <i class="ti ti-x" aria-hidden="true"></i>
+    </button>
+    <button class="play-btn" id="playBtn">Start</button>
+    <button class="adj-btn plus" id="plusBtn" aria-label="Increase BPM by 10">
+      <i class="ti ti-check" aria-hidden="true"></i>
+    </button>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  let bpm = 120;
+  let beatsPerBar = 4;
+  let currentBeat = -1;
+  let intervalId = null;
+  let running = false;
+  let audioCtx = null;
+  let volume = 0.8;
+
+  const bpmNum    = document.getElementById('bpmNum');
+  const bpmInput  = document.getElementById('bpmInput');
+  const bpmSlider = document.getElementById('bpmSlider');
+  const volSlider = document.getElementById('volSlider');
+  const beatRow   = document.getElementById('beatRow');
+  const playBtn   = document.getElementById('playBtn');
+
+  function getCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+
+  function playTick(isAccent) {
+    const ctx = getCtx();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'triangle';
+    osc.frequency.value = isAccent ? 1050 : 750;
+    const vol = volume * (isAccent ? 0.7 : 0.45);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (isAccent ? 0.12 : 0.08));
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
+  }
+
+  function buildDots() {
+    beatRow.innerHTML = '';
+    for (let i = 0; i < beatsPerBar; i++) {
+      const d = document.createElement('div');
+      d.className = 'beat-dot ' + (i === 0 ? 'accent' : 'normal');
+      d.id = 'dot' + i;
+      beatRow.appendChild(d);
+    }
+  }
+
+  function lightBeat(idx) {
+    for (let i = 0; i < beatsPerBar; i++) {
+      const d = document.getElementById('dot' + i);
+      if (!d) continue;
+      d.className = 'beat-dot ' + (i === 0 ? 'accent' : 'normal');
+    }
+    const active = document.getElementById('dot' + idx);
+    if (active) {
+      active.className = 'beat-dot ' + (idx === 0 ? 'lit-accent' : 'lit-normal');
+    }
+  }
+
+  function tick() {
+    currentBeat = (currentBeat + 1) % beatsPerBar;
+    lightBeat(currentBeat);
+    playTick(currentBeat === 0);
+  }
+
+  function startStop() {
+    if (running) {
+      clearInterval(intervalId);
+      running = false;
+      playBtn.textContent = 'Start';
+      for (let i = 0; i < beatsPerBar; i++) {
+        const d = document.getElementById('dot' + i);
+        if (d) d.className = 'beat-dot ' + (i === 0 ? 'accent' : 'normal');
+      }
+      currentBeat = -1;
+    } else {
+      running = true;
+      playBtn.textContent = 'Stop';
+      currentBeat = -1;
+      intervalId = setInterval(tick, 60000 / bpm);
+    }
+  }
+
+  function updateBpm(val) {
+    val = Math.max(30, Math.min(240, Math.round(val)));
+    bpm = val;
+    bpmNum.textContent = val;
+    bpmInput.value = val;
+    bpmSlider.value = val;
+    if (running) {
+      clearInterval(intervalId);
+      intervalId = setInterval(tick, 60000 / bpm);
+    }
+  }
+
+  buildDots();
+
+  bpmSlider.addEventListener('input', () => updateBpm(parseInt(bpmSlider.value)));
+  bpmInput.addEventListener('change', () => updateBpm(parseInt(bpmInput.value)));
+  bpmInput.addEventListener('keydown', e => { if (e.key === 'Enter') updateBpm(parseInt(bpmInput.value)); });
+  volSlider.addEventListener('input', () => { volume = parseInt(volSlider.value) / 100; });
+  document.getElementById('minusBtn').addEventListener('click', () => updateBpm(bpm - 10));
+  document.getElementById('plusBtn').addEventListener('click', () => updateBpm(bpm + 10));
+  playBtn.addEventListener('click', startStop);
+
+  document.getElementById('timeRow').addEventListener('click', e => {
+    const btn = e.target.closest('.time-btn');
+    if (!btn) return;
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    beatsPerBar = parseInt(btn.dataset.beats);
+    currentBeat = -1;
+    buildDots();
+    if (running) {
+      clearInterval(intervalId);
+      intervalId = setInterval(tick, 60000 / bpm);
+    }
+  });
+})();
+</script>
+</body>
+</html>

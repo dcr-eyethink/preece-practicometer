@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Preece Practicometer</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; background: #fff; color: #1a1a1a; overflow-x: hidden; }
+
+  /* Navigation */
+  .screen { display: none; min-height: 100vh; min-height: 100dvh; padding: 1rem; padding-bottom: 2rem; }
+  .screen.active { display: block; }
+  .nav-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e0e0e0; z-index: 100; }
+  .nav-btn { flex: 1; padding: 10px 0 max(10px, env(safe-area-inset-bottom)); border: none; background: none; font-size: 12px; color: #888; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .nav-btn.active { color: #1a56db; }
+  .nav-icon { font-size: 22px; }
+
+  /* Metronome */
+  .metro-screen { text-align: center; padding-top: 2rem; }
+  .beat-row { display: flex; justify-content: center; align-items: center; gap: 14px; margin-bottom: 1.5rem; height: 50px; }
+  .beat-dot { border-radius: 50%; transition: background 0.05s, box-shadow 0.05s; }
+  .beat-dot.accent { width: 34px; height: 34px; background: #1a4a8a; }
+  .beat-dot.normal { width: 22px; height: 22px; background: #1a4a8a; }
+  .beat-dot.lit-accent { width: 34px; height: 34px; background: #1565ff; box-shadow: 0 0 18px 6px rgba(30,120,255,0.5); }
+  .beat-dot.lit-normal { width: 22px; height: 22px; background: #3b8bff; box-shadow: 0 0 10px 4px rgba(60,140,255,0.4); }
+  .bpm-num { font-size: 64px; font-weight: 500; line-height: 1; }
+  .bpm-label { font-size: 14px; color: #888; margin: 4px 0 12px; }
+  .bpm-input { width: 80px; font-size: 20px; text-align: center; border: 1px solid #ccc; border-radius: 8px; padding: 6px 8px; background: #f9f9f9; }
+  .slider-row { display: flex; align-items: center; gap: 10px; margin: 1rem auto; max-width: 340px; }
+  .slider-row span { font-size: 12px; color: #888; }
+  .slider-row input[type=range] { flex: 1; }
+  .vol-row { display: flex; align-items: center; gap: 10px; margin: 0.5rem auto 1rem; max-width: 340px; }
+  .vol-row span { font-size: 16px; color: #888; }
+  .vol-row input[type=range] { flex: 1; }
+  .time-sig-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 1.5rem; }
+  .ts-btn { padding: 8px 20px; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9; color: #555; font-size: 16px; cursor: pointer; }
+  .ts-btn.active { background: #e8f0fe; color: #1a56db; border-color: #a0b4f0; font-weight: 600; }
+  .metro-actions { display: flex; align-items: center; justify-content: center; gap: 20px; }
+  .adj-btn { width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: center; }
+  .adj-btn.minus { background: #c0392b; }
+  .adj-btn.plus { background: #27ae60; }
+  .play-btn { padding: 14px 40px; border-radius: 28px; border: none; font-size: 18px; font-weight: 600; cursor: pointer; background: #1a1a1a; color: #fff; }
+
+  /* Sets list */
+  .sets-screen { padding-top: 1rem; }
+  .sets-screen h2 { margin: 0 0 1rem; font-size: 22px; font-weight: 700; }
+  .set-list { list-style: none; padding: 0; margin: 0 0 1rem; }
+  .set-list li { padding: 14px 16px; border: 1px solid #e0e0e0; border-radius: 10px; margin-bottom: 8px; cursor: pointer; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .set-list li:active { background: #f0f0f0; }
+  .set-list li .arrow { color: #ccc; font-size: 18px; }
+  .sets-empty { color: #888; text-align: center; padding: 2rem 0; }
+  .import-info { font-size: 13px; color: #999; margin-top: 1rem; text-align: center; line-height: 1.5; }
+
+  /* Editor */
+  .editor-screen { padding-top: 0.5rem; }
+  .editor-screen h2 { margin: 0 0 0.75rem; font-size: 20px; font-weight: 700; }
+  .ed-toolbar { display: flex; gap: 6px; margin-bottom: 0.75rem; flex-wrap: wrap; }
+  .ed-btn { padding: 8px 14px; border: 1px solid #ccc; border-radius: 8px; font-size: 13px; cursor: pointer; background: #f9f9f9; color: #555; font-weight: 500; }
+  .ed-btn:active { background: #e0e0e0; }
+  .ed-btn-primary { background: #1a56db; color: #fff; border-color: #1a56db; }
+  .ed-btn-save { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  .ed-btn-back { background: #555; color: #fff; border-color: #555; }
+  .total-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem; }
+  .total-label { font-size: 14px; color: #555; }
+  .total-val { font-size: 20px; font-weight: 700; }
+  .total-unit { font-size: 13px; color: #888; }
+  .scale-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem; }
+  .scale-row span { font-size: 12px; color: #888; }
+  .scale-row input[type=range] { flex: 1; }
+  .ed-table { width: 100%; border-collapse: collapse; }
+  .ed-table th { text-align: left; padding: 6px 4px; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; border-bottom: 2px solid #ddd; }
+  .ed-table td { padding: 4px 2px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  .ed-table input { width: 100%; border: 1px solid #eee; padding: 8px 6px; font-size: 14px; border-radius: 6px; font-family: inherit; }
+  .ed-table input:focus { border-color: #a0b4f0; outline: none; }
+  .ed-table .time-inp { width: 50px; text-align: center; }
+  .row-actions { white-space: nowrap; }
+  .row-btn { background: none; border: none; font-size: 18px; color: #ccc; padding: 4px 6px; cursor: pointer; }
+  .row-btn:active { opacity: 0.5; }
+  .row-btn.del:active { color: #c0392b; }
+  .row-btn.add:active { color: #27ae60; }
+  .ed-status { font-size: 12px; color: #888; margin-top: 0.5rem; }
+
+  /* Practice */
+  .practice-screen { text-align: center; padding-top: 1.5rem; }
+  .p-index { font-size: 13px; color: #999; margin-bottom: 0.5rem; }
+  .p-activity { font-size: 28px; font-weight: 700; margin-bottom: 1.5rem; line-height: 1.3; padding: 0 1rem; }
+  .p-timer-wrap { position: relative; width: 200px; height: 200px; margin: 0 auto 1.5rem; }
+  .p-timer-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .p-timer-bg { fill: none; stroke: #e0e0e0; stroke-width: 14; transition: stroke 0.3s; }
+  .p-timer-fg { fill: none; stroke: #1a56db; stroke-width: 14; stroke-linecap: round; transition: stroke 0.3s; }
+  .p-timer-fg.done { stroke: #e74c3c; }
+  .p-timer-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 600; }
+  @keyframes throb { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
+  .p-timer-wrap.throb .p-timer-bg { stroke: #e74c3c; animation: throb 1.5s ease-in-out infinite; }
+  .p-timer-wrap.throb .p-timer-fg { stroke: #e74c3c; animation: throb 1.5s ease-in-out infinite; }
+  .p-timer-wrap.throb .p-timer-text { animation: throb 1.5s ease-in-out infinite; color: #e74c3c; }
+  .p-controls { display: flex; justify-content: center; gap: 12px; margin-bottom: 1.5rem; }
+  .p-btn { padding: 12px 28px; border: none; border-radius: 14px; font-size: 16px; font-weight: 600; cursor: pointer; }
+  .p-btn-go { background: #27ae60; color: #fff; }
+  .p-btn-pause { background: #f39c12; color: #fff; }
+  .p-btn-restart { background: #888; color: #fff; }
+  .p-btn-next { background: #1a1a1a; color: #fff; }
+  .p-btn-stop { background: #c0392b; color: #fff; margin-top: 1rem; }
+  .p-session { font-size: 13px; color: #999; margin-top: 1rem; }
+  .p-session span { font-weight: 600; color: #666; }
+  .p-done { font-size: 26px; font-weight: 700; color: #27ae60; margin: 2rem 0; }
+
+  /* bottom nav padding */
+  .screen { padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+</style>
+</head>
+<body>
+
+<!-- NAV BAR -->
+<div class="nav-bar">
+  <button class="nav-btn active" data-screen="metronome"><span class="nav-icon">&#9834;</span>Metronome</button>
+  <button class="nav-btn" data-screen="sets"><span class="nav-icon">&#9776;</span>Sets</button>
+  <button class="nav-btn" data-screen="editor" id="navEditor" style="display:none"><span class="nav-icon">&#9998;</span>Editor</button>
+  <button class="nav-btn" data-screen="practice" id="navPractice" style="display:none"><span class="nav-icon">&#9654;</span>Practice</button>
+</div>
+
+<!-- METRONOME SCREEN -->
+<div class="screen metro-screen active" id="screen-metronome">
+  <div class="beat-row" id="mBeatRow"></div>
+  <div class="bpm-num" id="mBpmNum">120</div>
+  <div class="bpm-label">BPM</div>
+  <input class="bpm-input" type="number" id="mBpmInput" min="30" max="240" value="120"><br>
+  <div class="slider-row"><span>30</span><input type="range" min="30" max="240" value="120" id="mBpmSlider"><span>240</span></div>
+  <div class="vol-row"><span>&#128264;</span><input type="range" min="0" max="100" value="80" id="mVolSlider"><span>&#128266;</span></div>
+  <div class="time-sig-row" id="mTimeRow">
+    <button class="ts-btn active" data-beats="4">4/4</button>
+    <button class="ts-btn" data-beats="3">3/4</button>
+    <button class="ts-btn" data-beats="2">2/2</button>
+  </div>
+  <div class="metro-actions">
+    <button class="adj-btn minus" id="mMinus">-10</button>
+    <button class="play-btn" id="mPlay">Start</button>
+    <button class="adj-btn plus" id="mPlus">+10</button>
+  </div>
+</div>
+
+<!-- SETS SCREEN -->
+<div class="screen sets-screen" id="screen-sets">
+  <h2>Practice Sets</h2>
+  <ul class="set-list" id="wSetList"></ul>
+  <div class="sets-empty" id="wSetsEmpty" style="display:none">No practice sets yet</div>
+  <div class="import-info">Practice sets are saved in your browser. Tap a set to edit it.</div>
+</div>
+
+<!-- EDITOR SCREEN -->
+<div class="screen editor-screen" id="screen-editor">
+  <h2 id="wEdTitle">Practice Set</h2>
+  <div class="ed-toolbar">
+    <button class="ed-btn ed-btn-primary" id="wStartPractice">Start Practice</button>
+    <button class="ed-btn ed-btn-save" id="wSave">Save</button>
+    <button class="ed-btn" id="wDup">Duplicate</button>
+    <button class="ed-btn ed-btn-back" id="wBack">Back</button>
+  </div>
+  <div class="total-row">
+    <span class="total-label">Total:</span>
+    <span class="total-val" id="wTotalVal">0</span>
+    <span class="total-unit">min</span>
+  </div>
+  <div class="scale-row"><span>1</span><input type="range" min="1" max="240" value="1" id="wScale"><span>240</span></div>
+  <table class="ed-table">
+    <thead><tr><th>Activity</th><th style="width:60px">Time</th><th style="width:50px"></th></tr></thead>
+    <tbody id="wTbody"></tbody>
+  </table>
+  <div class="ed-status" id="wStatus"></div>
+</div>
+
+<!-- PRACTICE SCREEN -->
+<div class="screen practice-screen" id="screen-practice">
+  <div class="p-index" id="wPIdx"></div>
+  <div class="p-activity" id="wPAct"></div>
+  <div class="p-timer-wrap" id="wTimerWrap">
+    <svg viewBox="0 0 100 100">
+      <circle class="p-timer-bg" cx="50" cy="50" r="43"/>
+      <circle class="p-timer-fg" id="wTimerFg" cx="50" cy="50" r="43"/>
+    </svg>
+    <div class="p-timer-text" id="wTimerText">0:00</div>
+  </div>
+  <div class="p-controls" id="wPControls">
+    <button class="p-btn p-btn-go" id="wGo">Go</button>
+    <button class="p-btn p-btn-pause" id="wPause" style="display:none">Pause</button>
+    <button class="p-btn p-btn-restart" id="wRestart">Restart</button>
+    <button class="p-btn p-btn-next" id="wNext">Next</button>
+  </div>
+  <div class="p-done" id="wPDone" style="display:none">Practice Complete!</div>
+  <button class="p-btn p-btn-stop" id="wStopPractice">End Practice</button>
+  <div class="p-session">Session: <span id="wSessionTime">0:00</span></div>
+</div>
+
+<script>
+(function() {
+
+  // ==================== STORAGE ====================
+  const DEFAULT_SETS = {
+    'June24': [
+      { activity: 'hannon 5 & 6', time: 3 },
+      { activity: '4 stack inversions', time: 3 },
+      { activity: '4 stack extended inversions', time: 3 },
+      { activity: 'Enclosures on 4 stack (diatonic; chromatic)', time: 10 },
+      { activity: 'AL with walk ups and scales landing on 1,3,5', time: 5 },
+      { activity: 'AL free play', time: 10 }
+    ]
+  };
+
+  function loadAllSets() {
+    const stored = localStorage.getItem('pp_sets');
+    if (stored) return JSON.parse(stored);
+    localStorage.setItem('pp_sets', JSON.stringify(DEFAULT_SETS));
+    return JSON.parse(JSON.stringify(DEFAULT_SETS));
+  }
+  function saveAllSets(sets) { localStorage.setItem('pp_sets', JSON.stringify(sets)); }
+
+  // ==================== NAVIGATION ====================
+  let currentScreen = 'metronome';
+  function showScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + name).classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.screen === name));
+    currentScreen = name;
+  }
+  document.querySelector('.nav-bar').addEventListener('click', e => {
+    const btn = e.target.closest('.nav-btn');
+    if (btn && btn.style.display !== 'none') showScreen(btn.dataset.screen);
+  });
+
+  // ==================== METRONOME ====================
+  let bpm = 120, beatsPerBar = 4, curBeat = -1, mInterval = null, mRunning = false, audioCtx = null, volume = 0.8;
+  function getCtx() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+
+  // Generate click samples in memory
+  let tickBuf = null, tockBuf = null;
+  function genClickBuf(ctx, highPitch) {
+    const rate = ctx.sampleRate, dur = 0.04, n = Math.round(rate * dur);
+    const buf = ctx.createBuffer(1, n, rate), data = buf.getChannelData(0);
+    const f1 = highPitch ? 1800 : 1200, f2 = highPitch ? 3200 : 2400;
+    for (let i = 0; i < n; i++) {
+      const t = i / rate;
+      const env = Math.exp(-t * 180), env2 = Math.exp(-t * 300);
+      const click = Math.exp(-t * 600) * (Math.random() * 2 - 1);
+      data[i] = (click * 0.7 + Math.sin(2 * Math.PI * f1 * t) * env * 0.5 + Math.sin(2 * Math.PI * f2 * t) * env2 * 0.25) * 0.8;
+    }
+    return buf;
+  }
+  function ensureSamples() {
+    const ctx = getCtx();
+    if (!tickBuf) { tickBuf = genClickBuf(ctx, true); tockBuf = genClickBuf(ctx, false); }
+  }
+  function playTick(isAccent) {
+    ensureSamples();
+    const ctx = getCtx(), src = ctx.createBufferSource(), gain = ctx.createGain();
+    src.buffer = isAccent ? tickBuf : tockBuf;
+    src.connect(gain); gain.connect(ctx.destination); gain.gain.value = volume;
+    src.start(ctx.currentTime);
+  }
+
+  function buildDots() {
+    const row = document.getElementById('mBeatRow'); row.innerHTML = '';
+    for (let i = 0; i < beatsPerBar; i++) { const d = document.createElement('div'); d.className = 'beat-dot ' + (i===0?'accent':'normal'); d.id = 'md'+i; row.appendChild(d); }
+  }
+  function lightBeat(idx) {
+    for (let i = 0; i < beatsPerBar; i++) { const d = document.getElementById('md'+i); if(d) d.className = 'beat-dot '+(i===0?'accent':'normal'); }
+    const a = document.getElementById('md'+idx); if(a) a.className = 'beat-dot '+(idx===0?'lit-accent':'lit-normal');
+  }
+  function mTick() { curBeat = (curBeat+1) % beatsPerBar; lightBeat(curBeat); playTick(curBeat===0); }
+  function mStartStop() {
+    const btn = document.getElementById('mPlay');
+    if (mRunning) { clearInterval(mInterval); mRunning = false; btn.textContent = 'Start'; for(let i=0;i<beatsPerBar;i++){const d=document.getElementById('md'+i);if(d)d.className='beat-dot '+(i===0?'accent':'normal');} curBeat=-1; }
+    else { ensureSamples(); mRunning = true; btn.textContent = 'Stop'; curBeat=-1; mInterval = setInterval(mTick, 60000/bpm); }
+  }
+  function updateBpm(v) {
+    v = Math.max(30,Math.min(240,Math.round(v))); bpm=v;
+    document.getElementById('mBpmNum').textContent = v;
+    document.getElementById('mBpmInput').value = v;
+    document.getElementById('mBpmSlider').value = v;
+    if(mRunning){clearInterval(mInterval);mInterval=setInterval(mTick,60000/bpm);}
+  }
+  buildDots();
+  document.getElementById('mBpmSlider').addEventListener('input', e => updateBpm(parseInt(e.target.value)));
+  document.getElementById('mBpmInput').addEventListener('change', e => updateBpm(parseInt(e.target.value)));
+  document.getElementById('mVolSlider').addEventListener('input', e => { volume = parseInt(e.target.value)/100; });
+  document.getElementById('mMinus').addEventListener('click', () => updateBpm(bpm-10));
+  document.getElementById('mPlus').addEventListener('click', () => updateBpm(bpm+10));
+  document.getElementById('mPlay').addEventListener('click', mStartStop);
+  document.getElementById('mTimeRow').addEventListener('click', e => {
+    const b = e.target.closest('.ts-btn'); if(!b) return;
+    document.querySelectorAll('.ts-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active');
+    beatsPerBar = parseInt(b.dataset.beats); curBeat=-1; buildDots();
+    if(mRunning){clearInterval(mInterval);mInterval=setInterval(mTick,60000/bpm);}
+  });
+
+  // ==================== SETS LIST ====================
+  function renderSetsList() {
+    const sets = loadAllSets();
+    const list = document.getElementById('wSetList');
+    const empty = document.getElementById('wSetsEmpty');
+    const names = Object.keys(sets).sort();
+    list.innerHTML = '';
+    if (names.length === 0) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    for (const name of names) {
+      const li = document.createElement('li');
+      const total = sets[name].reduce((s,r) => s + (parseFloat(r.time)||0), 0);
+      li.innerHTML = '<span>' + name + '</span><span class="arrow" style="color:#888;font-size:13px">' + Math.round(total) + ' min  &#8250;</span>';
+      li.addEventListener('click', () => openEditor(name));
+      list.appendChild(li);
+    }
+  }
+
+  // ==================== EDITOR ====================
+  let edName = null, edRows = [], baseRatios = [];
+
+  function openEditor(name) {
+    const sets = loadAllSets();
+    edName = name;
+    edRows = JSON.parse(JSON.stringify(sets[name]));
+    document.getElementById('wEdTitle').textContent = name;
+    document.getElementById('navEditor').style.display = '';
+    renderEdTable();
+    updateEdTotal();
+    snapshotRatios();
+    showScreen('editor');
+  }
+
+  function renderEdTable() {
+    const tbody = document.getElementById('wTbody');
+    tbody.innerHTML = '';
+    edRows.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      const tdA = document.createElement('td');
+      const inA = document.createElement('input'); inA.value = row.activity;
+      inA.addEventListener('input', () => { edRows[i].activity = inA.value; });
+      tdA.appendChild(inA); tr.appendChild(tdA);
+
+      const tdT = document.createElement('td');
+      const inT = document.createElement('input'); inT.className = 'time-inp'; inT.value = row.time; inT.inputMode = 'numeric';
+      inT.addEventListener('input', () => { edRows[i].time = inT.value; updateEdTotal(); snapshotRatios(); });
+      tdT.appendChild(inT); tr.appendChild(tdT);
+
+      const tdActs = document.createElement('td'); tdActs.className = 'row-actions';
+      const addB = document.createElement('button'); addB.className = 'row-btn add'; addB.textContent = '+';
+      addB.addEventListener('click', () => { edRows.splice(i+1, 0, {activity:'',time:''}); renderEdTable(); updateEdTotal(); snapshotRatios(); });
+      const delB = document.createElement('button'); delB.className = 'row-btn del'; delB.textContent = '×';
+      delB.addEventListener('click', () => { edRows.splice(i,1); renderEdTable(); updateEdTotal(); snapshotRatios(); });
+      tdActs.appendChild(addB); tdActs.appendChild(delB); tr.appendChild(tdActs);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function getEdTotal() { return edRows.reduce((s,r) => s + (parseFloat(r.time)||0), 0); }
+  function updateEdTotal() { const t = Math.round(getEdTotal()); document.getElementById('wTotalVal').textContent = t; document.getElementById('wScale').value = t; }
+  function snapshotRatios() { const t = getEdTotal(); baseRatios = edRows.map(r => t>0 ? (parseFloat(r.time)||0)/t : 0); }
+
+  document.getElementById('wScale').addEventListener('input', e => {
+    const nt = parseInt(e.target.value);
+    if (baseRatios.length !== edRows.length) snapshotRatios();
+    edRows.forEach((r,i) => { r.time = Math.round(baseRatios[i]*nt*10)/10; });
+    document.getElementById('wTotalVal').textContent = Math.round(nt);
+    renderEdTable();
+  });
+
+  document.getElementById('wSave').addEventListener('click', () => {
+    const sets = loadAllSets(); sets[edName] = JSON.parse(JSON.stringify(edRows)); saveAllSets(sets);
+    const st = document.getElementById('wStatus'); st.textContent = 'Saved.'; setTimeout(()=>{st.textContent='';},2000);
+  });
+
+  document.getElementById('wDup').addEventListener('click', () => {
+    const sets = loadAllSets();
+    let newName = edName + ' copy', c = 2;
+    while (sets[newName]) { newName = edName + ' copy ' + c; c++; }
+    sets[newName] = JSON.parse(JSON.stringify(edRows)); saveAllSets(sets);
+    openEditor(newName);
+    const st = document.getElementById('wStatus'); st.textContent = 'Duplicated.'; setTimeout(()=>{st.textContent='';},2000);
+  });
+
+  document.getElementById('wBack').addEventListener('click', () => {
+    document.getElementById('navEditor').style.display = 'none';
+    document.getElementById('navPractice').style.display = 'none';
+    renderSetsList();
+    showScreen('sets');
+  });
+
+  // ==================== PRACTICE ====================
+  const CIRC = 2 * Math.PI * 43;
+  let pIdx = 0, pTotalSec = 0, pRemain = 0, pTimerId = null;
+  let sessionTimerId = null, sessionElapsed = 0, sessionStarted = false;
+  const timerFg = document.getElementById('wTimerFg');
+  timerFg.setAttribute('stroke-dasharray', CIRC);
+
+  function fmtTime(s) { return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
+
+  function playChime() {
+    const ctx = getCtx(), t = ctx.currentTime;
+    [523.25, 659.25, 783.99].forEach((freq, i) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + i*0.15);
+      gain.gain.setValueAtTime(0, t); gain.gain.setValueAtTime(0.25, t + i*0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i*0.15 + 1.2);
+      osc.start(t + i*0.15); osc.stop(t + i*0.15 + 1.3);
+    });
+  }
+
+  function updatePCircle() {
+    const frac = pTotalSec > 0 ? pRemain/pTotalSec : 0;
+    timerFg.setAttribute('stroke-dashoffset', CIRC*(1-frac));
+    const wrap = document.getElementById('wTimerWrap');
+    if (pRemain <= 0 && pTotalSec > 0) { timerFg.classList.add('done'); wrap.classList.add('throb'); }
+    else { timerFg.classList.remove('done'); wrap.classList.remove('throb'); }
+    document.getElementById('wTimerText').textContent = fmtTime(Math.max(0, pRemain));
+  }
+
+  function loadPItem(idx, autoStart) {
+    stopPTimer(); pIdx = idx;
+    const act = document.getElementById('wPAct'), idxEl = document.getElementById('wPIdx');
+    const wrap = document.getElementById('wTimerWrap'), ctrl = document.getElementById('wPControls');
+    const done = document.getElementById('wPDone');
+    if (idx >= edRows.length) {
+      act.style.display = 'none'; idxEl.style.display = 'none'; wrap.style.display = 'none'; ctrl.style.display = 'none';
+      done.style.display = 'block'; return;
+    }
+    act.style.display = ''; idxEl.style.display = ''; wrap.style.display = ''; ctrl.style.display = 'flex'; done.style.display = 'none';
+    act.textContent = edRows[idx].activity;
+    idxEl.textContent = (idx+1) + ' of ' + edRows.length;
+    const mins = parseFloat(edRows[idx].time) || 0;
+    pTotalSec = Math.round(mins * 60); pRemain = pTotalSec;
+    document.getElementById('wGo').style.display = '';
+    document.getElementById('wPause').style.display = 'none';
+    updatePCircle();
+    if (autoStart) startPTimer();
+  }
+
+  function startPTimer() {
+    if (pTimerId) return;
+    if (!sessionStarted) { sessionStarted = true; startSessionTimer(); }
+    document.getElementById('wGo').style.display = 'none';
+    document.getElementById('wPause').style.display = '';
+    pTimerId = setInterval(() => {
+      if (pRemain > 0) { pRemain--; updatePCircle(); if (pRemain <= 0) playChime(); }
+      else { stopPTimer(); document.getElementById('wPause').style.display = 'none'; document.getElementById('wGo').style.display = 'none'; }
+    }, 1000);
+  }
+  function stopPTimer() {
+    if (pTimerId) { clearInterval(pTimerId); pTimerId = null; }
+    document.getElementById('wGo').style.display = '';
+    document.getElementById('wPause').style.display = 'none';
+  }
+  function startSessionTimer() {
+    sessionElapsed = 0;
+    if (sessionTimerId) clearInterval(sessionTimerId);
+    sessionTimerId = setInterval(() => { sessionElapsed++; document.getElementById('wSessionTime').textContent = fmtTime(sessionElapsed); }, 1000);
+  }
+  function stopSessionTimer() { if (sessionTimerId) { clearInterval(sessionTimerId); sessionTimerId = null; } }
+
+  document.getElementById('wGo').addEventListener('click', startPTimer);
+  document.getElementById('wPause').addEventListener('click', stopPTimer);
+  document.getElementById('wRestart').addEventListener('click', () => loadPItem(pIdx, true));
+  document.getElementById('wNext').addEventListener('click', () => loadPItem(pIdx+1, true));
+
+  document.getElementById('wStartPractice').addEventListener('click', () => {
+    if (edRows.length === 0) return;
+    document.getElementById('navPractice').style.display = '';
+    sessionStarted = false; sessionElapsed = 0;
+    document.getElementById('wSessionTime').textContent = '0:00';
+    loadPItem(0);
+    showScreen('practice');
+  });
+
+  document.getElementById('wStopPractice').addEventListener('click', () => {
+    stopPTimer(); stopSessionTimer();
+    document.getElementById('navPractice').style.display = 'none';
+    showScreen('editor');
+  });
+
+  // ==================== INIT ====================
+  renderSetsList();
+
+})();
+</script>
+</body>
+</html>

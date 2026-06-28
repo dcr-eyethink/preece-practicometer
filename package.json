@@ -1,0 +1,34 @@
+{
+  "name": "preece-practicometer",
+  "version": "1.0.0",
+  "description": "Desktop metronome and practice tool",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build": "electron-builder --mac --win"
+  },
+  "build": {
+    "appId": "org.eyethink.preece-practicometer",
+    "productName": "Preece Practicometer",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "tick.wav",
+      "tock.wav"
+    ],
+    "mac": {
+      "target": "dir",
+      "category": "public.app-category.music"
+    },
+    "win": {
+      "target": "dir"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

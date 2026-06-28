@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Edit Practice Set</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; font-family: system-ui, sans-serif; background: #fff; color: #1a1a1a; display: flex; overflow: hidden; height: 100vh; }
+
+  /* LEFT: editor panel */
+  .editor-panel { width: 600px; min-width: 400px; padding: 1.5rem; overflow-y: auto; flex-shrink: 0; }
+  h2 { margin: 0 0 1rem; font-size: 20px; font-weight: 600; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
+  .btn { padding: 7px 16px; border: 1px solid #ccc; border-radius: 8px; font-size: 13px; cursor: pointer; background: #f9f9f9; color: #555; font-weight: 500; }
+  .btn:hover { background: #eee; }
+  .btn-save { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  .btn-save:hover { opacity: 0.85; }
+  .btn-practice { background: #1a56db; color: #fff; border-color: #1a56db; }
+  .btn-practice:hover { opacity: 0.85; }
+  .btn-danger { color: #c0392b; border-color: #e0b0b0; }
+  .btn-danger:hover { background: #fdf0f0; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+  th { text-align: left; padding: 8px 10px; background: #f5f5f5; border-bottom: 2px solid #ddd; font-size: 13px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  th.col-play { width: 32px; }
+  th.col-drag { width: 28px; }
+  th.col-time { width: 110px; }
+  .time-cell { display: flex; align-items: center; gap: 2px; }
+  .time-arrows { display: flex; flex-direction: column; gap: 0; }
+  .time-arrow { background: none; border: none; cursor: pointer; font-size: 10px; color: #999; padding: 0 4px; line-height: 1.1; }
+  .time-arrow:hover { color: #1a56db; }
+  th.col-del { width: 36px; }
+  .playhead-cell { text-align: center; cursor: pointer; padding: 4px; }
+  .playhead-cell:hover { background: #eef3ff; border-radius: 4px; }
+  .playhead-icon { font-size: 18px; color: #ccc; }
+  .playhead-icon.active { color: #1a56db; }
+  td { padding: 2px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  td input { width: 100%; border: 1px solid transparent; padding: 7px 8px; font-size: 14px; font-family: inherit; border-radius: 4px; }
+  td input:focus { border-color: #a0b4f0; outline: none; background: #f8faff; }
+  td input.time-input { width: 60px; text-align: center; }
+  .del-btn { background: none; border: none; cursor: pointer; font-size: 16px; color: #ccc; padding: 4px 8px; border-radius: 4px; }
+  .del-btn:hover { color: #c0392b; background: #fdf0f0; }
+  .drag-handle { cursor: grab; color: #bbb; font-size: 16px; padding: 4px 6px; user-select: none; }
+  .drag-handle:active { cursor: grabbing; }
+  tr.dragging { opacity: 0.4; }
+  tr.drag-over td { border-top: 2px solid #1a56db; }
+  .total-row { display: flex; align-items: center; gap: 12px; margin-bottom: 0.75rem; }
+  .total-label { font-size: 14px; color: #555; font-weight: 500; }
+  .total-value { font-size: 22px; font-weight: 700; color: #1a1a1a; min-width: 50px; }
+  .total-unit { font-size: 13px; color: #888; }
+  .scale-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+  .scale-row input[type=range] { flex: 1; }
+  .scale-label { font-size: 12px; color: #888; min-width: 28px; }
+  .status { font-size: 12px; color: #888; margin-top: 0.5rem; }
+
+  /* RIGHT: practice panel */
+  .practice-panel {
+    flex: 1; min-width: 380px; background: #f8f9fb; border-left: 1px solid #e0e0e0;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    padding: 2rem; position: relative;
+  }
+  .practice-panel.active { display: flex; }
+  .practice-close { position: absolute; top: 12px; right: 16px; background: none; border: none; font-size: 22px; cursor: pointer; color: #999; }
+  .practice-close:hover { color: #333; }
+  .practice-activity { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 1.5rem; color: #1a1a1a; line-height: 1.2; }
+  .practice-index { font-size: 13px; color: #999; margin-bottom: 0.5rem; }
+
+  /* Timer circle */
+  .timer-wrap { position: relative; width: 220px; height: 220px; margin-bottom: 1.5rem; }
+  .timer-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .timer-bg { fill: none; stroke: #e0e0e0; stroke-width: 14; }
+  .timer-fg { fill: none; stroke: #1a56db; stroke-width: 14; stroke-linecap: round; transition: stroke 0.3s; }
+  .timer-fg.done { stroke: #e74c3c; }
+  .timer-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 600; color: #1a1a1a; }
+
+  /* Throb animation */
+  @keyframes throb {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .timer-wrap.throb .timer-fg { animation: throb 1.5s ease-in-out infinite; }
+  .timer-wrap.throb .timer-text { animation: throb 1.5s ease-in-out infinite; color: #e74c3c; }
+
+  .practice-controls { display: flex; gap: 12px; }
+  .pbtn { padding: 10px 28px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .pbtn-go { background: #27ae60; color: #fff; }
+  .pbtn-go:hover { opacity: 0.85; }
+  .pbtn-pause { background: #f39c12; color: #fff; }
+  .pbtn-pause:hover { opacity: 0.85; }
+  .pbtn-next { background: #1a1a1a; color: #fff; }
+  .pbtn-next:hover { opacity: 0.85; }
+
+  .practice-done { font-size: 28px; font-weight: 700; color: #27ae60; }
+</style>
+</head>
+<body>
+
+<!-- Editor -->
+<div class="editor-panel">
+  <h2 id="title">Practice Set</h2>
+  <div class="toolbar">
+    <button class="btn btn-save" id="saveBtn">Save</button>
+    <button class="btn" id="dupBtn">Duplicate</button>
+    <button class="btn" id="addBtn">+ Add Row</button>
+    <button class="btn btn-practice" id="practiceBtn">Start Practice</button>
+    <button class="btn btn-danger" id="closeBtn">Close</button>
+  </div>
+  <div class="total-row">
+    <span class="total-label">Total practice time:</span>
+    <span class="total-value" id="totalValue">0</span>
+    <span class="total-unit">min</span>
+  </div>
+  <div class="scale-row">
+    <span class="scale-label">1</span>
+    <input type="range" min="1" max="240" value="1" step="1" id="scaleSlider">
+    <span class="scale-label">240</span>
+  </div>
+  <table>
+    <thead><tr><th class="col-play" id="thPlay" style="display:none"></th><th class="col-drag"></th><th>Activity</th><th class="col-time">Time</th><th class="col-del"></th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="status" id="status"></div>
+</div>
+
+<!-- Practice panel -->
+<div class="practice-panel" id="practicePanel">
+  <button class="practice-close" id="practiceClose" title="Close practice">×</button>
+  <div class="practice-index" id="practiceIndex"></div>
+  <div class="practice-activity" id="practiceActivity"></div>
+  <div class="timer-wrap" id="timerWrap">
+    <svg viewBox="0 0 100 100">
+      <circle class="timer-bg" cx="50" cy="50" r="43"/>
+      <circle class="timer-fg" id="timerFg" cx="50" cy="50" r="43"/>
+    </svg>
+    <div class="timer-text" id="timerText">0:00</div>
+  </div>
+  <div class="practice-controls" id="practiceControls">
+    <button class="pbtn pbtn-go" id="goBtn">Go</button>
+    <button class="pbtn pbtn-pause" id="pauseBtn" style="display:none">Pause</button>
+    <button class="pbtn pbtn-next" id="nextBtn">Next</button>
+  </div>
+  <div class="practice-done" id="practiceDone" style="display:none">Practice Complete!</div>
+</div>
+
+<script>
+(function() {
+  let filePath = null;
+  let rows = [];
+  let practiceActive = false;
+  let baseRatios = [];
+
+  const totalValueEl = document.getElementById('totalValue');
+  const scaleSlider = document.getElementById('scaleSlider');
+
+  function getTotalMins() {
+    return rows.reduce((sum, r) => sum + (parseFloat(r.time) || 0), 0);
+  }
+
+  function updateTotal() {
+    const total = Math.round(getTotalMins());
+    totalValueEl.textContent = total;
+    scaleSlider.value = total;
+  }
+
+  function snapshotRatios() {
+    const total = getTotalMins();
+    baseRatios = rows.map(r => total > 0 ? (parseFloat(r.time) || 0) / total : 0);
+  }
+
+  scaleSlider.addEventListener('input', () => {
+    const newTotal = parseInt(scaleSlider.value);
+    if (baseRatios.length !== rows.length) snapshotRatios();
+    rows.forEach((r, i) => {
+      r.time = Math.round(baseRatios[i] * newTotal * 10) / 10;
+    });
+    totalValueEl.textContent = Math.round(newTotal);
+    render();
+  });
+
+  // --- Drag state ---
+  let dragIdx = null;
+
+  function render() {
+    const tbody = document.getElementById('tbody');
+    const thPlay = document.getElementById('thPlay');
+    thPlay.style.display = practiceActive ? '' : 'none';
+    tbody.innerHTML = '';
+    rows.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.draggable = true;
+      tr.dataset.idx = i;
+
+      tr.addEventListener('dragstart', e => {
+        dragIdx = i;
+        tr.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      tr.addEventListener('dragend', () => {
+        tr.classList.remove('dragging');
+        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        dragIdx = null;
+      });
+      tr.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        if (dragIdx !== null && dragIdx !== i) tr.classList.add('drag-over');
+      });
+      tr.addEventListener('dragleave', () => tr.classList.remove('drag-over'));
+      tr.addEventListener('drop', e => {
+        e.preventDefault();
+        tr.classList.remove('drag-over');
+        if (dragIdx === null || dragIdx === i) return;
+        const moved = rows.splice(dragIdx, 1)[0];
+        rows.splice(i, 0, moved);
+        dragIdx = null;
+        render();
+      });
+
+      if (practiceActive) {
+        const tdPlay = document.createElement('td');
+        tdPlay.className = 'playhead-cell';
+        const icon = document.createElement('span');
+        icon.className = 'playhead-icon' + (i === practiceIdx ? ' active' : '');
+        icon.textContent = i === practiceIdx ? '▶' : '·';
+        tdPlay.appendChild(icon);
+        tdPlay.addEventListener('click', () => goToItem(i));
+        tr.appendChild(tdPlay);
+      }
+
+      const tdDrag = document.createElement('td');
+      const handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.textContent = '⠿';
+      tdDrag.appendChild(handle);
+      tr.appendChild(tdDrag);
+
+      const tdAct = document.createElement('td');
+      const inAct = document.createElement('input');
+      inAct.type = 'text';
+      inAct.value = row.activity;
+      inAct.addEventListener('input', () => { rows[i].activity = inAct.value; });
+      tdAct.appendChild(inAct);
+      tr.appendChild(tdAct);
+
+      const tdTime = document.createElement('td');
+      const timeCell = document.createElement('div');
+      timeCell.className = 'time-cell';
+      const inTime = document.createElement('input');
+      inTime.type = 'text';
+      inTime.className = 'time-input';
+      inTime.value = row.time;
+      inTime.addEventListener('input', () => { rows[i].time = inTime.value; updateTotal(); snapshotRatios(); });
+      const arrows = document.createElement('div');
+      arrows.className = 'time-arrows';
+      const upBtn = document.createElement('button');
+      upBtn.className = 'time-arrow';
+      upBtn.textContent = '▲';
+      upBtn.addEventListener('click', () => { rows[i].time = Math.max(0, (parseFloat(rows[i].time) || 0) + 1); updateTotal(); snapshotRatios(); render(); });
+      const dnBtn = document.createElement('button');
+      dnBtn.className = 'time-arrow';
+      dnBtn.textContent = '▼';
+      dnBtn.addEventListener('click', () => { rows[i].time = Math.max(0, (parseFloat(rows[i].time) || 0) - 1); updateTotal(); snapshotRatios(); render(); });
+      arrows.appendChild(upBtn);
+      arrows.appendChild(dnBtn);
+      timeCell.appendChild(inTime);
+      timeCell.appendChild(arrows);
+      tdTime.appendChild(timeCell);
+      tr.appendChild(tdTime);
+
+      const tdDel = document.createElement('td');
+      const delBtn = document.createElement('button');
+      delBtn.className = 'del-btn';
+      delBtn.textContent = '×';
+      delBtn.title = 'Delete row';
+      delBtn.addEventListener('click', () => { rows.splice(i, 1); render(); });
+      tdDel.appendChild(delBtn);
+      tr.appendChild(tdDel);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById('addBtn').addEventListener('click', () => {
+    rows.push({ activity: '', time: '' });
+    render();
+    const inputs = document.querySelectorAll('#tbody tr:last-child input');
+    if (inputs.length) inputs[0].focus();
+  });
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    await window.api.saveCSV(filePath, rows);
+    document.getElementById('status').textContent = 'Saved.';
+    setTimeout(() => { document.getElementById('status').textContent = ''; }, 2000);
+  });
+
+  document.getElementById('dupBtn').addEventListener('click', async () => {
+    await window.api.duplicateCSV(filePath, rows);
+    document.getElementById('status').textContent = 'Duplicated.';
+    setTimeout(() => { document.getElementById('status').textContent = ''; }, 2000);
+  });
+
+  document.getElementById('closeBtn').addEventListener('click', () => { window.close(); });
+
+  // --- Practice mode ---
+  const CIRC = 2 * Math.PI * 43;
+  let practiceIdx = 0;
+  let totalSec = 0;
+  let remainSec = 0;
+  let timerId = null;
+  let practiceRunning = false;
+
+  const panel = document.getElementById('practicePanel');
+  const timerFg = document.getElementById('timerFg');
+  const timerText = document.getElementById('timerText');
+  const timerWrap = document.getElementById('timerWrap');
+  const activityEl = document.getElementById('practiceActivity');
+  const indexEl = document.getElementById('practiceIndex');
+  const goBtn = document.getElementById('goBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const doneEl = document.getElementById('practiceDone');
+  const controlsEl = document.getElementById('practiceControls');
+
+  timerFg.setAttribute('stroke-dasharray', CIRC);
+
+  function fmtTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  function updateCircle() {
+    const frac = totalSec > 0 ? remainSec / totalSec : 0;
+    timerFg.setAttribute('stroke-dashoffset', CIRC * (1 - frac));
+
+    if (remainSec <= 0 && totalSec > 0) {
+      timerFg.classList.add('done');
+      timerWrap.classList.add('throb');
+    } else {
+      timerFg.classList.remove('done');
+      timerWrap.classList.remove('throb');
+    }
+    timerText.textContent = fmtTime(Math.max(0, remainSec));
+  }
+
+  function loadPracticeItem(idx, autoStart) {
+    stopTimer();
+    practiceIdx = idx;
+    render();
+
+    if (idx >= rows.length) {
+      activityEl.style.display = 'none';
+      indexEl.style.display = 'none';
+      timerWrap.style.display = 'none';
+      controlsEl.style.display = 'none';
+      doneEl.style.display = 'block';
+      return;
+    }
+
+    activityEl.style.display = '';
+    indexEl.style.display = '';
+    timerWrap.style.display = '';
+    controlsEl.style.display = 'flex';
+    doneEl.style.display = 'none';
+
+    const row = rows[idx];
+    activityEl.textContent = row.activity;
+    indexEl.textContent = (idx + 1) + ' of ' + rows.length;
+
+    const mins = parseFloat(row.time) || 0;
+    totalSec = Math.round(mins * 60);
+    remainSec = totalSec;
+    practiceRunning = false;
+    goBtn.style.display = '';
+    pauseBtn.style.display = 'none';
+    updateCircle();
+
+    if (autoStart) startTimer();
+  }
+
+  function goToItem(idx) {
+    loadPracticeItem(idx, true);
+  }
+
+  function startTimer() {
+    if (timerId) return;
+    practiceRunning = true;
+    goBtn.style.display = 'none';
+    pauseBtn.style.display = '';
+    timerId = setInterval(() => {
+      if (remainSec > 0) {
+        remainSec--;
+        updateCircle();
+      } else {
+        stopTimer();
+        pauseBtn.style.display = 'none';
+        goBtn.style.display = 'none';
+      }
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    practiceRunning = false;
+    goBtn.style.display = '';
+    pauseBtn.style.display = 'none';
+  }
+
+  goBtn.addEventListener('click', startTimer);
+  pauseBtn.addEventListener('click', stopTimer);
+  nextBtn.addEventListener('click', () => loadPracticeItem(practiceIdx + 1, true));
+
+  document.getElementById('practiceBtn').addEventListener('click', () => {
+    if (rows.length === 0) return;
+    practiceActive = true;
+    panel.classList.add('active');
+    window.api.resizeWindow(1020, 600);
+    loadPracticeItem(0);
+  });
+
+  document.getElementById('practiceClose').addEventListener('click', () => {
+    stopTimer();
+    practiceActive = false;
+    panel.classList.remove('active');
+    render();
+    window.api.resizeWindow(600, 550);
+  });
+
+  // --- Load file ---
+  window.api.onLoadFile(async (fp) => {
+    filePath = fp;
+    const data = await window.api.readCSV(fp);
+    document.getElementById('title').textContent = data.name;
+    rows = data.rows;
+    render();
+    updateTotal();
+    snapshotRatios();
+  });
+})();
+</script>
+</body>
+</html>
