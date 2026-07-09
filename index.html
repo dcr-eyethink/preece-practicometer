@@ -366,6 +366,10 @@
     return result;
   }
 
+  function musicalChord(name) {
+    return name.replace(/#/g, '♯').replace(/([A-G])b/g, '$1♭');
+  }
+
   function highlightChordCell(idx) {
     chordCells.forEach((c, i) => c.classList.toggle('active', i === idx));
   }
@@ -379,7 +383,7 @@
     chordCells = chords.map((ch, i) => {
       const cell = document.createElement('div');
       cell.className = 'chord-cell';
-      cell.textContent = ch;
+      cell.textContent = musicalChord(ch);
       cell.style.cursor = 'pointer';
       cell.addEventListener('click', () => {
         highlightChordCell(-1);

@@ -370,6 +370,10 @@
     }
     return result;
   }
+  function musicalChord(name) {
+    return name.replace(/#/g, '♯').replace(/([A-G])b/g, '$1♭');
+  }
+
   function highlightWChordCell(idx) {
     wChordCells.forEach((c,i) => c.classList.toggle('active', i === idx));
   }
@@ -382,7 +386,7 @@
     wChordCells = chords.map((ch, i) => {
       const cell = document.createElement('div');
       cell.className = 'chord-cell';
-      cell.textContent = ch;
+      cell.textContent = musicalChord(ch);
       cell.addEventListener('click', () => {
         highlightWChordCell(-1);
         wChordIdx = i; wChordStarted = false;
