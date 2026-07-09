@@ -299,15 +299,17 @@
   }
   function mTick() {
     curBeat = (curBeat+1) % beatsPerBar; lightBeat(curBeat); playTick(curBeat===0);
-    if (wChordGridActive && curBeat === 0) {
+    if (wChordGridActive) {
       if (wChordCountIn > 0) {
         wChordCountIn--;
-      } else if (!wChordStarted) {
-        wChordStarted = true;
-        highlightWChordCell(wChordIdx);
-      } else {
-        wChordIdx = (wChordIdx + 1) % wChordCells.length;
-        highlightWChordCell(wChordIdx);
+      } else if (curBeat === 0) {
+        if (!wChordStarted) {
+          wChordStarted = true;
+          highlightWChordCell(wChordIdx);
+        } else {
+          wChordIdx = (wChordIdx + 1) % wChordCells.length;
+          highlightWChordCell(wChordIdx);
+        }
       }
     }
   }

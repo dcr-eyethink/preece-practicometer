@@ -299,15 +299,17 @@
     currentBeat = (currentBeat + 1) % beatsPerBar;
     lightBeat(currentBeat);
     playTick(currentBeat === 0);
-    if (chordGridActive && currentBeat === 0) {
+    if (chordGridActive) {
       if (chordCountIn > 0) {
         chordCountIn--;
-      } else if (!chordStarted) {
-        chordStarted = true;
-        highlightChordCell(chordIdx);
-      } else {
-        chordIdx = (chordIdx + 1) % chordCells.length;
-        highlightChordCell(chordIdx);
+      } else if (currentBeat === 0) {
+        if (!chordStarted) {
+          chordStarted = true;
+          highlightChordCell(chordIdx);
+        } else {
+          chordIdx = (chordIdx + 1) % chordCells.length;
+          highlightChordCell(chordIdx);
+        }
       }
     }
   }
