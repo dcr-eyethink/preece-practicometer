@@ -134,7 +134,10 @@
   .practice-done { font-size: 28px; font-weight: 700; color: #27ae60; }
 
   /* ---- Chord Grid ---- */
-  .chord-section { margin-top: 1rem; }
+  .chord-toggle-btn { display: block; margin: 0.6rem auto 0; padding: 3px 16px; font-size: 12px; background: #e8ecf8; border: 1px solid #c0ccee; border-radius: 12px; color: #556; cursor: pointer; letter-spacing: 0.04em; }
+  .chord-toggle-btn.active { background: #c8d4f8; border-color: #8899dd; color: #223; }
+  .chord-section { margin-top: 1rem; display: none; }
+  .chord-section.visible { display: block; }
   .chord-section-label { font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; margin-bottom: 4px; }
   .key-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
   .piano-svg { display: block; width: 100%; margin-top: 0.25rem; }
@@ -177,8 +180,9 @@
     <button class="play-btn" id="playBtn">Start</button>
     <button class="adj-btn plus" id="plusBtn">+10</button>
   </div>
+  <button class="chord-toggle-btn" id="chordToggleBtn">chord grid</button>
 
-  <div class="chord-section">
+  <div class="chord-section" id="chordSection">
     <div class="chord-section-label">Chord Grid</div>
     <div id="keyButtons"></div>
     <div class="chord-grid-panel" id="chordGridPanel">
@@ -423,7 +427,7 @@
       r.setAttribute('width', 42); r.setAttribute('height', 78);
       r.setAttribute('rx', 3); r.setAttribute('stroke', '#aaa'); r.setAttribute('stroke-width', 1.5);
       r.style.cursor = 'pointer';
-      r.addEventListener('click', () => showChordGrid(key));
+      r.addEventListener('mousedown', e => { e.preventDefault(); showChordGrid(key); });
       svg.appendChild(r); pianoRects[key] = r;
     });
 
@@ -433,7 +437,7 @@
       r.setAttribute('width', 26); r.setAttribute('height', 50);
       r.setAttribute('rx', 2); r.setAttribute('stroke', '#000'); r.setAttribute('stroke-width', 1);
       r.style.cursor = 'pointer';
-      r.addEventListener('click', e => { e.stopPropagation(); showChordGrid(key); });
+      r.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); showChordGrid(key); });
       svg.appendChild(r); pianoRects[key] = r;
     });
 
@@ -453,6 +457,23 @@
 
   buildPiano();
 
+  document.getElementById('chordToggleBtn').addEventListener('click', () => {
+    const section = document.getElementById('chordSection');
+    const btn = document.getElementById('chordToggleBtn');
+    const showing = section.classList.toggle('visible');
+    btn.classList.toggle('active', showing);
+    if (showing) {
+      resizeKeepWidth(860);
+    } else {
+      // hide chord grid panel too and deactivate
+      document.getElementById('chordGridPanel').classList.remove('visible');
+      chordGridActive = false;
+      chordCells = [];
+      currentChordKey = null;
+      refreshPiano();
+      resizeKeepWidth(760);
+    }
+  });
 
   document.getElementById('timeRow').addEventListener('click', e => {
     const btn = e.target.closest('.time-btn'); if (!btn) return;
