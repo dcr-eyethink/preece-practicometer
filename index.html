@@ -299,11 +299,13 @@
     currentBeat = (currentBeat + 1) % beatsPerBar;
     lightBeat(currentBeat);
     playTick(currentBeat === 0);
-    if (chordGridActive) {
+    if (chordGridActive && currentBeat === 0) {
       if (chordCountIn > 0) {
         chordCountIn--;
-        if (chordCountIn === 0) { highlightChordCell(chordIdx); }
-      } else if (currentBeat === 0) {
+      } else if (!chordStarted) {
+        chordStarted = true;
+        highlightChordCell(chordIdx);
+      } else {
         chordIdx = (chordIdx + 1) % chordCells.length;
         highlightChordCell(chordIdx);
       }
@@ -319,7 +321,7 @@
       metroRunning = true; playBtn.textContent = 'Stop'; currentBeat = -1;
       if (!tickBuf) loadSamples();
       metroInterval = setInterval(metroTick, 60000 / bpm);
-      if (chordGridActive && chordCells.length > 0) { highlightChordCell(-1); chordCountIn = 4; }
+      if (chordGridActive && chordCells.length > 0) { highlightChordCell(-1); chordCountIn = 4; chordStarted = false; }
     }
   }
   function updateBpm(val) {
@@ -351,7 +353,7 @@
   };
   const KEYS = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
 
-  let chordGridActive = false, chordIdx = 0, chordCells = [], chordCountIn = 0, currentChordKey = null;
+  let chordGridActive = false, chordIdx = 0, chordCells = [], chordCountIn = 0, chordStarted = false, currentChordKey = null;
   let currentWindowWidth = 660;
   function resizeKeepWidth(h) { window.api.resizeWindow(currentWindowWidth, h); }
 
@@ -379,17 +381,17 @@
       cell.style.cursor = 'pointer';
       cell.addEventListener('click', () => {
         highlightChordCell(-1);
-        chordIdx = i;
+        chordIdx = i; chordStarted = false;
         if (metroRunning) { chordCountIn = 4; }
-        else { highlightChordCell(i); chordCountIn = 0; }
+        else { highlightChordCell(i); chordCountIn = 0; chordStarted = true; }
       });
       grid.appendChild(cell);
       return cell;
     });
     document.getElementById('chordGridPanel').classList.add('visible');
     document.getElementById('keyPicker').classList.remove('visible');
-    chordGridActive = true; chordIdx = 0; chordFirstBeat = true;
-    if (metroRunning) { chordIdx = -1; chordCountIn = 4; }
+    chordGridActive = true; chordIdx = 0; chordStarted = false; chordCountIn = 0;
+    if (metroRunning) { highlightChordCell(-1); chordCountIn = 4; }
     resizeKeepWidth(870);
   }
 

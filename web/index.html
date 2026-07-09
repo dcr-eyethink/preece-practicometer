@@ -299,11 +299,13 @@
   }
   function mTick() {
     curBeat = (curBeat+1) % beatsPerBar; lightBeat(curBeat); playTick(curBeat===0);
-    if (wChordGridActive) {
+    if (wChordGridActive && curBeat === 0) {
       if (wChordCountIn > 0) {
         wChordCountIn--;
-        if (wChordCountIn === 0) { highlightWChordCell(wChordIdx); }
-      } else if (curBeat === 0) {
+      } else if (!wChordStarted) {
+        wChordStarted = true;
+        highlightWChordCell(wChordIdx);
+      } else {
         wChordIdx = (wChordIdx + 1) % wChordCells.length;
         highlightWChordCell(wChordIdx);
       }
@@ -318,7 +320,7 @@
     } else {
       ensureSamples(); mRunning = true; btn.textContent = 'Stop'; curBeat=-1;
       mInterval = setInterval(mTick, 60000/bpm);
-      if (wChordGridActive && wChordCells.length > 0) { highlightWChordCell(-1); wChordCountIn = 4; }
+      if (wChordGridActive && wChordCells.length > 0) { highlightWChordCell(-1); wChordCountIn = 4; wChordStarted = false; }
     }
   }
   function updateBpm(v) {
@@ -358,7 +360,7 @@
     B:  ['B','Dbm','Ebm','E','F#','Abm','Bbdim','B','E','F#','Abm','B'],
   };
   const W_KEYS = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
-  let wChordGridActive = false, wChordIdx = 0, wChordCells = [], wChordCountIn = 0;
+  let wChordGridActive = false, wChordIdx = 0, wChordCells = [], wChordCountIn = 0, wChordStarted = false;
 
   function wShuffle(arr) {
     const a = arr.slice();
@@ -380,16 +382,16 @@
       cell.textContent = ch;
       cell.addEventListener('click', () => {
         highlightWChordCell(-1);
-        wChordIdx = i;
+        wChordIdx = i; wChordStarted = false;
         if (mRunning) { wChordCountIn = 4; }
-        else { highlightWChordCell(i); wChordCountIn = 0; }
+        else { highlightWChordCell(i); wChordCountIn = 0; wChordStarted = true; }
       });
       grid.appendChild(cell);
       return cell;
     });
     document.getElementById('wChordGridPanel').classList.add('visible');
     document.getElementById('wKeyPicker').classList.remove('visible');
-    wChordGridActive = true; wChordIdx = 0; wChordCountIn = 0;
+    wChordGridActive = true; wChordIdx = 0; wChordStarted = false; wChordCountIn = 0;
     if (mRunning) { highlightWChordCell(-1); wChordCountIn = 4; }
   }
 
