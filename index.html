@@ -352,6 +352,12 @@
 
   let chordGridActive = false, chordIdx = 0, chordCells = [], chordCountIn = 0, chordStarted = false, currentChordKey = null;
   let currentWindowWidth = 660;
+  function chordHeight() {
+    const section = document.getElementById('chordSection');
+    if (!section || !section.classList.contains('visible')) return 760;
+    const panel = document.getElementById('chordGridPanel');
+    return (panel && panel.classList.contains('visible')) ? 990 : 860;
+  }
   function resizeKeepWidth(h) { window.api.resizeWindow(currentWindowWidth, h); }
 
   function shuffle(arr) {
@@ -515,7 +521,7 @@
   async function openSet(fp) {
     setsPanel.style.display = 'none';
     editorWrap.classList.add('active');
-    currentWindowWidth = 1200; window.api.resizeWindow(1200, 760);
+    currentWindowWidth = 1200; window.api.resizeWindow(1200, chordHeight());
     localStorage.setItem('lastOpenedSet', fp);
     filePath = fp;
     const data = await window.api.readCSV(fp);
@@ -532,7 +538,7 @@
     practicePanel.classList.remove('active');
     editorWrap.classList.remove('active');
     setsPanel.style.display = '';
-    currentWindowWidth = 660; window.api.resizeWindow(660, 760);
+    currentWindowWidth = 660; window.api.resizeWindow(660, chordHeight());
     loadSetsList();
   }
 
@@ -695,7 +701,7 @@
   document.getElementById('practiceBtn').addEventListener('click', () => {
     if (rows.length === 0) return;
     practiceActive = true; practicePanel.classList.add('active');
-    currentWindowWidth = 1280; window.api.resizeWindow(1280, 760);
+    currentWindowWidth = 1280; window.api.resizeWindow(1280, chordHeight());
     sessionStarted = false;
     sessionElapsed = 0; sessionTimeEl.textContent = '0:00';
     loadPracticeItem(0);
@@ -703,7 +709,7 @@
   document.getElementById('practiceClose').addEventListener('click', () => {
     stopPracticeTimer(); stopSessionTimer();
     practiceActive = false; practicePanel.classList.remove('active');
-    renderEditor(); currentWindowWidth = 1200; window.api.resizeWindow(1200, 760);
+    renderEditor(); currentWindowWidth = 1200; window.api.resizeWindow(1200, chordHeight());
   });
 
 })();
