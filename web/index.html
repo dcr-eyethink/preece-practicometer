@@ -112,11 +112,8 @@
   .screen { padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
 
   /* Chord Grid */
-  .chord-grid-btn { display: block; width: 100%; max-width: 340px; margin: 1rem auto 0; padding: 10px; border: 1px solid #a0b4f0; border-radius: 12px; background: #e8f0fe; color: #1a56db; font-size: 15px; font-weight: 600; cursor: pointer; }
-  .chord-grid-btn:active { background: #d0e0fc; }
-  .key-picker { display: none; margin: 0.75rem auto 0; max-width: 340px; }
-  .key-picker.visible { display: block; }
-  .key-picker-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .chord-section { margin: 1rem auto 0; max-width: 340px; }
+  .chord-section-label { font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; margin-bottom: 4px; }
   .key-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
   .piano-svg { display: block; width: 100%; margin-top: 0.25rem; }
   .chord-grid-panel { display: none; margin: 0.75rem auto 0; max-width: 340px; }
@@ -156,16 +153,12 @@
     <button class="adj-btn plus" id="mPlus">+10</button>
   </div>
 
-  <button class="chord-grid-btn" id="wChordGridBtn">Chord Grid</button>
-
-  <div class="key-picker" id="wKeyPicker">
-    <div class="key-picker-label">Choose a key:</div>
-    <div class="key-buttons" id="wKeyButtons"></div>
-  </div>
-
-  <div class="chord-grid-panel" id="wChordGridPanel">
-    <div class="chord-grid-selected-key" id="wChordGridKey"></div>
-    <div class="chord-grid" id="wChordGrid"></div>
+  <div class="chord-section">
+    <div class="chord-section-label">Chord Grid</div>
+    <div id="wKeyButtons"></div>
+    <div class="chord-grid-panel" id="wChordGridPanel">
+      <div class="chord-grid" id="wChordGrid"></div>
+    </div>
   </div>
 </div>
 
@@ -382,7 +375,6 @@
   }
   function showWChordGrid(key) {
     wCurrentChordKey = key;
-    document.getElementById('wChordGridKey').textContent = 'Key of ' + key;
     refreshWPiano();
     const chords = wShuffle(W_CHORD_DATA[key]);
     const grid = document.getElementById('wChordGrid');
@@ -400,10 +392,11 @@
       grid.appendChild(cell);
       return cell;
     });
-    document.getElementById('wChordGridPanel').classList.add('visible');
-    document.getElementById('wKeyPicker').classList.remove('visible');
-    wChordGridActive = true; wChordIdx = 0; wChordStarted = false; wChordCountIn = 0;
-    if (mRunning) { highlightWChordCell(-1); wChordCountIn = 4; }
+    const panel = document.getElementById('wChordGridPanel');
+    if (!panel.classList.contains('visible')) panel.classList.add('visible');
+    wChordGridActive = true; wChordIdx = 0; wChordStarted = false;
+    wChordCountIn = mRunning ? 4 : 0;
+    if (!mRunning) highlightWChordCell(0);
   }
 
   // Build piano key picker
@@ -428,12 +421,6 @@
       r.style.cursor = 'pointer';
       r.addEventListener('click', () => showWChordGrid(key));
       svg.appendChild(r); wPianoRects[key] = r;
-      const t = document.createElementNS(ns, 'text');
-      t.setAttribute('x', i*44+22); t.setAttribute('y', 72);
-      t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-size', 11);
-      t.setAttribute('fill', '#999'); t.setAttribute('pointer-events', 'none');
-      t.setAttribute('font-family', '-apple-system,system-ui,sans-serif'); t.textContent = key;
-      svg.appendChild(t);
     });
 
     W_PIANO_BLACKS.forEach(({key, x}) => {
@@ -462,16 +449,6 @@
 
   buildWPiano();
 
-  document.getElementById('wChordGridBtn').addEventListener('click', () => {
-    const picker = document.getElementById('wKeyPicker');
-    const panel = document.getElementById('wChordGridPanel');
-    if (panel.classList.contains('visible')) {
-      panel.classList.remove('visible'); picker.classList.remove('visible');
-      wChordGridActive = false; wChordCells = [];
-    } else {
-      picker.classList.toggle('visible');
-    }
-  });
 
   // ==================== SETS LIST ====================
   function renderSetsList() {

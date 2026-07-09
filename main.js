@@ -20,7 +20,7 @@ let SETS_DIR;
 function createWindow() {
   const win = new BrowserWindow({
     width: 660,
-    height: 640,
+    height: 760,
     resizable: true,
     title: 'Preece Practicometer',
     webPreferences: {
