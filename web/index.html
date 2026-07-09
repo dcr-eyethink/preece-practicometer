@@ -365,9 +365,19 @@
   let wChordGridActive = false, wChordIdx = 0, wChordCells = [], wChordCountIn = 0, wChordStarted = false;
 
   function wShuffle(arr) {
-    const a = arr.slice();
-    for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
-    return a;
+    const freq = {};
+    arr.forEach(x => freq[x] = (freq[x] || 0) + 1);
+    const pool = Object.entries(freq).map(([val, count]) => ({ val, count }));
+    const result = [];
+    let last = null;
+    for (let i = 0; i < arr.length; i++) {
+      const avail = pool.filter(p => p.count > 0 && p.val !== last);
+      const pick = avail[Math.floor(Math.random() * avail.length)];
+      result.push(pick.val);
+      last = pick.val;
+      pick.count--;
+    }
+    return result;
   }
   function highlightWChordCell(idx) {
     wChordCells.forEach((c,i) => c.classList.toggle('active', i === idx));
