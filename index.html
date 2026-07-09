@@ -132,6 +132,23 @@
   .session-timer { margin-top: 1.5rem; font-size: 13px; color: #999; }
   .session-timer span { font-weight: 600; font-size: 15px; color: #666; }
   .practice-done { font-size: 28px; font-weight: 700; color: #27ae60; }
+
+  /* ---- Chord Grid ---- */
+  .chord-grid-btn { display: block; width: 100%; padding: 8px; border: 1px solid #a0b4f0; border-radius: 12px; background: #e8f0fe; color: #1a56db; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 0.5rem; transition: background 0.15s; }
+  .chord-grid-btn:hover { background: #d0e0fc; }
+  .key-picker { display: none; margin-top: 0.75rem; }
+  .key-picker.visible { display: block; }
+  .key-picker-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .key-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+  .key-btn { padding: 5px 10px; border: 1px solid #ccc; border-radius: 8px; background: #f5f5f5; color: #333; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+  .key-btn:hover { background: #e8f0fe; border-color: #a0b4f0; color: #1a56db; }
+  .key-btn.selected { background: #1a56db; color: #fff; border-color: #1a56db; }
+  .chord-grid-panel { display: none; margin-top: 1rem; }
+  .chord-grid-panel.visible { display: block; }
+  .chord-grid-selected-key { font-size: 11px; color: #888; margin-bottom: 6px; text-align: center; }
+  .chord-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .chord-cell { background: #f0f4ff; border: 1.5px solid #c8d8f8; border-radius: 10px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: #1a3060; cursor: default; transition: background 0.2s, border-color 0.2s; }
+  .chord-cell.active { background: #fff9c4; border-color: #f0c040; box-shadow: 0 0 8px 2px rgba(240,192,0,0.3); }
 </style>
 </head>
 <body>
@@ -164,6 +181,18 @@
     <button class="adj-btn minus" id="minusBtn">-10</button>
     <button class="play-btn" id="playBtn">Start</button>
     <button class="adj-btn plus" id="plusBtn">+10</button>
+  </div>
+
+  <button class="chord-grid-btn" id="chordGridBtn">Chord Grid</button>
+
+  <div class="key-picker" id="keyPicker">
+    <div class="key-picker-label">Choose a key:</div>
+    <div class="key-buttons" id="keyButtons"></div>
+  </div>
+
+  <div class="chord-grid-panel" id="chordGridPanel">
+    <div class="chord-grid-selected-key" id="chordGridKey"></div>
+    <div class="chord-grid" id="chordGrid"></div>
   </div>
 </div>
 
@@ -266,10 +295,32 @@
     for (let i = 0; i < beatsPerBar; i++) { const d = document.getElementById('dot' + i); if (d) d.className = 'beat-dot ' + (i === 0 ? 'accent' : 'normal'); }
     const a = document.getElementById('dot' + idx); if (a) a.className = 'beat-dot ' + (idx === 0 ? 'lit-accent' : 'lit-normal');
   }
-  function metroTick() { currentBeat = (currentBeat + 1) % beatsPerBar; lightBeat(currentBeat); playTick(currentBeat === 0); }
+  function metroTick() {
+    currentBeat = (currentBeat + 1) % beatsPerBar;
+    lightBeat(currentBeat);
+    playTick(currentBeat === 0);
+    if (chordGridActive) {
+      if (chordCountIn > 0) {
+        chordCountIn--;
+        if (chordCountIn === 0) { highlightChordCell(chordIdx); }
+      } else if (currentBeat === 0) {
+        chordIdx = (chordIdx + 1) % chordCells.length;
+        highlightChordCell(chordIdx);
+      }
+    }
+  }
   function metroStartStop() {
-    if (metroRunning) { clearInterval(metroInterval); metroRunning = false; playBtn.textContent = 'Start'; for (let i = 0; i < beatsPerBar; i++) { const d = document.getElementById('dot' + i); if (d) d.className = 'beat-dot ' + (i === 0 ? 'accent' : 'normal'); } currentBeat = -1; }
-    else { metroRunning = true; playBtn.textContent = 'Stop'; currentBeat = -1; if (!tickBuf) loadSamples(); metroInterval = setInterval(metroTick, 60000 / bpm); }
+    if (metroRunning) {
+      clearInterval(metroInterval); metroRunning = false; playBtn.textContent = 'Start';
+      for (let i = 0; i < beatsPerBar; i++) { const d = document.getElementById('dot' + i); if (d) d.className = 'beat-dot ' + (i === 0 ? 'accent' : 'normal'); }
+      currentBeat = -1;
+      // leave chordIdx and highlight in place — paused on current square
+    } else {
+      metroRunning = true; playBtn.textContent = 'Stop'; currentBeat = -1;
+      if (!tickBuf) loadSamples();
+      metroInterval = setInterval(metroTick, 60000 / bpm);
+      if (chordGridActive && chordCells.length > 0) { highlightChordCell(-1); chordCountIn = 4; }
+    }
   }
   function updateBpm(val) {
     val = Math.max(30, Math.min(240, Math.round(val))); bpm = val; bpmNum.textContent = val; bpmInput.value = val; bpmSlider.value = val;
@@ -283,6 +334,88 @@
   document.getElementById('minusBtn').addEventListener('click', () => updateBpm(bpm - 10));
   document.getElementById('plusBtn').addEventListener('click', () => updateBpm(bpm + 10));
   playBtn.addEventListener('click', metroStartStop);
+  // ===================== CHORD GRID =====================
+  const CHORD_DATA = {
+    C:  ['C','Dm','Em','F','G','Am','Bdim','C','F','G','Am','C'],
+    Db: ['Db','Ebm','Fm','F#','Ab','Bbm','Cdim','Db','F#','Ab','Bbm','Db'],
+    D:  ['D','Em','F#m','G','A','Bm','Dbdim','D','G','A','Bm','D'],
+    Eb: ['Eb','Fm','Gm','Ab','Bb','Cm','Ddim','Eb','Ab','Bb','Cm','Eb'],
+    E:  ['E','F#m','Abm','A','B','Dbm','Ebdim','E','A','B','Dbm','E'],
+    F:  ['F','Gm','Am','Bb','C','Dm','Edim','F','Bb','C','Dm','F'],
+    'F#':['F#','Abm','Bbm','B','Db','Ebm','Fdim','F#','B','Db','Ebm','F#'],
+    G:  ['G','Am','Bm','C','D','Em','F#dim','G','C','D','Em','G'],
+    Ab: ['Ab','Bbm','Cm','Db','Eb','Fm','Gdim','Ab','Db','Eb','Fm','Ab'],
+    A:  ['A','Bm','Dbm','D','E','F#m','Abdim','A','D','E','F#m','A'],
+    Bb: ['Bb','Cm','Dm','Eb','F','Gm','Adim','Bb','Eb','F','Gm','Bb'],
+    B:  ['B','Dbm','Ebm','E','F#','Abm','Bbdim','B','E','F#','Abm','B'],
+  };
+  const KEYS = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+
+  let chordGridActive = false, chordIdx = 0, chordCells = [], chordCountIn = 0, currentChordKey = null;
+  let currentWindowWidth = 660;
+  function resizeKeepWidth(h) { window.api.resizeWindow(currentWindowWidth, h); }
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+
+  function highlightChordCell(idx) {
+    chordCells.forEach((c, i) => c.classList.toggle('active', i === idx));
+  }
+
+  function showChordGrid(key) {
+    currentChordKey = key;
+    document.getElementById('chordGridKey').textContent = 'Key of ' + key;
+    document.querySelectorAll('.key-btn').forEach(b => b.classList.toggle('selected', b.dataset.key === key));
+    const chords = shuffle(CHORD_DATA[key]);
+    const grid = document.getElementById('chordGrid');
+    grid.innerHTML = '';
+    chordCells = chords.map((ch, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'chord-cell';
+      cell.textContent = ch;
+      cell.style.cursor = 'pointer';
+      cell.addEventListener('click', () => {
+        highlightChordCell(-1);
+        chordIdx = i;
+        if (metroRunning) { chordCountIn = 4; }
+        else { highlightChordCell(i); chordCountIn = 0; }
+      });
+      grid.appendChild(cell);
+      return cell;
+    });
+    document.getElementById('chordGridPanel').classList.add('visible');
+    document.getElementById('keyPicker').classList.remove('visible');
+    chordGridActive = true; chordIdx = 0; chordFirstBeat = true;
+    if (metroRunning) { chordIdx = -1; chordCountIn = 4; }
+    resizeKeepWidth(870);
+  }
+
+  // Build key buttons
+  const keyButtons = document.getElementById('keyButtons');
+  KEYS.forEach(k => {
+    const btn = document.createElement('button'); btn.className = 'key-btn'; btn.textContent = k; btn.dataset.key = k;
+    btn.addEventListener('click', () => showChordGrid(k));
+    keyButtons.appendChild(btn);
+  });
+
+  document.getElementById('chordGridBtn').addEventListener('click', () => {
+    const picker = document.getElementById('keyPicker');
+    const panel = document.getElementById('chordGridPanel');
+    if (panel.classList.contains('visible')) {
+      // toggle off
+      panel.classList.remove('visible'); picker.classList.remove('visible');
+      chordGridActive = false; chordCells = [];
+      resizeKeepWidth(640);
+    } else {
+      picker.classList.toggle('visible');
+      if (!picker.classList.contains('visible')) resizeKeepWidth(640);
+      else resizeKeepWidth(740);
+    }
+  });
+
   document.getElementById('timeRow').addEventListener('click', e => {
     const btn = e.target.closest('.time-btn'); if (!btn) return;
     document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active');
@@ -323,7 +456,7 @@
   async function openSet(fp) {
     setsPanel.style.display = 'none';
     editorWrap.classList.add('active');
-    window.api.resizeWindow(1200, 640);
+    currentWindowWidth = 1200; window.api.resizeWindow(1200, 640);
     localStorage.setItem('lastOpenedSet', fp);
     filePath = fp;
     const data = await window.api.readCSV(fp);
@@ -340,7 +473,7 @@
     practicePanel.classList.remove('active');
     editorWrap.classList.remove('active');
     setsPanel.style.display = '';
-    window.api.resizeWindow(660, 640);
+    currentWindowWidth = 660; window.api.resizeWindow(660, 640);
     loadSetsList();
   }
 
@@ -503,7 +636,7 @@
   document.getElementById('practiceBtn').addEventListener('click', () => {
     if (rows.length === 0) return;
     practiceActive = true; practicePanel.classList.add('active');
-    window.api.resizeWindow(1280, 640);
+    currentWindowWidth = 1280; window.api.resizeWindow(1280, 640);
     sessionStarted = false;
     sessionElapsed = 0; sessionTimeEl.textContent = '0:00';
     loadPracticeItem(0);
@@ -511,7 +644,7 @@
   document.getElementById('practiceClose').addEventListener('click', () => {
     stopPracticeTimer(); stopSessionTimer();
     practiceActive = false; practicePanel.classList.remove('active');
-    renderEditor(); window.api.resizeWindow(1200, 640);
+    renderEditor(); currentWindowWidth = 1200; window.api.resizeWindow(1200, 640);
   });
 
 })();

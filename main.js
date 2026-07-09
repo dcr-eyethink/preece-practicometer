@@ -85,7 +85,7 @@ ipcMain.handle('list-sets', () => {
     return [];
   }
   return fs.readdirSync(SETS_DIR)
-    .filter(f => f.endsWith('.csv'))
+    .filter(f => f.endsWith('.csv') && f !== 'chordgrid.csv')
     .map(f => ({ name: f.replace('.csv', ''), path: path.join(SETS_DIR, f) }));
 });
 

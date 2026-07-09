@@ -110,6 +110,23 @@
 
   /* bottom nav padding */
   .screen { padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Chord Grid */
+  .chord-grid-btn { display: block; width: 100%; max-width: 340px; margin: 1rem auto 0; padding: 10px; border: 1px solid #a0b4f0; border-radius: 12px; background: #e8f0fe; color: #1a56db; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .chord-grid-btn:active { background: #d0e0fc; }
+  .key-picker { display: none; margin: 0.75rem auto 0; max-width: 340px; }
+  .key-picker.visible { display: block; }
+  .key-picker-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .key-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+  .key-btn { padding: 7px 12px; border: 1px solid #ccc; border-radius: 8px; background: #f5f5f5; color: #333; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .key-btn:active { background: #e8f0fe; }
+  .key-btn.selected { background: #1a56db; color: #fff; border-color: #1a56db; }
+  .chord-grid-panel { display: none; margin: 0.75rem auto 0; max-width: 340px; }
+  .chord-grid-panel.visible { display: block; }
+  .chord-grid-selected-key { font-size: 11px; color: #888; margin-bottom: 6px; text-align: center; }
+  .chord-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .chord-cell { background: #f0f4ff; border: 1.5px solid #c8d8f8; border-radius: 10px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: #1a3060; transition: background 0.2s, border-color 0.2s; }
+  .chord-cell.active { background: #fff9c4; border-color: #f0c040; box-shadow: 0 0 8px 2px rgba(240,192,0,0.3); }
 </style>
 </head>
 <body>
@@ -139,6 +156,18 @@
     <button class="adj-btn minus" id="mMinus">-10</button>
     <button class="play-btn" id="mPlay">Start</button>
     <button class="adj-btn plus" id="mPlus">+10</button>
+  </div>
+
+  <button class="chord-grid-btn" id="wChordGridBtn">Chord Grid</button>
+
+  <div class="key-picker" id="wKeyPicker">
+    <div class="key-picker-label">Choose a key:</div>
+    <div class="key-buttons" id="wKeyButtons"></div>
+  </div>
+
+  <div class="chord-grid-panel" id="wChordGridPanel">
+    <div class="chord-grid-selected-key" id="wChordGridKey"></div>
+    <div class="chord-grid" id="wChordGrid"></div>
   </div>
 </div>
 
@@ -268,11 +297,29 @@
     for (let i = 0; i < beatsPerBar; i++) { const d = document.getElementById('md'+i); if(d) d.className = 'beat-dot '+(i===0?'accent':'normal'); }
     const a = document.getElementById('md'+idx); if(a) a.className = 'beat-dot '+(idx===0?'lit-accent':'lit-normal');
   }
-  function mTick() { curBeat = (curBeat+1) % beatsPerBar; lightBeat(curBeat); playTick(curBeat===0); }
+  function mTick() {
+    curBeat = (curBeat+1) % beatsPerBar; lightBeat(curBeat); playTick(curBeat===0);
+    if (wChordGridActive) {
+      if (wChordCountIn > 0) {
+        wChordCountIn--;
+        if (wChordCountIn === 0) { highlightWChordCell(wChordIdx); }
+      } else if (curBeat === 0) {
+        wChordIdx = (wChordIdx + 1) % wChordCells.length;
+        highlightWChordCell(wChordIdx);
+      }
+    }
+  }
   function mStartStop() {
     const btn = document.getElementById('mPlay');
-    if (mRunning) { clearInterval(mInterval); mRunning = false; btn.textContent = 'Start'; for(let i=0;i<beatsPerBar;i++){const d=document.getElementById('md'+i);if(d)d.className='beat-dot '+(i===0?'accent':'normal');} curBeat=-1; }
-    else { ensureSamples(); mRunning = true; btn.textContent = 'Stop'; curBeat=-1; mInterval = setInterval(mTick, 60000/bpm); }
+    if (mRunning) {
+      clearInterval(mInterval); mRunning = false; btn.textContent = 'Start';
+      for(let i=0;i<beatsPerBar;i++){const d=document.getElementById('md'+i);if(d)d.className='beat-dot '+(i===0?'accent':'normal');} curBeat=-1;
+      // leave chord grid paused on current square
+    } else {
+      ensureSamples(); mRunning = true; btn.textContent = 'Stop'; curBeat=-1;
+      mInterval = setInterval(mTick, 60000/bpm);
+      if (wChordGridActive && wChordCells.length > 0) { highlightWChordCell(-1); wChordCountIn = 4; }
+    }
   }
   function updateBpm(v) {
     v = Math.max(30,Math.min(240,Math.round(v))); bpm=v;
@@ -293,6 +340,75 @@
     document.querySelectorAll('.ts-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active');
     beatsPerBar = parseInt(b.dataset.beats); curBeat=-1; buildDots();
     if(mRunning){clearInterval(mInterval);mInterval=setInterval(mTick,60000/bpm);}
+  });
+
+  // ==================== CHORD GRID ====================
+  const W_CHORD_DATA = {
+    C:  ['C','Dm','Em','F','G','Am','Bdim','C','F','G','Am','C'],
+    Db: ['Db','Ebm','Fm','F#','Ab','Bbm','Cdim','Db','F#','Ab','Bbm','Db'],
+    D:  ['D','Em','F#m','G','A','Bm','Dbdim','D','G','A','Bm','D'],
+    Eb: ['Eb','Fm','Gm','Ab','Bb','Cm','Ddim','Eb','Ab','Bb','Cm','Eb'],
+    E:  ['E','F#m','Abm','A','B','Dbm','Ebdim','E','A','B','Dbm','E'],
+    F:  ['F','Gm','Am','Bb','C','Dm','Edim','F','Bb','C','Dm','F'],
+    'F#':['F#','Abm','Bbm','B','Db','Ebm','Fdim','F#','B','Db','Ebm','F#'],
+    G:  ['G','Am','Bm','C','D','Em','F#dim','G','C','D','Em','G'],
+    Ab: ['Ab','Bbm','Cm','Db','Eb','Fm','Gdim','Ab','Db','Eb','Fm','Ab'],
+    A:  ['A','Bm','Dbm','D','E','F#m','Abdim','A','D','E','F#m','A'],
+    Bb: ['Bb','Cm','Dm','Eb','F','Gm','Adim','Bb','Eb','F','Gm','Bb'],
+    B:  ['B','Dbm','Ebm','E','F#','Abm','Bbdim','B','E','F#','Abm','B'],
+  };
+  const W_KEYS = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+  let wChordGridActive = false, wChordIdx = 0, wChordCells = [], wChordCountIn = 0;
+
+  function wShuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+    return a;
+  }
+  function highlightWChordCell(idx) {
+    wChordCells.forEach((c,i) => c.classList.toggle('active', i === idx));
+  }
+  function showWChordGrid(key) {
+    document.getElementById('wChordGridKey').textContent = 'Key of ' + key;
+    document.querySelectorAll('#wKeyButtons .key-btn').forEach(b => b.classList.toggle('selected', b.dataset.key === key));
+    const chords = wShuffle(W_CHORD_DATA[key]);
+    const grid = document.getElementById('wChordGrid');
+    grid.innerHTML = '';
+    wChordCells = chords.map((ch, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'chord-cell';
+      cell.textContent = ch;
+      cell.addEventListener('click', () => {
+        highlightWChordCell(-1);
+        wChordIdx = i;
+        if (mRunning) { wChordCountIn = 4; }
+        else { highlightWChordCell(i); wChordCountIn = 0; }
+      });
+      grid.appendChild(cell);
+      return cell;
+    });
+    document.getElementById('wChordGridPanel').classList.add('visible');
+    document.getElementById('wKeyPicker').classList.remove('visible');
+    wChordGridActive = true; wChordIdx = 0; wChordCountIn = 0;
+    if (mRunning) { highlightWChordCell(-1); wChordCountIn = 4; }
+  }
+
+  // Build key buttons
+  W_KEYS.forEach(k => {
+    const btn = document.createElement('button'); btn.className = 'key-btn'; btn.textContent = k; btn.dataset.key = k;
+    btn.addEventListener('click', () => showWChordGrid(k));
+    document.getElementById('wKeyButtons').appendChild(btn);
+  });
+
+  document.getElementById('wChordGridBtn').addEventListener('click', () => {
+    const picker = document.getElementById('wKeyPicker');
+    const panel = document.getElementById('wChordGridPanel');
+    if (panel.classList.contains('visible')) {
+      panel.classList.remove('visible'); picker.classList.remove('visible');
+      wChordGridActive = false; wChordCells = [];
+    } else {
+      picker.classList.toggle('visible');
+    }
   });
 
   // ==================== SETS LIST ====================
