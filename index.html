@@ -96,7 +96,9 @@
   .scale-row input[type=range] { flex: 1; }
   .scale-label { font-size: 12px; color: #888; min-width: 28px; }
   .status { font-size: 12px; color: #888; margin-top: 0.5rem; }
-  .editor-title { margin: 0 0 1rem; font-size: 20px; font-weight: 600; }
+  .editor-title { margin: 0 0 1rem; font-size: 20px; font-weight: 600; width: 100%; border: none; border-bottom: 2px solid transparent; background: transparent; outline: none; padding: 2px 0; color: inherit; font-family: inherit; border-radius: 0; }
+  .editor-title:hover { border-bottom-color: #c0ccee; }
+  .editor-title:focus { border-bottom-color: #7090e0; }
 
   /* Practice panel */
   .practice-panel {
@@ -205,7 +207,7 @@
   <!-- Editor + Practice (hidden until a set is opened) -->
   <div class="editor-wrap" id="editorWrap">
     <div class="editor-panel">
-      <h2 class="editor-title" id="editorTitle">Practice Set</h2>
+      <input class="editor-title" id="editorTitle" type="text" value="Practice Set" spellcheck="false">
       <div class="toolbar">
         <button class="btn btn-practice" id="practiceBtn">Start Practice</button>
         <button class="btn btn-save" id="saveBtn">Save</button>
@@ -525,7 +527,7 @@
     localStorage.setItem('lastOpenedSet', fp);
     filePath = fp;
     const data = await window.api.readCSV(fp);
-    document.getElementById('editorTitle').textContent = data.name;
+    document.getElementById('editorTitle').value = data.name;
     rows = data.rows;
     renderEditor();
     updateTotal();
@@ -612,12 +614,32 @@
   }
 
 
+  const titleInput = document.getElementById('editorTitle');
+  async function commitRename() {
+    const newName = titleInput.value.trim();
+    if (!newName || !filePath) return;
+    const currentName = filePath.split('/').pop().replace('.csv', '');
+    if (newName === currentName) return;
+    try {
+      const newPath = await window.api.renameCSV(filePath, newName);
+      filePath = newPath;
+      document.getElementById('status').textContent = 'Renamed.';
+      setTimeout(() => { document.getElementById('status').textContent = ''; }, 2000);
+    } catch (err) {
+      titleInput.value = currentName;
+      document.getElementById('status').textContent = err.message || 'Rename failed.';
+      setTimeout(() => { document.getElementById('status').textContent = ''; }, 3000);
+    }
+  }
+  titleInput.addEventListener('blur', commitRename);
+  titleInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); titleInput.blur(); } if (e.key === 'Escape') { titleInput.value = filePath ? filePath.split('/').pop().replace('.csv','') : ''; titleInput.blur(); } });
+
   document.getElementById('saveBtn').addEventListener('click', async () => { await window.api.saveCSV(filePath, rows); document.getElementById('status').textContent = 'Saved.'; setTimeout(() => { document.getElementById('status').textContent = ''; }, 2000); });
   document.getElementById('dupBtn').addEventListener('click', async () => {
     const newPath = await window.api.duplicateCSV(filePath, rows);
     filePath = newPath;
     const name = newPath.split('/').pop().replace('.csv', '');
-    document.getElementById('editorTitle').textContent = name;
+    document.getElementById('editorTitle').value = name;
     document.getElementById('status').textContent = 'Duplicated as ' + name;
     setTimeout(() => { document.getElementById('status').textContent = ''; }, 2000);
   });

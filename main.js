@@ -109,6 +109,16 @@ ipcMain.handle('resize-window', (e, width, height) => {
   if (win) win.setSize(width, Math.max(height, 500), true);
 });
 
+ipcMain.handle('rename-csv', (e, oldPath, newName) => {
+  const dir = path.dirname(oldPath);
+  const newPath = path.join(dir, newName + '.csv');
+  if (fs.existsSync(newPath) && newPath !== oldPath) {
+    throw new Error('A set with that name already exists.');
+  }
+  fs.renameSync(oldPath, newPath);
+  return newPath;
+});
+
 ipcMain.handle('duplicate-csv', async (e, originalPath, data) => {
   const dir = path.dirname(originalPath);
   const baseName = path.basename(originalPath, '.csv');
