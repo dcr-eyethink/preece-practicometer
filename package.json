@@ -21,10 +21,12 @@
     ],
     "mac": {
       "target": "dir",
-      "category": "public.app-category.music"
+      "category": "public.app-category.music",
+      "icon": "build/icon.icns"
     },
     "win": {
-      "target": "dir"
+      "target": "dir",
+      "icon": "build/icon.ico"
     }
   },
   "devDependencies": {
