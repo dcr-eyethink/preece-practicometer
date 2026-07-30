@@ -109,6 +109,11 @@ ipcMain.handle('resize-window', (e, width, height) => {
   if (win) win.setSize(width, Math.max(height, 500), true);
 });
 
+ipcMain.handle('launch-app', (e, appName) => {
+  const { exec } = require('child_process');
+  exec(`open -a "${appName}"`);
+});
+
 ipcMain.handle('rename-csv', (e, oldPath, newName) => {
   const dir = path.dirname(oldPath);
   const newPath = path.join(dir, newName + '.csv');
