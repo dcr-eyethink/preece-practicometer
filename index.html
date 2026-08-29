@@ -512,7 +512,7 @@
     document.getElementById('chordSection').classList.add('visible');
     const isCG = name === 'chordgrid';
     document.getElementById('cgPanel').style.display = isCG ? '' : 'none';
-    document.getElementById('c5Panel').style.display = isCG ? 'none' : '';
+    document.getElementById('c5Panel').style.display = isCG ? 'none' : 'block';
     document.getElementById('chordToggleBtn').classList.toggle('active', isCG);
     document.getElementById('c5ToggleBtn').classList.toggle('active', !isCG);
     if (!isCG) {
