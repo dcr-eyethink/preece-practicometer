@@ -527,23 +527,15 @@
   document.getElementById('c5ToggleBtn').addEventListener('click', () => activateFeature('c5'));
 
   const C5_KEYS = ['C','G','D','A','E','B','F#','Db','Ab','Eb','Bb','F'];
+  let c5CurrentMode = null, c5MixedFlipNext = false;
 
-  function generateC5Grid(mode) {
-    const keys = [...C5_KEYS];
-    for (let i = keys.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [keys[i],keys[j]]=[keys[j],keys[i]]; }
-    let labels;
-    if (mode === 'major') { labels = keys; }
-    else if (mode === 'minor') { labels = keys.map(k => k+'m'); }
-    else {
-      const minors = new Set();
-      while (minors.size < 6) minors.add(Math.floor(Math.random()*12));
-      labels = keys.map((k,i) => minors.has(i) ? k+'m' : k);
-    }
+  function buildC5Cells(labels) {
     const grid = document.getElementById('c5Grid');
     grid.innerHTML = '';
     chordCells = labels.map((label, i) => {
       const cell = document.createElement('div');
       cell.className = 'chord-cell';
+      cell.dataset.key = label;
       cell.textContent = musicalChord(label);
       cell.style.cursor = 'pointer';
       cell.addEventListener('click', () => {
@@ -561,12 +553,42 @@
     resizeKeepWidth(990);
   }
 
+  function generateC5Grid(mode) {
+    const keys = [...C5_KEYS];
+    for (let i = keys.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [keys[i],keys[j]]=[keys[j],keys[i]]; }
+    let labels;
+    if (mode === 'major') { labels = keys; }
+    else if (mode === 'minor') { labels = keys.map(k => k+'m'); }
+    else {
+      const minors = new Set();
+      while (minors.size < 6) minors.add(Math.floor(Math.random()*12));
+      labels = keys.map((k,i) => minors.has(i) ? k+'m' : k);
+    }
+    buildC5Cells(labels);
+  }
+
+  function flipC5Mixed() {
+    chordCells.forEach(cell => {
+      const key = cell.dataset.key;
+      const flipped = key.endsWith('m') ? key.slice(0,-1) : key+'m';
+      cell.dataset.key = flipped;
+      cell.textContent = musicalChord(flipped);
+    });
+  }
+
   ['c5MajorBtn','c5MinorBtn','c5MixedBtn'].forEach(id => {
     document.getElementById(id).addEventListener('click', () => {
       document.querySelectorAll('.c5-mode-btn').forEach(b => b.classList.remove('active'));
       document.getElementById(id).classList.add('active');
       const mode = {'c5MajorBtn':'major','c5MinorBtn':'minor','c5MixedBtn':'mixed'}[id];
-      generateC5Grid(mode);
+      if (mode === 'mixed' && c5CurrentMode === 'mixed') {
+        if (c5MixedFlipNext) { flipC5Mixed(); c5MixedFlipNext = false; }
+        else { generateC5Grid('mixed'); c5MixedFlipNext = true; }
+      } else {
+        c5MixedFlipNext = true; // next mixed click after a fresh randomise will flip
+        generateC5Grid(mode);
+      }
+      c5CurrentMode = mode;
     });
   });
 
