@@ -155,6 +155,8 @@
   .c5-mode-row { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
   .c5-mode-btn { padding: 5px 16px; border: 1.5px solid #c0ccee; border-radius: 14px; background: #e8ecf8; font-size: 13px; font-weight: 600; color: #445; cursor: pointer; }
   .c5-mode-btn.active { background: #c8d4f8; border-color: #7090e0; color: #112; }
+  .c5-seven-btn { padding: 5px 13px; border: 1.5px solid #d4b8e0; border-radius: 14px; background: #f0e8f8; font-size: 13px; font-weight: 700; color: #604; cursor: pointer; }
+  .c5-seven-btn.active { background: #c8a0e8; border-color: #8840b0; color: #fff; }
   #c5Panel { display: none; margin-top: 0.5rem; }
   #cgPanel { }
 </style>
@@ -210,6 +212,7 @@
         <button class="c5-mode-btn" id="c5MajorBtn">major</button>
         <button class="c5-mode-btn" id="c5MinorBtn">minor</button>
         <button class="c5-mode-btn" id="c5MixedBtn">mixed</button>
+        <button class="c5-seven-btn" id="c5SevenBtn">7</button>
       </div>
       <div class="chord-grid" id="c5Grid"></div>
     </div>
@@ -527,7 +530,11 @@
   document.getElementById('c5ToggleBtn').addEventListener('click', () => activateFeature('c5'));
 
   const C5_KEYS = ['C','G','D','A','E','B','F#','Db','Ab','Eb','Bb','F'];
-  let c5CurrentMode = null, c5MixedFlipNext = false;
+  let c5CurrentMode = null, c5MixedFlipNext = false, c5SevenActive = false;
+
+  function renderC5Cell(cell) {
+    cell.textContent = musicalChord(cell.dataset.key + (c5SevenActive ? '7' : ''));
+  }
 
   function buildC5Cells(labels) {
     const grid = document.getElementById('c5Grid');
@@ -536,7 +543,7 @@
       const cell = document.createElement('div');
       cell.className = 'chord-cell';
       cell.dataset.key = label;
-      cell.textContent = musicalChord(label);
+      renderC5Cell(cell);
       cell.style.cursor = 'pointer';
       cell.addEventListener('click', () => {
         highlightChordCell(-1);
@@ -572,7 +579,7 @@
       const key = cell.dataset.key;
       const flipped = key.endsWith('m') ? key.slice(0,-1) : key+'m';
       cell.dataset.key = flipped;
-      cell.textContent = musicalChord(flipped);
+      renderC5Cell(cell);
     });
   }
 
@@ -590,6 +597,12 @@
       }
       c5CurrentMode = mode;
     });
+  });
+
+  document.getElementById('c5SevenBtn').addEventListener('click', () => {
+    c5SevenActive = !c5SevenActive;
+    document.getElementById('c5SevenBtn').classList.toggle('active', c5SevenActive);
+    chordCells.forEach(renderC5Cell);
   });
 
   document.getElementById('timeRow').addEventListener('click', e => {
