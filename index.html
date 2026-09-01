@@ -81,6 +81,11 @@
   td input:focus { border-color: #a0b4f0; outline: none; background: #f8faff; }
   td input.time-input { width: 60px; text-align: center; }
   .del-btn, .add-row-btn { background: none; border: none; cursor: pointer; font-size: 16px; color: #ccc; padding: 4px 8px; border-radius: 4px; }
+  .skip-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: #ccc; padding: 4px 6px; border-radius: 4px; line-height: 1; }
+  .skip-btn:hover { color: #e67e22; }
+  .skip-btn.skipped { color: #e67e22; }
+  tr.row-disabled td { opacity: 0.35; }
+  tr.row-disabled td.skip-cell { opacity: 1; }
   .del-btn:hover { color: #c0392b; background: #fdf0f0; }
   .add-row-btn:hover { color: #27ae60; background: #f0fdf4; }
   th.col-actions { width: 56px; }
@@ -675,7 +680,7 @@
   const totalValueEl = document.getElementById('totalValue');
   const scaleSlider = document.getElementById('scaleSlider');
 
-  function getTotalMins() { return rows.reduce((sum, r) => sum + (parseFloat(r.time) || 0), 0); }
+  function getTotalMins() { return rows.reduce((sum, r) => sum + (r.disabled ? 0 : (parseFloat(r.time) || 0)), 0); }
   function updateTotal() { const t = Math.round(getTotalMins()); totalValueEl.textContent = t; scaleSlider.value = t; }
   function snapshotRatios() { const t = getTotalMins(); baseRatios = rows.map(r => t > 0 ? (parseFloat(r.time) || 0) / t : 0); }
 
@@ -730,6 +735,12 @@
       const del = document.createElement('button'); del.className = 'del-btn'; del.textContent = '×'; del.title = 'Delete row';
       del.addEventListener('click', () => { rows.splice(i, 1); renderEditor(); updateTotal(); snapshotRatios(); });
       tdActs.appendChild(addR); tdActs.appendChild(del); tr.appendChild(tdActs);
+
+      const tdSkip = document.createElement('td'); tdSkip.className = 'skip-cell';
+      const skipBtn = document.createElement('button'); skipBtn.className = 'skip-btn' + (row.disabled ? ' skipped' : ''); skipBtn.textContent = '⊘'; skipBtn.title = row.disabled ? 'Re-enable item' : 'Skip item';
+      skipBtn.addEventListener('click', () => { rows[i].disabled = !rows[i].disabled; renderEditor(); updateTotal(); snapshotRatios(); });
+      tdSkip.appendChild(skipBtn); tr.appendChild(tdSkip);
+      if (row.disabled) tr.classList.add('row-disabled');
 
       tbody.appendChild(tr);
     });
@@ -805,7 +816,10 @@
   }
 
   function loadPracticeItem(idx, autoStart) {
-    stopPracticeTimer(); practiceIdx = idx; renderEditor();
+    stopPracticeTimer();
+    // skip disabled rows
+    while (idx < rows.length && rows[idx].disabled) idx++;
+    practiceIdx = idx; renderEditor();
     if (idx >= rows.length) { activityEl.style.display = 'none'; indexEl.style.display = 'none'; timerWrap.style.display = 'none'; controlsEl.style.display = 'none'; doneEl.style.display = 'block'; return; }
     activityEl.style.display = ''; indexEl.style.display = ''; timerWrap.style.display = ''; controlsEl.style.display = 'flex'; doneEl.style.display = 'none';
     const row = rows[idx]; activityEl.textContent = row.activity; indexEl.textContent = (idx + 1) + ' of ' + rows.length;
