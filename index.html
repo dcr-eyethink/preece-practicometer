@@ -111,6 +111,25 @@
     display: none; flex-direction: column; align-items: center; justify-content: center;
     padding: 2rem; position: relative;
   }
+  .notes-toggle-btn { position: absolute; top: 12px; left: 16px; background: none; border: 1px solid #d0d8f0; border-radius: 8px; font-size: 16px; cursor: pointer; color: #778; padding: 2px 8px; }
+  .notes-toggle-btn:hover { background: #e8eeff; color: #334; }
+  .notes-toggle-btn.active { background: #c8d4f8; border-color: #7090e0; color: #112; }
+  .notes-panel { width: 360px; border-left: 1px solid #e0e0e0; display: none; flex-direction: column; background: #fafbff; }
+  .notes-panel.open { display: flex; }
+  .notes-header { display: flex; align-items: center; gap: 8px; padding: 12px 14px 8px; border-bottom: 1px solid #e8e8e8; }
+  .notes-header-title { font-size: 13px; font-weight: 600; color: #556; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .notes-view-btn { font-size: 12px; padding: 3px 10px; border: 1px solid #c0ccee; border-radius: 10px; background: #e8ecf8; cursor: pointer; color: #445; }
+  .notes-view-btn.active { background: #c8d4f8; border-color: #7090e0; }
+  .notes-textarea { flex: 1; border: none; outline: none; resize: none; padding: 14px; font-size: 14px; line-height: 1.6; font-family: inherit; background: transparent; color: #223; }
+  .notes-preview { flex: 1; padding: 14px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #223; }
+  .notes-preview h1 { font-size: 18px; font-weight: 700; margin: 0.8em 0 0.3em; }
+  .notes-preview h2 { font-size: 15px; font-weight: 700; margin: 0.8em 0 0.3em; }
+  .notes-preview h3 { font-size: 14px; font-weight: 700; margin: 0.6em 0 0.2em; }
+  .notes-preview strong { font-weight: 700; }
+  .notes-preview em { font-style: italic; }
+  .notes-preview ul { margin: 0.4em 0 0.4em 1.2em; padding: 0; }
+  .notes-preview li { margin-bottom: 0.3em; }
+  .notes-preview p { margin: 0.4em 0; }
   .practice-panel.active { display: flex; }
   .practice-close { position: absolute; top: 12px; right: 16px; background: none; border: none; font-size: 22px; cursor: pointer; color: #999; }
   .practice-close:hover { color: #333; }
@@ -265,6 +284,7 @@
 
     <div class="practice-panel" id="practicePanel">
       <button class="practice-close" id="practiceClose" title="Close practice">×</button>
+      <button class="notes-toggle-btn" id="notesToggleBtn" title="Notes">📝</button>
       <div class="practice-index" id="practiceIndex"></div>
       <div class="practice-activity" id="practiceActivity"></div>
       <div class="timer-wrap" id="timerWrap">
@@ -282,6 +302,15 @@
       </div>
       <div class="practice-done" id="practiceDone" style="display:none">Practice Complete!</div>
       <div class="session-timer">Session: <span id="sessionTime">0:00</span></div>
+    </div>
+    <div class="notes-panel" id="notesPanel">
+      <div class="notes-header">
+        <span class="notes-header-title" id="notesHeaderTitle">Notes</span>
+        <button class="notes-view-btn active" id="notesEditBtn">Edit</button>
+        <button class="notes-view-btn" id="notesPreviewBtn">Preview</button>
+      </div>
+      <textarea class="notes-textarea" id="notesTextarea" placeholder="Add notes for this item…"></textarea>
+      <div class="notes-preview" id="notesPreview" style="display:none"></div>
     </div>
   </div>
 
@@ -823,10 +852,72 @@
     if (idx >= rows.length) { activityEl.style.display = 'none'; indexEl.style.display = 'none'; timerWrap.style.display = 'none'; controlsEl.style.display = 'none'; doneEl.style.display = 'block'; return; }
     activityEl.style.display = ''; indexEl.style.display = ''; timerWrap.style.display = ''; controlsEl.style.display = 'flex'; doneEl.style.display = 'none';
     const row = rows[idx]; activityEl.textContent = row.activity; indexEl.textContent = (idx + 1) + ' of ' + rows.length;
+    if (notesOpen) loadNotesForItem(idx);
     const mins = parseFloat(row.time) || 0; totalSec = Math.round(mins * 60); remainSec = totalSec;
     goBtn.style.display = ''; pauseBtn.style.display = 'none'; updateCircle();
     if (autoStart) startPracticeTimer();
   }
+  // ── Notes panel ──
+  let notesOpen = false;
+
+  function renderMarkdown(md) {
+    if (!md) return '<p style="color:#aaa;font-style:italic">No notes yet.</p>';
+    let html = md
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+      .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+      .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g,'<em>$1</em>')
+      .replace(/^[•\-\*] (.+)$/gm,'<li>$1</li>')
+      .replace(/(<li>.*<\/li>)/gs, m => '<ul>' + m + '</ul>')
+      .replace(/\n/g,'<br>');
+    return html;
+  }
+
+  function loadNotesForItem(idx) {
+    const row = (idx >= 0 && idx < rows.length) ? rows[idx] : null;
+    const ta = document.getElementById('notesTextarea');
+    const title = document.getElementById('notesHeaderTitle');
+    ta.value = row ? (row.notes || '') : '';
+    title.textContent = row ? row.activity : 'Notes';
+    syncNotesPreview();
+  }
+
+  function syncNotesPreview() {
+    document.getElementById('notesPreview').innerHTML = renderMarkdown(document.getElementById('notesTextarea').value);
+  }
+
+  document.getElementById('notesTextarea').addEventListener('input', () => {
+    if (practiceIdx >= 0 && practiceIdx < rows.length) {
+      rows[practiceIdx].notes = document.getElementById('notesTextarea').value;
+    }
+    syncNotesPreview();
+  });
+
+  document.getElementById('notesEditBtn').addEventListener('click', () => {
+    document.getElementById('notesTextarea').style.display = '';
+    document.getElementById('notesPreview').style.display = 'none';
+    document.getElementById('notesEditBtn').classList.add('active');
+    document.getElementById('notesPreviewBtn').classList.remove('active');
+  });
+
+  document.getElementById('notesPreviewBtn').addEventListener('click', () => {
+    syncNotesPreview();
+    document.getElementById('notesTextarea').style.display = 'none';
+    document.getElementById('notesPreview').style.display = '';
+    document.getElementById('notesEditBtn').classList.remove('active');
+    document.getElementById('notesPreviewBtn').classList.add('active');
+  });
+
+  document.getElementById('notesToggleBtn').addEventListener('click', () => {
+    notesOpen = !notesOpen;
+    document.getElementById('notesPanel').classList.toggle('open', notesOpen);
+    document.getElementById('notesToggleBtn').classList.toggle('active', notesOpen);
+    if (notesOpen) { loadNotesForItem(practiceIdx); window.api.resizeWindow(1640, chordHeight()); }
+    else { window.api.resizeWindow(1280, chordHeight()); }
+  });
+
   function playChime() {
     const ctx = getCtx(), t = ctx.currentTime;
     const notes = [523.25, 659.25, 783.99];

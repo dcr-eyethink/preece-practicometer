@@ -1,8 +1,14 @@
-activity,time
-hannon 5 & 6,3
-4 stack inversions,3
-4 stack extended inversions,3
-Enclosures on 4 stack (diatonic; chromatic),10
-"AL with walk ups and scales landing on 1,3,5",5
-AL free play,10
-Bach,10
+activity,time,notes
+hannon 5 & 6,3,
+4 stack inversions,3,
+4 stack extended inversions,3,
+Enclosures on 4 stack (diatonic; chromatic),10,
+"AL with walk ups and scales landing on 1,3,5",5,
+AL free play,10,
+Bach,10,
+minor melodic,10,"3rd Sept - New scales (minor melodic) workflow:
+- Practise some minor melodic scales with two hands.
+- Now practise a minor melodic scale from the ones you just got acquainted, play in the RH. With LH, play an associated Root and shell. For an ALTERED sound, play a dominant root and shell ONE SEMITONE down from your RH melodic minor scale
+- ^ We're taking scales we know, and associating the chord to THAT
+- Now some IDEAS within the scale (forget the LH for a second) - Find the two major triads in the MM scale. (hint they are also in the MAJOR scale of the same name) - practise the triads in the 3 inversions. And now start to blend scales and the arpeggiated triads together.
+- NOW when the scale and triads (which give you arpeggios) are feeling intuitive, we start to introduce LINE CONSTRUCTION elements: so enclosures, walk ups. All of this, when you gain confidence, introduce the root and shell in LH."

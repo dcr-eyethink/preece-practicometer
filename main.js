@@ -60,22 +60,28 @@ function parseCSV(text) {
   }
   rows.push(current);
   const result = [];
-  for (let i = 0; i < rows.length; i += 2) {
+  // detect 3-column format by checking if 3rd header token is 'notes'
+  const stride = (rows.length >= 3 && rows[2] === 'notes') ? 3 : 2;
+  for (let i = 0; i < rows.length; i += stride) {
     if (i + 1 < rows.length) {
-      result.push({ activity: rows[i], time: rows[i + 1] });
+      result.push({ activity: rows[i], time: rows[i + 1], notes: stride === 3 ? (rows[i + 2] || '') : '' });
     }
   }
   return result;
 }
 
+function csvField(s) {
+  s = s || '';
+  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
 function toCSV(data) {
-  let out = 'activity,time\n';
+  let out = 'activity,time,notes\n';
   for (const row of data) {
-    let act = row.activity;
-    if (act.includes(',') || act.includes('"') || act.includes('\n')) {
-      act = '"' + act.replace(/"/g, '""') + '"';
-    }
-    out += act + ',' + row.time + '\n';
+    out += csvField(row.activity) + ',' + (row.time || '') + ',' + csvField(row.notes || '') + '\n';
   }
   return out;
 }
