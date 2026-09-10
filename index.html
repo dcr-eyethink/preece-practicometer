@@ -780,6 +780,11 @@
       tdSkip.appendChild(skipBtn); tr.appendChild(tdSkip);
       if (row.disabled) tr.classList.add('row-disabled');
 
+      tr.addEventListener('click', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+        if (notesOpen) openNotesForRow(i);
+      });
+
       tbody.appendChild(tr);
     });
   }
