@@ -111,10 +111,7 @@
     display: none; flex-direction: column; align-items: center; justify-content: center;
     padding: 2rem; position: relative;
   }
-  .notes-row-btn { background: none; border: none; cursor: pointer; font-size: 13px; color: #bbb; padding: 4px 5px; border-radius: 4px; }
-  .notes-row-btn:hover { color: #7090e0; }
-  .notes-row-btn.has-notes { color: #7090e0; }
-  .practice-notes-btn { background: none; border: 1px solid #d0d8f0; border-radius: 8px; font-size: 15px; cursor: pointer; color: #778; padding: 2px 9px; margin-top: 0.6rem; }
+.practice-notes-btn { background: none; border: 1px solid #d0d8f0; border-radius: 8px; font-size: 15px; cursor: pointer; color: #778; padding: 2px 9px; margin-top: 0.6rem; }
   .practice-notes-btn:hover { background: #e8eeff; color: #334; }
   .practice-notes-btn.active { background: #c8d4f8; border-color: #7090e0; color: #112; }
   .notes-panel { width: 360px; border-left: 1px solid #e0e0e0; display: none; flex-direction: column; background: #fafbff; }
@@ -768,11 +765,6 @@
       const del = document.createElement('button'); del.className = 'del-btn'; del.textContent = '×'; del.title = 'Delete row';
       del.addEventListener('click', () => { rows.splice(i, 1); renderEditor(); updateTotal(); snapshotRatios(); });
       tdActs.appendChild(addR); tdActs.appendChild(del); tr.appendChild(tdActs);
-
-      const tdN = document.createElement('td');
-      const nBtn = document.createElement('button'); nBtn.className = 'notes-row-btn' + ((row.notes||'').trim() ? ' has-notes' : ''); nBtn.textContent = '📝'; nBtn.title = 'Notes';
-      nBtn.addEventListener('click', () => openNotesForRow(i));
-      tdN.appendChild(nBtn); tr.appendChild(tdN);
 
       const tdSkip = document.createElement('td'); tdSkip.className = 'skip-cell';
       const skipBtn = document.createElement('button'); skipBtn.className = 'skip-btn' + (row.disabled ? ' skipped' : ''); skipBtn.textContent = '⊘'; skipBtn.title = row.disabled ? 'Re-enable item' : 'Skip item';
