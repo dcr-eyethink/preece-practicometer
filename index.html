@@ -180,8 +180,6 @@
   .c5-mode-row { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
   .c5-mode-btn { padding: 5px 16px; border: 1.5px solid #c0ccee; border-radius: 14px; background: #e8ecf8; font-size: 13px; font-weight: 600; color: #445; cursor: pointer; }
   .c5-mode-btn.active { background: #c8d4f8; border-color: #7090e0; color: #112; }
-  .c5-seven-btn { padding: 5px 13px; border: 1.5px solid #d4b8e0; border-radius: 14px; background: #f0e8f8; font-size: 13px; font-weight: 700; color: #604; cursor: pointer; }
-  .c5-seven-btn.active { background: #c8a0e8; border-color: #8840b0; color: #fff; }
   #c5Panel { display: none; margin-top: 0.5rem; }
   #cgPanel { }
 </style>
@@ -235,9 +233,9 @@
     <div id="c5Panel">
       <div class="c5-mode-row">
         <button class="c5-mode-btn" id="c5MajorBtn">major</button>
+        <button class="c5-mode-btn" id="c5DomBtn">dominant</button>
         <button class="c5-mode-btn" id="c5MinorBtn">minor</button>
         <button class="c5-mode-btn" id="c5MixedBtn">mixed</button>
-        <button class="c5-seven-btn" id="c5SevenBtn">7</button>
       </div>
       <div class="chord-grid" id="c5Grid"></div>
     </div>
@@ -564,19 +562,25 @@
   document.getElementById('c5ToggleBtn').addEventListener('click', () => activateFeature('c5'));
 
   const C5_KEYS = ['C','G','D','A','E','B','F#','Db','Ab','Eb','Bb','F'];
-  let c5CurrentMode = null, c5MixedFlipNext = false, c5SevenActive = false;
+  let c5CurrentMode = null, c5MixedCycleNext = false;
+  const C5_TYPE_CYCLE = ['maj7', 'min7', 'dom7'];
 
   function renderC5Cell(cell) {
-    cell.textContent = musicalChord(cell.dataset.key + (c5SevenActive ? '7' : ''));
+    const base = musicalChord(cell.dataset.key);
+    const type = cell.dataset.type || 'maj7';
+    if (type === 'maj7') { cell.innerHTML = ''; cell.appendChild(document.createTextNode(base)); const sup = document.createElement('sup'); sup.textContent = '\u03947'; cell.appendChild(sup); }
+    else if (type === 'dom7') cell.textContent = base + '7';
+    else cell.textContent = base + 'm7';
   }
 
-  function buildC5Cells(labels) {
+  function buildC5Cells(keys, types) {
     const grid = document.getElementById('c5Grid');
     grid.innerHTML = '';
-    chordCells = labels.map((label, i) => {
+    chordCells = keys.map((key, i) => {
       const cell = document.createElement('div');
       cell.className = 'chord-cell';
-      cell.dataset.key = label;
+      cell.dataset.key = key;
+      cell.dataset.type = types[i];
       renderC5Cell(cell);
       cell.style.cursor = 'pointer';
       cell.addEventListener('click', () => {
@@ -594,49 +598,48 @@
     resizeKeepWidth(990);
   }
 
-  function generateC5Grid(mode) {
+  function shuffledC5Keys() {
     const keys = [...C5_KEYS];
     for (let i = keys.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [keys[i],keys[j]]=[keys[j],keys[i]]; }
-    let labels;
-    if (mode === 'major') { labels = keys; }
-    else if (mode === 'minor') { labels = keys.map(k => k+'m'); }
-    else {
-      const minors = new Set();
-      while (minors.size < 6) minors.add(Math.floor(Math.random()*12));
-      labels = keys.map((k,i) => minors.has(i) ? k+'m' : k);
-    }
-    buildC5Cells(labels);
+    return keys;
   }
 
-  function flipC5Mixed() {
+  function generateC5Grid(mode) {
+    const keys = shuffledC5Keys();
+    let types;
+    if (mode === 'major') { types = keys.map(() => 'maj7'); }
+    else if (mode === 'minor') { types = keys.map(() => 'min7'); }
+    else if (mode === 'dominant') { types = keys.map(() => 'dom7'); }
+    else {
+      const pool = ['maj7','maj7','maj7','maj7','min7','min7','min7','min7','dom7','dom7','dom7','dom7'];
+      for (let i = pool.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+      types = pool;
+    }
+    buildC5Cells(keys, types);
+  }
+
+  function cycleC5Mixed() {
     chordCells.forEach(cell => {
-      const key = cell.dataset.key;
-      const flipped = key.endsWith('m') ? key.slice(0,-1) : key+'m';
-      cell.dataset.key = flipped;
+      const cur = cell.dataset.type || 'maj7';
+      cell.dataset.type = C5_TYPE_CYCLE[(C5_TYPE_CYCLE.indexOf(cur) + 1) % 3];
       renderC5Cell(cell);
     });
   }
 
-  ['c5MajorBtn','c5MinorBtn','c5MixedBtn'].forEach(id => {
+  ['c5MajorBtn','c5DomBtn','c5MinorBtn','c5MixedBtn'].forEach(id => {
     document.getElementById(id).addEventListener('click', () => {
       document.querySelectorAll('.c5-mode-btn').forEach(b => b.classList.remove('active'));
       document.getElementById(id).classList.add('active');
-      const mode = {'c5MajorBtn':'major','c5MinorBtn':'minor','c5MixedBtn':'mixed'}[id];
+      const mode = {'c5MajorBtn':'major','c5DomBtn':'dominant','c5MinorBtn':'minor','c5MixedBtn':'mixed'}[id];
       if (mode === 'mixed' && c5CurrentMode === 'mixed') {
-        if (c5MixedFlipNext) { flipC5Mixed(); c5MixedFlipNext = false; }
-        else { generateC5Grid('mixed'); c5MixedFlipNext = true; }
+        if (c5MixedCycleNext) { cycleC5Mixed(); }
+        else { generateC5Grid('mixed'); c5MixedCycleNext = true; }
       } else {
-        c5MixedFlipNext = true; // next mixed click after a fresh randomise will flip
+        c5MixedCycleNext = false;
         generateC5Grid(mode);
       }
       c5CurrentMode = mode;
     });
-  });
-
-  document.getElementById('c5SevenBtn').addEventListener('click', () => {
-    c5SevenActive = !c5SevenActive;
-    document.getElementById('c5SevenBtn').classList.toggle('active', c5SevenActive);
-    chordCells.forEach(renderC5Cell);
   });
 
   document.getElementById('timeRow').addEventListener('click', e => {
