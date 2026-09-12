@@ -52,7 +52,7 @@
   /* Editor */
   .editor-wrap { display: none; flex: 1; overflow: hidden; }
   .editor-wrap.active { display: flex; }
-  .editor-panel { flex: 1; min-width: 380px; padding: 1.5rem; overflow-y: auto; }
+  .editor-panel { flex: 1; min-width: 380px; padding: 1.5rem; overflow-y: auto; position: relative; }
   .toolbar { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
   .btn { padding: 7px 16px; border: 1px solid #ccc; border-radius: 8px; font-size: 13px; cursor: pointer; background: #f9f9f9; color: #555; font-weight: 500; }
   .btn:hover { background: #eee; }
@@ -111,7 +111,7 @@
     display: none; flex-direction: column; align-items: center; justify-content: center;
     padding: 2rem; position: relative;
   }
-.practice-notes-btn { background: none; border: 1px solid #d0d8f0; border-radius: 8px; font-size: 15px; cursor: pointer; color: #778; padding: 2px 9px; margin-top: 0.6rem; }
+.practice-notes-btn { position: absolute; top: 1.2rem; right: 1.2rem; background: none; border: 1px solid #d0d8f0; border-radius: 8px; font-size: 15px; cursor: pointer; color: #778; padding: 2px 9px; }
   .practice-notes-btn:hover { background: #e8eeff; color: #334; }
   .practice-notes-btn.active { background: #c8d4f8; border-color: #7090e0; color: #112; }
   .notes-panel { width: 360px; border-left: 1px solid #e0e0e0; display: none; flex-direction: column; background: #fafbff; }
@@ -258,6 +258,7 @@
   <!-- Editor + Practice (hidden until a set is opened) -->
   <div class="editor-wrap" id="editorWrap">
     <div class="editor-panel">
+      <button class="practice-notes-btn" id="practiceNotesBtn" title="Notes for this item">📝 notes</button>
       <input class="editor-title" id="editorTitle" type="text" value="Practice Set" spellcheck="false">
       <div class="toolbar">
         <button class="btn btn-practice" id="practiceBtn">Start Practice</button>
@@ -285,7 +286,6 @@
 
     <div class="practice-panel" id="practicePanel">
       <button class="practice-close" id="practiceClose" title="Close practice">×</button>
-      <button class="practice-notes-btn" id="practiceNotesBtn" title="Notes for this item">📝 notes</button>
       <div class="practice-index" id="practiceIndex"></div>
       <div class="practice-activity" id="practiceActivity"></div>
       <div class="timer-wrap" id="timerWrap">
