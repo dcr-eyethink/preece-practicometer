@@ -173,6 +173,7 @@
       r.setAttribute('rx', 3); r.setAttribute('fill', 'white');
       r.setAttribute('stroke', '#aaa'); r.setAttribute('stroke-width', 1.2);
       r.classList.add('ear-key');
+      r.setAttribute('data-tip', 'Click to answer, or just to hear this note.');
       r.addEventListener('mousedown', () => handleUserNote(m, 'click'));
       svg.appendChild(r);
       keyRects[m] = r;
@@ -189,6 +190,7 @@
       r.setAttribute('rx', 2); r.setAttribute('fill', '#1a1a1a');
       r.setAttribute('stroke', '#000');
       r.classList.add('ear-key');
+      r.setAttribute('data-tip', 'Click to answer, or just to hear this note.');
       r.addEventListener('mousedown', e => { e.stopPropagation(); handleUserNote(m, 'click'); });
       svg.appendChild(r);
       keyRects[m] = r;
@@ -607,7 +609,7 @@
       const b = document.createElement('button');
       b.className = 'ear-dir-btn' + (state.activeDirections.has(dir) ? ' active' : '');
       b.textContent = dir === 'up' ? '↑' : '↓';
-      b.title = dir === 'up' ? 'Ascending intervals' : 'Descending intervals';
+      b.setAttribute('data-tip', (dir === 'up' ? 'Ascending' : 'Descending') + ' intervals — toggle on/off for the question pool (at least one must stay on).');
       b.addEventListener('click', () => {
         if (staircase.active) return;
         if (state.activeDirections.has(dir)) {
@@ -630,6 +632,7 @@
       const b = document.createElement('button');
       b.className = 'ear-num-btn' + (state.activeIntervals.has(i) ? ' active' : '');
       b.textContent = i;
+      b.setAttribute('data-tip', INTERVAL_LABEL[i] + ' — toggle on/off for the question pool (at least one must stay on).');
       b.addEventListener('click', () => {
         if (staircase.active) return;
         if (state.activeIntervals.has(i)) {

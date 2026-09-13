@@ -18,6 +18,7 @@
       "index.html",
       "eartraining.js",
       "chordsequence.js",
+      "tooltips.js",
       "samples/**/*",
       "tick.wav",
       "tock.wav"

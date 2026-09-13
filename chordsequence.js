@@ -203,6 +203,7 @@
       const filled = i < state.guessSeq.length;
       slot.className = 'cs-guess-slot' + (filled ? ' filled' : '');
       slot.textContent = filled ? DEGREE_INFO[state.guessSeq[i]].roman : '–';
+      slot.setAttribute('data-tip', 'Your guess for chord ' + (i + 1) + ' of this sequence.');
       row.appendChild(slot);
     }
   }
@@ -215,6 +216,7 @@
       b.className = 'cs-chord-btn';
       b.dataset.degree = deg;
       b.innerHTML = `<span class="cs-chord-roman">${DEGREE_INFO[deg].roman}</span><span class="cs-chord-name"></span>`;
+      b.setAttribute('data-tip', 'Click to answer with this chord — directly in single-chord mode, or added to your guess sequence in 2–4 chord mode.');
       b.addEventListener('click', () => onChordButtonClick(deg, b));
       row.appendChild(b);
     });
