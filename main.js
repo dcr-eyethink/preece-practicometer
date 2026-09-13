@@ -115,6 +115,11 @@ ipcMain.handle('resize-window', (e, width, height) => {
   if (win) win.setSize(width, Math.max(height, 500), true);
 });
 
+ipcMain.handle('get-window-size', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  return win ? win.getSize() : [660, 760];
+});
+
 ipcMain.handle('launch-app', (e, appName) => {
   const { exec } = require('child_process');
   exec(`open -a "${appName}"`);

@@ -9,5 +9,6 @@ contextBridge.exposeInMainWorld('api', {
   renameCSV: (oldPath, newName) => ipcRenderer.invoke('rename-csv', oldPath, newName),
   launchApp: (name) => ipcRenderer.invoke('launch-app', name),
   resizeWindow: (w, h) => ipcRenderer.invoke('resize-window', w, h),
+  getWindowSize: () => ipcRenderer.invoke('get-window-size'),
   onLoadFile: (cb) => ipcRenderer.on('load-file', (e, filePath) => cb(filePath))
 });

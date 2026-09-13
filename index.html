@@ -412,14 +412,29 @@
   const KEYS = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
 
   let chordGridActive = false, chordIdx = 0, chordCells = [], chordCountIn = 0, chordStarted = false, currentChordKey = null;
-  let currentWindowWidth = 660;
+  // Pane base widths (without notes panel)
+  const PANE_WIDTH = { sets: 660, editor: 1200, practice: 1280 };
+  let currentPane = 'sets'; // 'sets' | 'editor' | 'practice'
+
   function chordHeight() {
     const section = document.getElementById('chordSection');
     if (!section || !section.classList.contains('visible')) return 760;
     const panel = document.getElementById('chordGridPanel');
     return (panel && panel.classList.contains('visible')) ? 990 : 860;
   }
-  function resizeKeepWidth(h) { window.api.resizeWindow(currentWindowWidth, h); }
+
+  // Only called on pane transitions — uses the declared pane width
+  function resizeToPane(pane) {
+    currentPane = pane;
+    const w = PANE_WIDTH[pane] + (notesOpen ? 360 : 0);
+    window.api.resizeWindow(w, chordHeight());
+  }
+
+  // Notes open/close — queries actual window width so manual resizes are preserved
+  async function resizeForNotes(opening) {
+    const [w] = await window.api.getWindowSize();
+    window.api.resizeWindow(w + (opening ? 360 : -360), chordHeight());
+  }
 
   function shuffle(arr) {
     const freq = {};
@@ -468,7 +483,6 @@
     const panel = document.getElementById('chordGridPanel');
     if (!panel.classList.contains('visible')) {
       panel.classList.add('visible');
-      resizeKeepWidth(990);
     }
     chordGridActive = true; chordIdx = 0; chordStarted = false;
     chordCountIn = metroRunning ? 4 : 0;
@@ -539,7 +553,6 @@
     document.getElementById('c5Panel').style.display = 'none';
     document.getElementById('cgPanel').style.display = '';
     chordGridActive = false; chordCells = []; currentChordKey = null; refreshPiano();
-    resizeKeepWidth(760);
   }
 
   function activateFeature(name) {
@@ -556,7 +569,6 @@
       document.getElementById('chordGridPanel').classList.remove('visible');
       chordGridActive = false; chordCells = []; currentChordKey = null; refreshPiano();
     }
-    resizeKeepWidth(860);
   }
 
   document.getElementById('chordToggleBtn').addEventListener('click', () => activateFeature('chordgrid'));
@@ -597,7 +609,6 @@
     chordGridActive = true; chordIdx = 0; chordStarted = false;
     chordCountIn = metroRunning ? 4 : 0;
     if (!metroRunning) highlightChordCell(0);
-    resizeKeepWidth(990);
   }
 
   function shuffledC5Keys() {
@@ -685,8 +696,7 @@
   async function openSet(fp) {
     setsPanel.style.display = 'none';
     editorWrap.classList.add('active');
-    if (notesOpen) { notesOpen = false; notesRowIdx = -1; document.getElementById('notesPanel').classList.remove('open'); document.getElementById('practiceNotesBtn').classList.remove('active'); }
-    currentWindowWidth = 1200; window.api.resizeWindow(1200, chordHeight());
+    resizeToPane('editor');
     localStorage.setItem('lastOpenedSet', fp);
     filePath = fp;
     const data = await window.api.readCSV(fp);
@@ -703,7 +713,7 @@
     practicePanel.classList.remove('active');
     editorWrap.classList.remove('active');
     setsPanel.style.display = '';
-    currentWindowWidth = 660; window.api.resizeWindow(660, chordHeight());
+    resizeToPane('sets');
     loadSetsList();
   }
 
@@ -922,7 +932,7 @@
       notesOpen = true;
       document.getElementById('notesPanel').classList.add('open');
       document.getElementById('practiceNotesBtn').classList.add('active');
-      window.api.resizeWindow(currentWindowWidth + 360, chordHeight());
+      resizeForNotes(true);
     }
   }
 
@@ -932,7 +942,7 @@
     notesRowIdx = -1;
     document.getElementById('notesPanel').classList.remove('open');
     document.getElementById('practiceNotesBtn').classList.remove('active');
-    window.api.resizeWindow(currentWindowWidth - 360, chordHeight());
+    resizeForNotes(false);
   }
 
   document.getElementById('notesPreview').addEventListener('click', () => {
@@ -983,7 +993,7 @@
   document.getElementById('practiceBtn').addEventListener('click', () => {
     if (rows.length === 0) return;
     practiceActive = true; practicePanel.classList.add('active');
-    currentWindowWidth = 1280; window.api.resizeWindow(1280 + (notesOpen ? 360 : 0), chordHeight());
+    resizeToPane('practice');
     sessionStarted = false;
     sessionElapsed = 0; sessionTimeEl.textContent = '0:00';
     loadPracticeItem(0);
@@ -991,7 +1001,7 @@
   document.getElementById('practiceClose').addEventListener('click', () => {
     stopPracticeTimer(); stopSessionTimer();
     practiceActive = false; practicePanel.classList.remove('active');
-    renderEditor(); currentWindowWidth = 1200; window.api.resizeWindow(1200 + (notesOpen ? 360 : 0), chordHeight());
+    renderEditor(); resizeToPane('editor');
   });
 
 })();
