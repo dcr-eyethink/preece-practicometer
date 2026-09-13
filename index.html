@@ -232,6 +232,7 @@
     </div>
     <div id="c5Panel">
       <div class="c5-mode-row">
+        <button class="c5-mode-btn active" id="c5NoteBtn">note</button>
         <button class="c5-mode-btn" id="c5MajorBtn">major</button>
         <button class="c5-mode-btn" id="c5DomBtn">dominant</button>
         <button class="c5-mode-btn" id="c5MinorBtn">minor</button>
@@ -562,13 +563,14 @@
   document.getElementById('c5ToggleBtn').addEventListener('click', () => activateFeature('c5'));
 
   const C5_KEYS = ['C','G','D','A','E','B','F#','Db','Ab','Eb','Bb','F'];
-  let c5CurrentMode = null, c5MixedCycleNext = false;
+  let c5CurrentMode = 'note', c5MixedCycleNext = false;
   const C5_TYPE_CYCLE = ['maj7', 'min7', 'dom7'];
 
   function renderC5Cell(cell) {
     const base = musicalChord(cell.dataset.key);
-    const type = cell.dataset.type || 'maj7';
-    if (type === 'maj7') { cell.innerHTML = ''; cell.appendChild(document.createTextNode(base)); const sup = document.createElement('sup'); sup.textContent = '\u03947'; cell.appendChild(sup); }
+    const type = cell.dataset.type || 'note';
+    if (type === 'note') cell.textContent = base;
+    else if (type === 'maj7') cell.textContent = base + 'maj7';
     else if (type === 'dom7') cell.textContent = base + '7';
     else cell.textContent = base + 'm7';
   }
@@ -607,7 +609,8 @@
   function generateC5Grid(mode) {
     const keys = shuffledC5Keys();
     let types;
-    if (mode === 'major') { types = keys.map(() => 'maj7'); }
+    if (mode === 'note') { types = keys.map(() => 'note'); }
+    else if (mode === 'major') { types = keys.map(() => 'maj7'); }
     else if (mode === 'minor') { types = keys.map(() => 'min7'); }
     else if (mode === 'dominant') { types = keys.map(() => 'dom7'); }
     else {
@@ -626,11 +629,11 @@
     });
   }
 
-  ['c5MajorBtn','c5DomBtn','c5MinorBtn','c5MixedBtn'].forEach(id => {
+  ['c5NoteBtn','c5MajorBtn','c5DomBtn','c5MinorBtn','c5MixedBtn'].forEach(id => {
     document.getElementById(id).addEventListener('click', () => {
       document.querySelectorAll('.c5-mode-btn').forEach(b => b.classList.remove('active'));
       document.getElementById(id).classList.add('active');
-      const mode = {'c5MajorBtn':'major','c5DomBtn':'dominant','c5MinorBtn':'minor','c5MixedBtn':'mixed'}[id];
+      const mode = {'c5NoteBtn':'note','c5MajorBtn':'major','c5DomBtn':'dominant','c5MinorBtn':'minor','c5MixedBtn':'mixed'}[id];
       if (mode === 'mixed' && c5CurrentMode === 'mixed') {
         if (c5MixedCycleNext) { cycleC5Mixed(); }
         else { generateC5Grid('mixed'); c5MixedCycleNext = true; }
