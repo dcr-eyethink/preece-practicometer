@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -19,8 +19,8 @@ let SETS_DIR;
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 660,
-    height: 760,
+    width: 1000,
+    height: 826,
     resizable: true,
     acceptFirstMouse: true,
     title: 'Preece Practicometer',
@@ -150,6 +150,9 @@ ipcMain.handle('duplicate-csv', async (e, originalPath, data) => {
 });
 
 app.whenReady().then(() => {
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(permission === 'media' || permission === 'midi' || permission === 'midiSysex');
+  });
   SETS_DIR = getSetsDir();
   createWindow();
 });

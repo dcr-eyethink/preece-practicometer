@@ -1,0 +1,5 @@
+Piano samples: Salamander Grand Piano by Alexander Holm, redistributed via
+https://github.com/nbrosowsky/tonejs-instruments
+
+Licensed under Creative Commons Attribution 3.0 (CC-BY 3.0):
+https://creativecommons.org/licenses/by/3.0/

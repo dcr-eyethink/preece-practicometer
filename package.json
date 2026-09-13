@@ -16,13 +16,19 @@
       "main.js",
       "preload.js",
       "index.html",
+      "eartraining.js",
+      "chordsequence.js",
+      "samples/**/*",
       "tick.wav",
       "tock.wav"
     ],
     "mac": {
       "target": "dir",
       "category": "public.app-category.music",
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Preece Practicometer uses the microphone for the Ear Training pitch-matching feature."
+      }
     },
     "win": {
       "target": "dir",
