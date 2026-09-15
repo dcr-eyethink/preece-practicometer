@@ -13,7 +13,8 @@
     "appId": "org.eyethink.preece-practicometer",
     "productName": "Preece Practicometer",
     "files": [
-      "main.js"
+      "main.js",
+      "preload.js"
     ],
     "mac": {
       "target": "dir",
