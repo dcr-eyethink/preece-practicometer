@@ -57,7 +57,7 @@
     if (!session) return;
     overlay.style.display = 'none';
     try {
-      const seeded = await window.api.seedDefaultSetsIfEmpty();
+      const seeded = await window.api.seedDefaultsIfEmpty();
       if (seeded) location.reload();
     } catch (err) {
       console.error('Seeding starter sets failed:', err);

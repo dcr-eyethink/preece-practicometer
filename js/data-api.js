@@ -102,17 +102,46 @@
   function resizeWindow() { /* no-op on the web */ }
   async function getWindowSize() { return [window.innerWidth, window.innerHeight]; }
 
-  // Seeds the starter sets (see js/default-sets.js) into a brand-new account.
-  // Returns true if it seeded anything, false if the account already has sets.
-  async function seedDefaultSetsIfEmpty() {
+  // Seeds the starter sets + scores (js/default-sets.js, js/default-scores.js)
+  // into a brand-new account. Scores are seeded first so their freshly
+  // generated ids can resolve the `scoreKey` references in DEFAULT_PRACTICE_SETS'
+  // score-kind rows. Returns true if anything was seeded, false if the
+  // account already has sets (never re-seeds on top of real content).
+  async function seedDefaultsIfEmpty() {
     const userId = await currentUserId();
     const existing = await listSets();
     if (existing.length > 0) return false;
-    const defaults = window.DEFAULT_PRACTICE_SETS || [];
-    if (defaults.length === 0) return false;
+
+    const defaultScores = window.DEFAULT_SCORES || [];
+    const scoreIdByKey = {};
+    for (const d of defaultScores) {
+      const blob = await (await fetch(d.dataUrl)).blob();
+      const cleanName = (d.name || 'score').replace(/[^A-Za-z0-9._-]/g, '_');
+      const storagePath = userId + '/' + Date.now() + '-' + cleanName + '.png';
+      const { error: uploadErr } = await client.storage.from(SCORES_BUCKET)
+        .upload(storagePath, blob, { contentType: d.mimeType });
+      if (uploadErr) throw uploadErr;
+      const { data, error } = await client
+        .from(SCORES_TABLE)
+        .insert({ user_id: userId, name: d.name, storage_path: storagePath, mime_type: d.mimeType })
+        .select('id')
+        .single();
+      if (error) throw error;
+      scoreIdByKey[d.key] = data.id;
+    }
+
+    const defaultSets = window.DEFAULT_PRACTICE_SETS || [];
+    if (defaultSets.length === 0) return defaultScores.length > 0;
+    const resolveRows = (rows) => rows.map(r => {
+      if (r.kind === 'score' && r.scoreKey) {
+        const { scoreKey, ...rest } = r;
+        return Object.assign(rest, { scoreId: scoreIdByKey[scoreKey] });
+      }
+      return r;
+    });
     const { error } = await client
       .from(TABLE)
-      .insert(defaults.map(s => ({ user_id: userId, name: s.name, rows: s.rows })));
+      .insert(defaultSets.map(s => ({ user_id: userId, name: s.name, rows: resolveRows(s.rows) })));
     if (error) throw error;
     return true;
   }
@@ -178,7 +207,7 @@
 
   window.api = {
     listSets, readCSV, saveCSV, renameCSV, duplicateCSV, createSet,
-    resizeWindow, getWindowSize, seedDefaultSetsIfEmpty,
+    resizeWindow, getWindowSize, seedDefaultsIfEmpty,
     listScores, uploadScore, renameScore, deleteScore, getScoreUrl
   };
 })();
