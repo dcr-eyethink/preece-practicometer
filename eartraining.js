@@ -425,8 +425,11 @@
     lastUserPitchClass = pc;
     renderKeyboardHighlights();
 
-    const targetPc = ((state.targetMidi % 12) + 12) % 12;
-    if (pc === targetPc && Math.abs(cents) <= CENTS_TOLERANCE) {
+    // Exact octave required (shifted by octaveShift, since that's the
+    // register you're actually being asked to sing/play back) — matching
+    // just the pitch class let a guess in any octave score as correct.
+    const effectiveTarget = state.targetMidi + octaveShift * 12;
+    if (rounded === effectiveTarget && Math.abs(cents) <= CENTS_TOLERANCE) {
       matchStreak++;
       if (matchStreak >= REQUIRED_STREAK) onCorrect();
     } else {
