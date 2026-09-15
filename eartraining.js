@@ -425,11 +425,9 @@
     lastUserPitchClass = pc;
     renderKeyboardHighlights();
 
-    // Exact octave required (shifted by octaveShift, since that's the
-    // register you're actually being asked to sing/play back) — matching
-    // just the pitch class let a guess in any octave score as correct.
-    const effectiveTarget = state.targetMidi + octaveShift * 12;
-    if (rounded === effectiveTarget && Math.abs(cents) <= CENTS_TOLERANCE) {
+    // Pitch class only — correct in any octave, matching the keyboard/MIDI answer path.
+    const targetPc = ((state.targetMidi % 12) + 12) % 12;
+    if (pc === targetPc && Math.abs(cents) <= CENTS_TOLERANCE) {
       matchStreak++;
       if (matchStreak >= REQUIRED_STREAK) onCorrect();
     } else {
@@ -561,7 +559,9 @@
     lastUserMidi = midi;
     lastUserPitchClass = null;
     renderKeyboardHighlights();
-    if (midi === state.targetMidi) {
+    const guessPc = ((midi % 12) + 12) % 12;
+    const targetPc = ((state.targetMidi % 12) + 12) % 12;
+    if (guessPc === targetPc) {
       onCorrect();
     } else {
       recordAttempt(false);
