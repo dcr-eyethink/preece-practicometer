@@ -21,7 +21,7 @@
     4: [[1, 5, 6, 4], [6, 4, 1, 5], [1, 6, 4, 5], [2, 5, 1, 6]]
   };
 
-  const state = { keyIndex: 0, targetSeq: [], guessSeq: [] };
+  const state = { keyIndex: 0, targetSeq: [], guessSeq: [], correctMask: [] };
   let currentSeqLen = 1;
   let lastSingle = null;
   let lastProg = null;
@@ -47,15 +47,28 @@
   // restrict the single-chord pool to the most easily-distinguished degrees (V, IV) before
   // widening it; later rungs step up to longer progressions, and the final rung also changes
   // key every turn so the ear can't settle into one tonal center.
+  // Each multi-chord length gets one rung per progression added to its pool
+  // (1 -> 4, matching PROGRESSIONS' 4 canned options for that length) instead
+  // of jumping straight to the full pool on the first correct answer — the
+  // single-chord rungs already worked this way by widening the degree pool.
   const STAIRCASE_LEVELS = [
     { seqLen: 1, pool: [5] },
     { seqLen: 1, pool: [5, 4] },
     { seqLen: 1, pool: [5, 4, 6] },
     { seqLen: 1, pool: [5, 4, 6, 2, 3] },
-    { seqLen: 2 },
-    { seqLen: 3 },
-    { seqLen: 4 },
-    { seqLen: 4, randomizeKey: true }
+    { seqLen: 2, progPool: 1 },
+    { seqLen: 2, progPool: 2 },
+    { seqLen: 2, progPool: 3 },
+    { seqLen: 2, progPool: 4 },
+    { seqLen: 3, progPool: 1 },
+    { seqLen: 3, progPool: 2 },
+    { seqLen: 3, progPool: 3 },
+    { seqLen: 3, progPool: 4 },
+    { seqLen: 4, progPool: 1 },
+    { seqLen: 4, progPool: 2 },
+    { seqLen: 4, progPool: 3 },
+    { seqLen: 4, progPool: 4 },
+    { seqLen: 4, progPool: 4, randomizeKey: true }
   ];
   const staircase = { active: false, level: 1, peakLevel: 1 };
   let manualSeqLenSnapshot = null;
@@ -200,10 +213,14 @@
     row.innerHTML = '';
     for (let i = 0; i < currentSeqLen; i++) {
       const slot = document.createElement('div');
-      const filled = i < state.guessSeq.length;
-      slot.className = 'cs-guess-slot' + (filled ? ' filled' : '');
-      slot.textContent = filled ? DEGREE_INFO[state.guessSeq[i]].roman : '–';
-      slot.setAttribute('data-tip', 'Your guess for chord ' + (i + 1) + ' of this sequence.');
+      const value = state.guessSeq[i];
+      const filled = value != null;
+      const locked = !!state.correctMask[i];
+      slot.className = 'cs-guess-slot' + (filled ? ' filled' : '') + (locked ? ' correct' : '');
+      slot.textContent = filled ? DEGREE_INFO[value].roman : '–';
+      slot.setAttribute('data-tip', locked
+        ? 'Chord ' + (i + 1) + ' — correct, locked in.'
+        : 'Your guess for chord ' + (i + 1) + ' of this sequence.');
       row.appendChild(slot);
     }
   }
@@ -265,8 +282,9 @@
       if (degree === state.targetSeq[0]) onCorrectSingle(degree, btnEl);
       else { recordAttempt(false); stepStaircase(false); flashWrong(btnEl); }
     } else {
-      if (state.guessSeq.length >= currentSeqLen) return;
-      state.guessSeq.push(degree);
+      const nextOpen = state.guessSeq.findIndex(v => v == null);
+      if (nextOpen === -1) return;
+      state.guessSeq[nextOpen] = degree;
       renderGuessDisplay();
     }
   }
@@ -307,13 +325,16 @@
       lastSingle = target;
       state.targetSeq = [target];
     } else {
-      const pool = PROGRESSIONS[currentSeqLen];
+      const fullPool = PROGRESSIONS[currentSeqLen];
+      const progPool = staircase.active ? STAIRCASE_LEVELS[staircase.level - 1].progPool : null;
+      const pool = progPool ? fullPool.slice(0, progPool) : fullPool;
       let seq;
       do { seq = pool[Math.floor(Math.random() * pool.length)]; } while (pool.length > 1 && seq === lastProg);
       lastProg = seq;
       state.targetSeq = seq.slice();
     }
-    state.guessSeq = [];
+    state.guessSeq = new Array(currentSeqLen).fill(null);
+    state.correctMask = new Array(currentSeqLen).fill(false);
     renderGuessDisplay();
     setStatus(currentSeqLen === 1 ? 'Click the second chord' : 'Rebuild the sequence you just heard');
     playTurnAudio();
@@ -352,21 +373,31 @@
     document.getElementById('csReplayTonicBtn').addEventListener('click', playTonicOnly);
 
     document.getElementById('csDeleteBtn').addEventListener('click', () => {
-      state.guessSeq.pop();
+      for (let i = state.guessSeq.length - 1; i >= 0; i--) {
+        if (state.guessSeq[i] != null && !state.correctMask[i]) {
+          state.guessSeq[i] = null;
+          break;
+        }
+      }
       renderGuessDisplay();
     });
 
     document.getElementById('csSubmitBtn').addEventListener('click', () => {
-      if (state.guessSeq.length !== currentSeqLen) return;
-      const correct = state.guessSeq.every((d, i) => d === state.targetSeq[i]);
+      if (state.guessSeq.some(v => v == null)) return;
+      let correct = true;
+      state.guessSeq.forEach((d, i) => {
+        if (d === state.targetSeq[i]) state.correctMask[i] = true;
+        else correct = false;
+      });
       recordAttempt(correct);
       stepStaircase(correct);
       if (correct) {
         setStatus('Correct! ' + state.targetSeq.map(d => DEGREE_INFO[d].roman).join('–'));
         setTimeout(newTurn, 1400);
       } else {
-        setStatus('Not quite — try again');
-        state.guessSeq = [];
+        setStatus('Not quite — the green ones are locked in, fix the rest');
+        // Keep locked-correct guesses in place; only the wrong slots reopen.
+        state.guessSeq = state.guessSeq.map((d, i) => state.correctMask[i] ? d : null);
         renderGuessDisplay();
         playTurnAudio();
       }
