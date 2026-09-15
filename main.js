@@ -1,21 +1,8 @@
-const { app, BrowserWindow, ipcMain, session } = require('electron');
-const path = require('path');
-const fs = require('fs');
+const { app, BrowserWindow, session } = require('electron');
 
-function getSetsDir() {
-  if (app.isPackaged) {
-    // On Mac: exe is inside .app/Contents/MacOS/, practiceSets is next to .app
-    // On Windows: exe is in the app folder, practiceSets is next to it
-    let exeDir = path.dirname(process.execPath);
-    if (process.platform === 'darwin') {
-      exeDir = path.resolve(exeDir, '..', '..', '..');
-    }
-    return path.join(exeDir, 'practiceSets');
-  }
-  return path.join(__dirname, 'practiceSets');
-}
-
-let SETS_DIR;
+// Where the app's UI actually lives — defaults to the deployed site, or
+// override with PRACTICOMETER_URL (e.g. a local static server) for dev work.
+const APP_URL = process.env.PRACTICOMETER_URL || 'https://dcr-eyethink.github.io/preece-practicometer/';
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -26,134 +13,16 @@ function createWindow() {
     title: 'Preece Practicometer',
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      contextIsolation: true
     }
   });
-  win.loadFile('index.html');
+  win.loadURL(APP_URL);
 }
-
-function parseCSV(text) {
-  const rows = [];
-  let current = '';
-  let inQuotes = false;
-  const chars = text.trim();
-  for (let i = 0; i < chars.length; i++) {
-    const c = chars[i];
-    if (c === '"') {
-      if (inQuotes && i + 1 < chars.length && chars[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (c === ',' && !inQuotes) {
-      rows.push(current);
-      current = '';
-    } else if ((c === '\n' || c === '\r') && !inQuotes) {
-      if (c === '\r' && i + 1 < chars.length && chars[i + 1] === '\n') i++;
-      rows.push(current);
-      current = '';
-    } else {
-      current += c;
-    }
-  }
-  rows.push(current);
-  const result = [];
-  // detect 3-column format by checking if 3rd header token is 'notes'
-  const stride = (rows.length >= 3 && rows[2] === 'notes') ? 3 : 2;
-  for (let i = 0; i < rows.length; i += stride) {
-    if (i + 1 < rows.length) {
-      result.push({ activity: rows[i], time: rows[i + 1], notes: stride === 3 ? (rows[i + 2] || '') : '' });
-    }
-  }
-  return result;
-}
-
-function csvField(s) {
-  s = s || '';
-  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
-    return '"' + s.replace(/"/g, '""') + '"';
-  }
-  return s;
-}
-
-function toCSV(data) {
-  let out = 'activity,time,notes\n';
-  for (const row of data) {
-    out += csvField(row.activity) + ',' + (row.time || '') + ',' + csvField(row.notes || '') + '\n';
-  }
-  return out;
-}
-
-ipcMain.handle('list-sets', () => {
-  if (!fs.existsSync(SETS_DIR)) {
-    fs.mkdirSync(SETS_DIR, { recursive: true });
-    return [];
-  }
-  return fs.readdirSync(SETS_DIR)
-    .filter(f => f.endsWith('.csv') && f !== 'chordgrid.csv')
-    .map(f => ({ name: f.replace('.csv', ''), path: path.join(SETS_DIR, f) }));
-});
-
-ipcMain.handle('read-csv', (e, filePath) => {
-  const text = fs.readFileSync(filePath, 'utf-8');
-  const parsed = parseCSV(text);
-  if (parsed.length > 0 && parsed[0].activity === 'activity' && parsed[0].time === 'time') {
-    parsed.shift();
-  }
-  return { name: path.basename(filePath, '.csv'), path: filePath, rows: parsed };
-});
-
-ipcMain.handle('save-csv', (e, filePath, data) => {
-  fs.writeFileSync(filePath, toCSV(data), 'utf-8');
-  return true;
-});
-
-ipcMain.handle('resize-window', (e, width, height) => {
-  const win = BrowserWindow.fromWebContents(e.sender);
-  if (win) win.setSize(width, Math.max(height, 500), true);
-});
-
-ipcMain.handle('get-window-size', (e) => {
-  const win = BrowserWindow.fromWebContents(e.sender);
-  return win ? win.getSize() : [660, 760];
-});
-
-ipcMain.handle('launch-app', (e, appName) => {
-  const { exec } = require('child_process');
-  exec(`open -a "${appName}"`);
-});
-
-ipcMain.handle('rename-csv', (e, oldPath, newName) => {
-  const dir = path.dirname(oldPath);
-  const newPath = path.join(dir, newName + '.csv');
-  if (fs.existsSync(newPath) && newPath !== oldPath) {
-    throw new Error('A set with that name already exists.');
-  }
-  fs.renameSync(oldPath, newPath);
-  return newPath;
-});
-
-ipcMain.handle('duplicate-csv', async (e, originalPath, data) => {
-  const dir = path.dirname(originalPath);
-  const baseName = path.basename(originalPath, '.csv');
-  let newName = baseName + ' copy.csv';
-  let counter = 2;
-  while (fs.existsSync(path.join(dir, newName))) {
-    newName = baseName + ' copy ' + counter + '.csv';
-    counter++;
-  }
-  const newPath = path.join(dir, newName);
-  fs.writeFileSync(newPath, toCSV(data), 'utf-8');
-  return newPath;
-});
 
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
     callback(permission === 'media' || permission === 'midi' || permission === 'midiSysex');
   });
-  SETS_DIR = getSetsDir();
   createWindow();
 });
 

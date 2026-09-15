@@ -373,16 +373,15 @@
     });
 
     function openChordSeqPanel() {
-      if (window.hideAllCentralPanels) window.hideAllCentralPanels();
+      if (window.showCentralPanel) window.showCentralPanel('chordseq');
       if (window.setActiveTopBarIcon) window.setActiveTopBarIcon('csIconBtn');
-      document.getElementById('setsPanel').style.display = 'none';
-      document.getElementById('chordSeqPanel').style.display = 'flex';
       const dims = window.APP_DIMENSIONS;
       if (window.api && window.api.resizeWindow) window.api.resizeWindow(dims ? dims.width2 : 1000, dims ? dims.height : 826);
       ensureInit();
     }
     const csIconBtn = document.getElementById('csIconBtn');
     if (csIconBtn) csIconBtn.addEventListener('click', openChordSeqPanel);
+    window.ChordSeq = { open: openChordSeqPanel };
 
     document.getElementById('csBackBtn').addEventListener('click', () => {
       if (window.hideAllCentralPanels) window.hideAllCentralPanels();

@@ -13,6 +13,8 @@
 
   let CENTS_TOLERANCE = 40;
   const REQUIRED_STREAK = 6;
+  const OCTAVE_SHIFT_MIN = -2, OCTAVE_SHIFT_MAX = 2;
+  let octaveShift = 0;
 
   const state = {
     mode: 'echo',
@@ -123,6 +125,7 @@
   let dataArray = null;
   let rafId = null;
   let midiAccess = null;
+  let selectedMicId = null;
 
   function noteName(midi) {
     return NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
@@ -207,6 +210,7 @@
     if (kind === 'base') fill = isBlack ? '#1a4a8a' : '#cfe0ff';
     else if (kind === 'user') fill = isBlack ? '#a86a10' : '#ffe6b3';
     else if (kind === 'correct') fill = '#27ae60';
+    else if (kind === 'wrong') fill = '#c0392b';
     else fill = isBlack ? '#1a1a1a' : 'white';
     r.setAttribute('fill', fill);
   }
@@ -268,13 +272,22 @@
     return ctx;
   }
 
+  // Samples only cover C3–C5 (KB_LOW–KB_HIGH), so an octave shift is played
+  // by pitch-shifting the nearest in-range sample via playbackRate rather
+  // than needing new recordings — 2x rate = up an octave, 0.5x = down.
   function playTone(midi, startTime, dur, peak) {
     const c = getCtx();
-    const buf = sampleBuffers[midi];
+    const effective = midi + octaveShift * 12;
+    let sourceMidi = effective;
+    while (sourceMidi > KB_HIGH) sourceMidi -= 12;
+    while (sourceMidi < KB_LOW) sourceMidi += 12;
+    const buf = sampleBuffers[sourceMidi];
     if (!buf) return;
+    const rate = Math.pow(2, (effective - sourceMidi) / 12);
     const src = c.createBufferSource();
     const gain = c.createGain();
     src.buffer = buf;
+    if (rate !== 1) src.playbackRate.value = rate;
     src.connect(gain); gain.connect(c.destination);
     const vol = window.masterVolume != null ? window.masterVolume : 1;
     gain.gain.setValueAtTime((peak == null ? 0.9 : peak) * vol, startTime);
@@ -327,9 +340,10 @@
   async function startListening() {
     try {
       if (!micStream) {
-        micStream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-        });
+        const audioConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+        if (selectedMicId) audioConstraints.deviceId = { exact: selectedMicId };
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+        populateMicList(); // device labels are only available after permission is granted
       }
       const c = getCtx();
       if (c.state === 'suspended') await c.resume();
@@ -344,6 +358,35 @@
     } catch (err) {
       setStatus('Microphone access denied — you can still answer via MIDI or the keyboard.');
     }
+  }
+
+  // ===================== Microphone selection =====================
+
+  async function populateMicList() {
+    const select = document.getElementById('earMicSelect');
+    if (!select || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const mics = devices.filter(d => d.kind === 'audioinput');
+      const prevValue = select.value;
+      select.innerHTML = '';
+      mics.forEach((d, i) => {
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.textContent = d.label || ('Microphone ' + (i + 1));
+        select.appendChild(opt);
+      });
+      if (prevValue && mics.some(d => d.deviceId === prevValue)) select.value = prevValue;
+      selectedMicId = select.value || null;
+    } catch (err) {}
+  }
+
+  async function switchMicrophone(deviceId) {
+    selectedMicId = deviceId || null;
+    if (!micStream) return; // nothing active yet — the new choice is picked up on next start
+    const wasListening = !!rafId;
+    releaseMic();
+    if (wasListening) startListening();
   }
 
   function pitchLoop() {
@@ -365,11 +408,16 @@
     analyser = null;
   }
 
+  // Smoothed with a simple exponential moving average so the dial/readout
+  // don't jitter frame-to-frame with natural micro-variation in a sung note.
+  let smoothedPitch = null;
+
   function onPitchDetected(freq) {
     if (!state.turnActive) return;
     const exact = 69 + 12 * Math.log2(freq / 440);
-    const rounded = Math.round(exact);
-    const cents = Math.round((exact - rounded) * 100);
+    smoothedPitch = smoothedPitch == null ? exact : smoothedPitch * 0.7 + exact * 0.3;
+    const rounded = Math.round(smoothedPitch);
+    const cents = Math.round((smoothedPitch - rounded) * 100);
     updatePitchReadout(rounded, cents);
 
     const pc = ((rounded % 12) + 12) % 12;
@@ -388,7 +436,9 @@
 
   function onSilence() {
     matchStreak = 0;
-    updatePitchReadout(null, 0);
+    // Deliberately don't touch the readout/dial here — it holds the last
+    // reading instead of flickering to blank on every quiet frame. It's
+    // still cleared explicitly at the start of each turn and on stop.
   }
 
   // ===================== MIDI =====================
@@ -498,8 +548,11 @@
   function handleUserNote(midi, source) {
     if (source === 'click') {
       const c = getCtx();
-      if (c.state === 'suspended') c.resume();
-      playTone(midi, c.currentTime + 0.02, 0.6, 0.6);
+      // Schedule only once the context is actually running — resuming is
+      // async, and scheduling off a stale currentTime was the main source
+      // of a laggy-feeling click-to-sound gap.
+      const schedule = () => playTone(midi, c.currentTime + 0.005, 0.6, 0.6);
+      if (c.state === 'suspended') c.resume().then(schedule); else schedule();
     }
     if (!state.turnActive) return;
     lastUserMidi = midi;
@@ -513,6 +566,7 @@
         staircase.level = Math.max(1, staircase.level - 1);
         applyStaircaseLevel();
       }
+      setKeyState(midi, 'wrong');
       showWrongFeedback();
       const answerDelay = source === 'click' ? 450 : 150;
       setTimeout(() => {
@@ -549,6 +603,16 @@
     turnTimeout = setTimeout(() => { if (state.running) startTurn(); }, 1600);
   }
 
+  // Reveals the answer and moves on, without counting it right or wrong.
+  function skipTurn() {
+    if (!state.turnActive) return;
+    state.turnActive = false;
+    stopListening();
+    setKeyState(state.targetMidi, 'correct');
+    showCorrectFeedback();
+    turnTimeout = setTimeout(() => { if (state.running) startTurn(); }, 1600);
+  }
+
   async function startTurn() {
     clearTimeout(turnTimeout);
     let base, choices, tries = 0;
@@ -568,6 +632,7 @@
     matchStreak = 0;
     lastUserMidi = null;
     lastUserPitchClass = null;
+    smoothedPitch = null;
 
     clearFeedback();
     renderKeyboardHighlights();
@@ -595,6 +660,7 @@
     clearTimeout(turnTimeout);
     releaseMic();
     clearFeedback();
+    smoothedPitch = null;
     updatePitchReadout(null, 0);
     setStatus('Press Play to begin');
   }
@@ -660,15 +726,6 @@
       document.getElementById('earStaircaseBtn').classList.toggle('active', staircase.active);
     });
 
-    document.querySelectorAll('#earModeRow .ear-mode-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('#earModeRow .ear-mode-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        state.mode = btn.dataset.mode;
-        if (state.turnActive) updateTargetDisplay();
-      });
-    });
-
     document.getElementById('earPlayBtn').addEventListener('click', () => {
       if (!state.running) {
         state.running = true;
@@ -680,18 +737,46 @@
     });
 
     document.getElementById('earStopBtn').addEventListener('click', stopSession);
+    document.getElementById('earSkipBtn').addEventListener('click', skipTurn);
+
+    function updateOctaveReadout() {
+      const el = document.getElementById('earOctaveValue');
+      if (el) el.textContent = (octaveShift > 0 ? '+' : '') + octaveShift;
+    }
+    document.getElementById('earOctaveDownBtn').addEventListener('click', () => {
+      octaveShift = Math.max(OCTAVE_SHIFT_MIN, octaveShift - 1);
+      updateOctaveReadout();
+    });
+    document.getElementById('earOctaveUpBtn').addEventListener('click', () => {
+      octaveShift = Math.min(OCTAVE_SHIFT_MAX, octaveShift + 1);
+      updateOctaveReadout();
+    });
 
     function openEarPanel() {
-      if (window.hideAllCentralPanels) window.hideAllCentralPanels();
-      if (window.setActiveTopBarIcon) window.setActiveTopBarIcon('earIconBtn');
-      document.getElementById('setsPanel').style.display = 'none';
-      document.getElementById('earPanel').style.display = 'flex';
+      if (window.showCentralPanel) window.showCentralPanel(state.mode === 'echo' ? 'echo' : 'play');
+      const iconId = state.mode === 'echo' ? 'earEchoIconBtn' : 'earPlayIconBtn';
+      if (window.setActiveTopBarIcon) window.setActiveTopBarIcon(iconId);
+      if (window.copyIcon) window.copyIcon(iconId, 'earPanelIcon');
+      const titleEl = document.getElementById('earPanelTitle');
+      if (titleEl) titleEl.textContent = state.mode === 'echo' ? 'Ear Training' : 'Sing Training';
       const dims = window.APP_DIMENSIONS;
       if (window.api && window.api.resizeWindow) window.api.resizeWindow(dims ? dims.width2 : 1000, dims ? dims.height : 826);
       ensureInit();
     }
-    const earIconBtn = document.getElementById('earIconBtn');
-    if (earIconBtn) earIconBtn.addEventListener('click', openEarPanel);
+    function openEcho() {
+      state.mode = 'echo';
+      if (state.turnActive) updateTargetDisplay();
+      openEarPanel();
+    }
+    function openPlay() {
+      state.mode = 'play';
+      if (state.turnActive) updateTargetDisplay();
+      openEarPanel();
+    }
+    const earEchoIconBtn = document.getElementById('earEchoIconBtn');
+    if (earEchoIconBtn) earEchoIconBtn.addEventListener('click', openEcho);
+    const earPlayIconBtn = document.getElementById('earPlayIconBtn');
+    if (earPlayIconBtn) earPlayIconBtn.addEventListener('click', openPlay);
 
     document.getElementById('earBackBtn').addEventListener('click', () => {
       stopSession();
@@ -703,6 +788,8 @@
         if (window.api && window.api.resizeWindow) window.api.resizeWindow(dims ? dims.width2 : 1000, dims ? dims.height : 826);
       }
     });
+
+    return { openEcho, openPlay };
   }
 
   function ensureInit() {
@@ -714,9 +801,15 @@
     renderKeyboardHighlights();
     updateScoreDisplay();
     ensureSamplesLoaded();
+    populateMicList();
+    if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+      navigator.mediaDevices.addEventListener('devicechange', populateMicList);
+    }
+    const micSelect = document.getElementById('earMicSelect');
+    if (micSelect) micSelect.addEventListener('change', () => switchMicrophone(micSelect.value));
   }
 
-  wireControls();
+  const { openEcho, openPlay } = wireControls();
 
-  window.EarTrainer = { stop: stopSession };
+  window.EarTrainer = { stop: stopSession, openEcho, openPlay };
 })();

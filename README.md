@@ -69,11 +69,30 @@ the Salamander Grand Piano samples by Alexander Holm, redistributed via
 licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). See
 `samples/piano/CREDIT.txt`.
 
+## Accounts and data
+
+Practice sets are stored per-account in Supabase (Postgres + Auth), not as
+local CSV files. `js/config.js` holds the Supabase project URL and anon
+key and is checked into the repo — that's intentional, not an oversight:
+the anon key is meant to be public/client-side (access is enforced by Row
+Level Security, not by hiding the key). To point at a different Supabase
+project instead, copy `js/config.example.js` over `js/config.js` and fill
+in your own project's values.
+
 ## Development
+
+The app is a static site (`index.html` + `js/*.js`), deployed via GitHub
+Pages at https://dcr-eyethink.github.io/preece-practicometer/ — push to
+`main` and it redeploys automatically. Electron just opens a window
+pointed at that URL by default.
 
 ```bash
 npm install
-npm start          # run in dev mode
+npx serve .                              # serve the site locally, e.g. on :3000
+PRACTICOMETER_URL=http://localhost:3000 npm start   # open a local copy in Electron
+```
+
+```bash
 npm run build:mac  # produce dist/mac-arm64/Preece Practicometer.app
 ```
 
