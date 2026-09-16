@@ -205,9 +205,72 @@
     return { url: data.signedUrl, mimeType: score.mime_type, name: score.name };
   }
 
+  // ── Practice log ──
+  // A session is inserted at start and kept fresh with periodic heartbeat
+  // updates (see index.html's practice-log wiring) rather than relying on
+  // a beforeunload/quit hook — that way a crash, force-quit, or killed tab
+  // still leaves a real row with an ended_at/duration accurate to within
+  // one heartbeat interval, on both the web and the desktop app alike.
+  const LOG_TABLE = 'practice_log';
+
+  async function startPracticeLog(setName) {
+    const userId = await currentUserId();
+    const { data, error } = await client
+      .from(LOG_TABLE)
+      .insert({ user_id: userId, set_name: setName, started_at: new Date().toISOString() })
+      .select('id')
+      .single();
+    if (error) throw error;
+    return data.id;
+  }
+
+  async function updatePracticeLog(id, { durationSec, activities }) {
+    requireClient();
+    const { error } = await client
+      .from(LOG_TABLE)
+      .update({ duration_sec: Math.round(durationSec), activities, ended_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+  }
+
+  async function finishPracticeLog(id, { durationSec, activities }) {
+    return updatePracticeLog(id, { durationSec, activities });
+  }
+
+  async function listPracticeLog() {
+    requireClient();
+    const { data, error } = await client
+      .from(LOG_TABLE)
+      .select('id, set_name, started_at, ended_at, duration_sec, activities, notes')
+      .order('started_at', { ascending: false });
+    if (error) throw error;
+    return data;
+  }
+
+  async function updatePracticeLogEntry(id, fields) {
+    requireClient();
+    const patch = {};
+    if (fields.setName !== undefined) patch.set_name = fields.setName;
+    if (fields.startedAt !== undefined) patch.started_at = fields.startedAt;
+    if (fields.durationSec !== undefined) patch.duration_sec = Math.round(fields.durationSec);
+    if (fields.notes !== undefined) patch.notes = fields.notes;
+    const { error } = await client.from(LOG_TABLE).update(patch).eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+
+  async function deletePracticeLogEntry(id) {
+    requireClient();
+    const { error } = await client.from(LOG_TABLE).delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+
   window.api = {
     listSets, readCSV, saveCSV, renameCSV, duplicateCSV, createSet,
     resizeWindow, getWindowSize, seedDefaultsIfEmpty,
-    listScores, uploadScore, renameScore, deleteScore, getScoreUrl
+    listScores, uploadScore, renameScore, deleteScore, getScoreUrl,
+    startPracticeLog, updatePracticeLog, finishPracticeLog,
+    listPracticeLog, updatePracticeLogEntry, deletePracticeLogEntry
   };
 })();
