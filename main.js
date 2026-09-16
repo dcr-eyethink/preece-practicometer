@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, ipcMain } = require('electron');
+const { app, BrowserWindow, session, ipcMain, systemPreferences } = require('electron');
 const path = require('path');
 const { execFile } = require('child_process');
 
@@ -27,7 +27,14 @@ function createWindow() {
   win.loadURL(APP_URL);
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // setPermissionRequestHandler below only gates the in-page prompt — on
+  // macOS the mic never actually works (and the app never even shows up in
+  // System Settings > Privacy & Security > Microphone) until the OS-level
+  // access is requested through this API.
+  if (process.platform === 'darwin' && systemPreferences.askForMediaAccess) {
+    await systemPreferences.askForMediaAccess('microphone');
+  }
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
     callback(permission === 'media' || permission === 'midi' || permission === 'midiSysex');
   });
