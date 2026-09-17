@@ -239,6 +239,7 @@
   .ear-panel { display: none; flex: 1; flex-direction: column; padding: 1.5rem 2rem; overflow-y: auto; position: relative; }
   .ear-panel h2 { margin: 0; font-size: 20px; font-weight: 600; }
   .ear-header-row { display: flex; align-items: center; justify-content: flex-start; gap: 12px; margin-bottom: 1rem; }
+  .ear-header-row .ear-status { margin-left: auto; margin-bottom: 0; text-align: right; max-width: 55%; }
   .panel-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; }
   .panel-title-row h2 { margin: 0; }
   .panel-icon { width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0; }
@@ -450,6 +451,7 @@
     <div class="ear-header-row">
       <img class="panel-icon" id="earPanelIcon" alt="">
       <h2 id="earPanelTitle">Ear Training</h2>
+      <div class="ear-status" id="earStatus" data-tip="Shows what to do next during a turn.">Set your difficulty below, then click Play to hear your first interval.</div>
     </div>
 
     <div class="score-row">
@@ -489,7 +491,6 @@
 
     <div class="ear-feedback" id="earFeedback"></div>
 
-    <div class="ear-status" id="earStatus" data-tip="Shows what to do next during a turn.">Set your difficulty below, then click Play to hear your first interval.</div>
     <div class="ear-midi-status" id="earMidiStatus" data-tip="Shows whether a connected MIDI keyboard was found — you can answer on it directly."></div>
     <div class="ear-mic-row">
       <label class="ear-mic-label" for="earMicSelect">Microphone</label>

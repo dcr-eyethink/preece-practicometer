@@ -142,12 +142,12 @@
   function idlePrompt() {
     return state.mode === 'echo'
       ? 'Set your difficulty below, then click Play to hear your first interval.'
-      : 'Set your difficulty below, then click Play to begin — sing or play the interval named above.';
+      : 'Set your difficulty below, then click Play to hear the base note — sing the interval named above from it.';
   }
   function answerPrompt() {
     return state.mode === 'echo'
       ? 'Click the target note on the piano or your keyboard; sing it to help you find it.'
-      : 'Sing it, or click the target note on the piano or your keyboard — click Play again to hear it.';
+      : 'Sing the named interval from the base note, or click it on the keyboard — Play again replays the base note only.';
   }
 
   function setMidiStatus(text) {
@@ -317,6 +317,23 @@
     playTone(targetMidi, t + dur + gap, dur);
     const totalMs = (dur * 2 + gap + 0.1) * 1000;
     setTimeout(() => { if (onDone) onDone(); }, totalMs);
+  }
+
+  function playBaseToneOnly(baseMidi, onDone) {
+    const c = getCtx();
+    if (c.state === 'suspended') c.resume();
+    const t = c.currentTime + 0.1;
+    const dur = 0.7;
+    playTone(baseMidi, t, dur);
+    setTimeout(() => { if (onDone) onDone(); }, (dur + 0.1) * 1000);
+  }
+
+  // Echo hears the full interval (base then target) before answering.
+  // Sing Training only ever hears the base note — playing the target would
+  // just give away the answer it's meant to find by singing from that base.
+  function playReferenceAudio(onDone) {
+    if (state.mode === 'echo') playIntervalTones(state.baseMidi, state.targetMidi, onDone);
+    else playBaseToneOnly(state.baseMidi, onDone);
   }
 
   // ===================== Audio: pitch detection =====================
@@ -527,9 +544,12 @@
 
   function replayCurrentInterval() {
     if (state.baseMidi == null || state.targetMidi == null) return;
+    stopListening(); // don't let the mic pick up our own reference playback
     setStatus('Listen…');
-    playIntervalTones(state.baseMidi, state.targetMidi, () => {
-      if (state.turnActive) setStatus(answerPrompt());
+    playReferenceAudio(() => {
+      if (!state.turnActive) return;
+      setStatus(answerPrompt());
+      startListening();
     });
   }
 
@@ -663,15 +683,15 @@
     await ensureSamplesLoaded();
     if (!state.turnActive || state.baseMidi !== base) return; // superseded by a later turn
 
-    if (state.mode === 'echo') {
-      setStatus('Listen…');
-      playIntervalTones(base, choice.target, () => {
-        if (state.turnActive) setStatus(answerPrompt());
-      });
-    } else {
+    // Listening only starts once our own reference playback has finished —
+    // starting it earlier lets the mic pick up that playback through the
+    // speakers and misread it as the sung answer.
+    setStatus('Listen…');
+    playReferenceAudio(() => {
+      if (!state.turnActive) return;
       setStatus(answerPrompt());
-    }
-    startListening();
+      startListening();
+    });
   }
 
   function stopSession() {
