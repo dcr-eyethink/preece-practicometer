@@ -304,9 +304,25 @@
     if (rate !== 1) src.playbackRate.value = rate;
     src.connect(gain); gain.connect(c.destination);
     const vol = window.masterVolume != null ? window.masterVolume : 1;
-    gain.gain.setValueAtTime((peak == null ? 0.9 : peak) * vol, startTime);
+    const peakVol = (peak == null ? 0.9 : peak) * vol;
+    gain.gain.setValueAtTime(peakVol, startTime);
+    // The raw piano samples ring out well past their musical duration —
+    // fade and hard-stop each one instead of letting that decay/resonance
+    // linger and bleed into the mic during ear/sing training.
+    if (dur != null) {
+      const release = Math.min(0.12, dur / 2);
+      const endTime = startTime + dur;
+      gain.gain.setValueAtTime(peakVol, endTime - release);
+      gain.gain.linearRampToValueAtTime(0.0001, endTime);
+    }
     src.start(startTime);
+    if (dur != null) src.stop(startTime + dur + 0.02);
   }
+
+  // Extra pause after the last note's scheduled end, on top of its own
+  // fade — lets any brief room/speaker decay settle before the mic starts
+  // listening, rather than just the exact instant the sample is cut off.
+  const SETTLE_MS = 150;
 
   function playIntervalTones(baseMidi, targetMidi, onDone) {
     const c = getCtx();
@@ -315,7 +331,7 @@
     const dur = 0.7, gap = 0.25;
     playTone(baseMidi, t, dur);
     playTone(targetMidi, t + dur + gap, dur);
-    const totalMs = (dur * 2 + gap + 0.1) * 1000;
+    const totalMs = (dur * 2 + gap + 0.1) * 1000 + SETTLE_MS;
     setTimeout(() => { if (onDone) onDone(); }, totalMs);
   }
 
@@ -325,7 +341,7 @@
     const t = c.currentTime + 0.1;
     const dur = 0.7;
     playTone(baseMidi, t, dur);
-    setTimeout(() => { if (onDone) onDone(); }, (dur + 0.1) * 1000);
+    setTimeout(() => { if (onDone) onDone(); }, (dur + 0.1) * 1000 + SETTLE_MS);
   }
 
   // Echo hears the full interval (base then target) before answering.
