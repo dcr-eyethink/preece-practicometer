@@ -56,6 +56,10 @@
   .set-list li:hover { background: #f5f5f5; }
   .set-list li.selected { background: #e8f0fe; border-color: #a0b4f0; color: #1a56db; font-weight: 500; }
   .sets-empty { color: #888; font-size: 14px; padding: 2rem 0; text-align: center; }
+  .welcome-text { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #eee; font-size: 13px; line-height: 1.5; color: #555; }
+  .welcome-text h3 { margin: 0 0 0.6rem; font-size: 14px; font-weight: 600; color: #333; }
+  .welcome-text p { margin: 0 0 0.75rem; }
+  .welcome-text strong { color: #333; }
 
   /* Editor */
   .editor-wrap { display: none; flex: 1; overflow: hidden; }
@@ -68,8 +72,6 @@
   .btn-save:hover { opacity: 0.85; }
   .btn-practice { background: #1a56db; color: #fff; border-color: #1a56db; }
   .btn-practice:hover { opacity: 0.85; }
-  .btn-finish { background: #c0392b; color: #fff; border-color: #c0392b; width: 100%; margin-bottom: 14px; }
-  .btn-finish:hover { opacity: 0.85; }
   .btn-open { background: #555; color: #fff; border-color: #555; }
   .btn-open:hover { opacity: 0.85; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
@@ -177,6 +179,8 @@
   .pbtn-next:hover { opacity: 0.85; }
   .pbtn-restart { background: #888; color: #fff; }
   .pbtn-restart:hover { opacity: 0.85; }
+  .pbtn-finish { background: #c0392b; color: #fff; font-size: 12px; padding: 6px 16px; margin-top: 4px; }
+  .pbtn-finish:hover { opacity: 0.85; }
   .session-timer { margin-top: 1.5rem; font-size: 13px; color: #999; }
   .session-timer span { font-weight: 600; font-size: 15px; color: #666; }
   .practice-done { font-size: 28px; font-weight: 700; color: #27ae60; }
@@ -419,6 +423,14 @@
     <div id="setsEmpty" class="sets-empty" style="display:none">No practice sets yet — create one to get started.</div>
     <button class="btn btn-save" id="openSetBtn" disabled data-tip="Open the selected practice set. You can also just double-click a set in the list.">Open</button>
     <button class="btn" id="newSetBtn" data-tip="Create a new, empty practice set.">New Set</button>
+
+    <div class="welcome-text">
+      <h3>Welcome to Preece Practicometer</h3>
+      <p>This app is a metronome built around <strong>practice sets</strong> — timed playlists you work through from top to bottom, alongside a set of practice tools and a log of what you've done.</p>
+      <p>Each item in a set is a plain timed task, or one of the icons from the top bar dragged in: a <strong>learning function</strong> (Chord Grid, Circle of 5ths, Ear Training, Sing Training, Chord Sequences) or a <strong>score</strong> from your uploaded PDFs/images.</p>
+      <p>Open a set and click <strong>Start Practice</strong> to step through it with a countdown timer; click <strong>Finish Practice</strong> when you're done and it's recorded in your <strong>Practice Log</strong> (the notebook icon, top left).</p>
+      <p>New here? Open <strong>September</strong> above to see a fully set-up example — it mixes scales, chord grid, chord sequences, and two scores in one list.</p>
+    </div>
   </div>
 
   <!-- Practice log: an editable record of past sessions (hidden until opened) -->
@@ -598,7 +610,6 @@
 
 </div>
 <div class="practice-panel" id="practicePanel">
-      <button class="btn btn-finish" id="practiceClose" data-tip="Stop the timer, end this practice session, and record it in your practice log.">Finish Practice</button>
       <div class="practice-index" id="practiceIndex"></div>
       <div class="practice-activity" id="practiceActivity"></div>
       <div class="practice-timer-row">
@@ -614,6 +625,7 @@
           <button class="pbtn pbtn-pause" id="pauseBtn" style="display:none" data-tip="Pause the countdown.">Pause</button>
           <button class="pbtn pbtn-restart" id="restartBtn" data-tip="Restart the countdown for this item from the beginning.">Restart</button>
           <button class="pbtn pbtn-next" id="nextBtn" data-tip="Skip to the next item in the list.">Next</button>
+          <button class="pbtn pbtn-finish" id="practiceClose" data-tip="Stop the timer, end this practice session, and record it in your practice log.">Finish Practice</button>
         </div>
       </div>
       <div class="practice-done" id="practiceDone" style="display:none">Practice Complete!</div>
