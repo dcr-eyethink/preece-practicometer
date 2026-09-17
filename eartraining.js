@@ -136,6 +136,20 @@
     if (el) el.textContent = text;
   }
 
+  // Mode-aware guidance shown in the status line — Ear Training (echo) hears
+  // the interval before answering; Sing Training (play) sees the interval
+  // name and answers blind, with Play-again as an optional audio hint.
+  function idlePrompt() {
+    return state.mode === 'echo'
+      ? 'Set your difficulty below, then click Play to hear your first interval.'
+      : 'Set your difficulty below, then click Play to begin — sing or play the interval named above.';
+  }
+  function answerPrompt() {
+    return state.mode === 'echo'
+      ? 'Click the target note on the piano or your keyboard; sing it to help you find it.'
+      : 'Sing it, or click the target note on the piano or your keyboard — click Play again to hear it.';
+  }
+
   function setMidiStatus(text) {
     const el = document.getElementById('earMidiStatus');
     if (el) el.textContent = text;
@@ -513,7 +527,10 @@
 
   function replayCurrentInterval() {
     if (state.baseMidi == null || state.targetMidi == null) return;
-    playIntervalTones(state.baseMidi, state.targetMidi, () => {});
+    setStatus('Listen…');
+    playIntervalTones(state.baseMidi, state.targetMidi, () => {
+      if (state.turnActive) setStatus(answerPrompt());
+    });
   }
 
   function applyStaircaseLevel() {
@@ -649,10 +666,10 @@
     if (state.mode === 'echo') {
       setStatus('Listen…');
       playIntervalTones(base, choice.target, () => {
-        if (state.turnActive) setStatus('Your turn — sing it or find it on the keyboard');
+        if (state.turnActive) setStatus(answerPrompt());
       });
     } else {
-      setStatus('Sing it or find it on the keyboard');
+      setStatus(answerPrompt());
     }
     startListening();
   }
@@ -665,7 +682,7 @@
     clearFeedback();
     smoothedPitch = null;
     updatePitchReadout(null, 0);
-    setStatus('Press Play to begin');
+    setStatus(idlePrompt());
   }
 
   // ===================== UI wiring =====================
@@ -762,6 +779,7 @@
       if (window.copyIcon) window.copyIcon(iconId, 'earPanelIcon');
       const titleEl = document.getElementById('earPanelTitle');
       if (titleEl) titleEl.textContent = state.mode === 'echo' ? 'Ear Training' : 'Sing Training';
+      if (!state.running) setStatus(idlePrompt());
       const dims = window.APP_DIMENSIONS;
       if (window.api && window.api.resizeWindow) window.api.resizeWindow(dims ? dims.width2 : 1000, dims ? dims.height : 826);
       ensureInit();
