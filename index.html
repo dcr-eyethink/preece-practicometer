@@ -256,6 +256,11 @@
   .ear-dir-btn, .ear-num-btn { padding: 7px 16px; border: 1.5px solid #ccc; border-radius: 8px; background: #f9f9f9; color: #555; font-size: 14px; font-weight: 500; cursor: pointer; }
   .ear-dir-btn.active, .ear-num-btn.active { background: #e8f0fe; color: #1a56db; border-color: #7090e0; }
   .ear-num-btn { width: 38px; padding: 7px 0; text-align: center; }
+  @keyframes ear-flash-new {
+    0%, 100% { background: #e8f0fe; color: #1a56db; border-color: #7090e0; box-shadow: none; }
+    50% { background: #ffd23a; color: #7a5b00; border-color: #e0a500; box-shadow: 0 0 0 4px rgba(255, 196, 0, 0.35); }
+  }
+  .ear-num-btn.flash-new { animation: ear-flash-new 0.5s ease-in-out 3; }
   .ear-dir-btn { width: 38px; padding: 7px 0; text-align: center; font-size: 16px; }
   .ear-dir-sep { width: 1px; align-self: stretch; background: #e0e0e0; margin: 0 2px; }
   .ear-target-display { font-size: 22px; font-weight: 700; text-align: center; color: #1a4a8a; margin: 0.5rem 0 1rem; min-height: 30px; }

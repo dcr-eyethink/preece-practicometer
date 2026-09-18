@@ -569,13 +569,31 @@
     });
   }
 
-  function applyStaircaseLevel() {
+  // Briefly flashes the interval buttons that a staircase level change just
+  // unlocked, so widening the question pool is visible, not just implied by
+  // the level number.
+  function flashIntervalButtons(newIntervals) {
+    if (!newIntervals || !newIntervals.length) return;
+    const row = document.getElementById('earIntervalRow');
+    newIntervals.forEach(iv => {
+      const btn = row.querySelector(`.ear-num-btn[data-interval="${iv}"]`);
+      if (!btn) return;
+      btn.classList.remove('flash-new'); // restart the animation if still running
+      void btn.offsetWidth; // force reflow so re-adding the class retriggers it
+      btn.classList.add('flash-new');
+      btn.addEventListener('animationend', () => btn.classList.remove('flash-new'), { once: true });
+    });
+  }
+
+  function applyStaircaseLevel(flashNew) {
     const cfg = STAIRCASE_LEVELS[staircase.level - 1];
+    const prevIntervals = state.activeIntervals;
     state.activeIntervals = new Set(cfg.intervals);
     state.activeDirections = new Set(cfg.dirs);
     CENTS_TOLERANCE = cfg.tolerance;
     buildIntervalButtons(); // refresh the (now read-only) checkmarks to show this level's set
     updateStaircaseStatus();
+    if (flashNew) flashIntervalButtons(cfg.intervals.filter(iv => !prevIntervals.has(iv)));
   }
 
   function enterStaircase() {
@@ -620,7 +638,7 @@
       recordAttempt(false);
       if (staircase.active) {
         staircase.level = Math.max(1, staircase.level - 1);
-        applyStaircaseLevel();
+        applyStaircaseLevel(true);
       }
       setKeyState(midi, 'wrong');
       showWrongFeedback();
@@ -653,7 +671,7 @@
         score.staircaseBest = staircase.peakLevel;
         saveScore();
       }
-      applyStaircaseLevel();
+      applyStaircaseLevel(true);
       updateScoreDisplay();
     }
     turnTimeout = setTimeout(() => { if (state.running) startTurn(); }, 1600);
@@ -753,6 +771,7 @@
     for (let i = 2; i <= 7; i++) {
       const b = document.createElement('button');
       b.className = 'ear-num-btn' + (state.activeIntervals.has(i) ? ' active' : '');
+      b.dataset.interval = i;
       b.textContent = i;
       b.setAttribute('data-tip', INTERVAL_LABEL[i] + ' — toggle on/off for the question pool (at least one must stay on).');
       b.addEventListener('click', () => {
