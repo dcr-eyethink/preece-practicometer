@@ -28,6 +28,12 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // The app is a thin wrapper that just loads a live web page — always
+  // fetch it (and its scripts) fresh rather than risking a stale disk-
+  // cached copy from a previous launch, since there's no in-app way to
+  // "reload" otherwise and web-content fixes wouldn't require a rebuild.
+  await session.defaultSession.clearCache();
+
   // setPermissionRequestHandler below only gates the in-page prompt — on
   // macOS the mic never actually works (and the app never even shows up in
   // System Settings > Privacy & Security > Microphone) until the OS-level
