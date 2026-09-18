@@ -1178,6 +1178,47 @@
   });
 
   let dragIdx = null;
+
+  // Row reordering uses plain mouse events rather than native HTML5 drag
+  // (see renderEditor's row-drop comment for why) — track the dragged row
+  // under the cursor via elementFromPoint and commit the move on mouseup.
+  function startRowDrag(e, idx) {
+    e.preventDefault(); // don't select row text while dragging
+    dragIdx = idx;
+    const tr = document.querySelector(`#tbody tr[data-idx="${idx}"]`);
+    if (tr) tr.classList.add('dragging');
+
+    function clearDragOver() {
+      document.querySelectorAll('#tbody tr.drag-over').forEach(el => el.classList.remove('drag-over'));
+    }
+    function rowAt(clientX, clientY) {
+      const el = document.elementFromPoint(clientX, clientY);
+      return el ? el.closest('#tbody tr') : null;
+    }
+    function onMove(ev) {
+      clearDragOver();
+      const overTr = rowAt(ev.clientX, ev.clientY);
+      if (overTr && Number(overTr.dataset.idx) !== dragIdx) overTr.classList.add('drag-over');
+    }
+    function onUp(ev) {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      const overTr = rowAt(ev.clientX, ev.clientY);
+      clearDragOver();
+      if (tr) tr.classList.remove('dragging');
+      const fromIdx = dragIdx;
+      dragIdx = null;
+      const targetIdx = overTr ? Number(overTr.dataset.idx) : null;
+      if (targetIdx != null && targetIdx !== fromIdx) {
+        const moved = rows.splice(fromIdx, 1)[0];
+        rows.splice(targetIdx, 0, moved);
+        renderEditor();
+      }
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
   let selectedRowIdx = -1;
 
   // ── Learning functions as draggable practice-list items ──
@@ -1276,16 +1317,19 @@
     tbody.innerHTML = '';
     rows.forEach((row, i) => {
       const tr = document.createElement('tr');
-      tr.draggable = !practiceActive; tr.dataset.idx = i;
-      tr.addEventListener('dragstart', e => { dragIdx = i; tr.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
-      tr.addEventListener('dragend', () => { tr.classList.remove('dragging'); document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); dragIdx = null; });
-      tr.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = dragIdx === null ? 'copy' : 'move'; document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); if (dragIdx !== i) tr.classList.add('drag-over'); });
+      tr.dataset.idx = i;
+      // External drops (a function/score icon dragged in from the top bar)
+      // still use native HTML5 DnD, which works fine here since it's
+      // dragged from a plain button. Reordering rows against each other is
+      // handled separately below via plain mouse events — native DnD
+      // started from a <tr> containing text inputs is unreliable (many
+      // browsers won't initiate a drag when the gesture begins over an
+      // editable field), which is what made row reordering flaky.
+      tr.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; tr.classList.add('drag-over'); });
       tr.addEventListener('dragleave', () => tr.classList.remove('drag-over'));
       tr.addEventListener('drop', e => {
         e.preventDefault(); tr.classList.remove('drag-over');
-        if (handleExternalDrop(e, i)) { dragIdx = null; return; }
-        if (dragIdx === null || dragIdx === i) return;
-        const moved = rows.splice(dragIdx, 1)[0]; rows.splice(i, 0, moved); dragIdx = null; renderEditor();
+        handleExternalDrop(e, i);
       });
 
       if (practiceActive) {
@@ -1298,6 +1342,7 @@
       if (!practiceActive) {
         const tdD = document.createElement('td'); const handle = document.createElement('span'); handle.className = 'drag-handle'; handle.textContent = '⠿';
         handle.setAttribute('data-tip', 'Drag to reorder this item.');
+        handle.addEventListener('mousedown', e => startRowDrag(e, i));
         tdD.appendChild(handle); tr.appendChild(tdD);
       }
       const tdA = document.createElement('td');
@@ -1592,8 +1637,14 @@
   document.getElementById('notesCloseBtn').addEventListener('click', closeNotes);
 
   document.getElementById('practiceNotesBtn').addEventListener('click', () => {
-    if (notesOpen && notesRowIdx === practiceIdx) { closeNotes(); }
-    else { openNotesForRow(practiceIdx); }
+    // Whichever item is currently selected in the list — or, during an
+    // active practice session, whichever item is currently being timed.
+    // Using practiceIdx unconditionally here (regardless of whether
+    // practice was actually running) was the bug: it opened notes for a
+    // stale/unrelated row instead of the one just clicked in the editor.
+    const targetIdx = practiceActive ? practiceIdx : selectedRowIdx;
+    if (notesOpen && notesRowIdx === targetIdx) { closeNotes(); }
+    else { openNotesForRow(targetIdx); }
   });
 
   function playChime() {
