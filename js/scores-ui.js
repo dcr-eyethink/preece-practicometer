@@ -85,13 +85,14 @@
     scoresPanel.classList.add('active');
     scoresIconBtn.classList.add('active');
     renderScoresGrid();
+    if (window.setMobileView) window.setMobileView('scores');
   }
   function closeScoresPanel() {
     scoresPanel.classList.remove('active');
     scoresIconBtn.classList.remove('active');
-    if (window.isPracticeActive && window.isPracticeActive()) {
-      document.getElementById('practicePanel').classList.add('active');
-    }
+    const isPracticing = window.isPracticeActive && window.isPracticeActive();
+    if (isPracticing) document.getElementById('practicePanel').classList.add('active');
+    if (window.setMobileView) window.setMobileView(isPracticing ? 'practice' : 'list');
   }
   if (scoresIconBtn) scoresIconBtn.addEventListener('click', () => {
     if (scoresPanel.classList.contains('active')) closeScoresPanel();
