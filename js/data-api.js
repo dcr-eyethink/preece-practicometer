@@ -115,9 +115,10 @@
     const defaultScores = window.DEFAULT_SCORES || [];
     const scoreIdByKey = {};
     for (const d of defaultScores) {
-      const blob = await (await fetch(d.dataUrl)).blob();
+      const blob = await (await fetch(d.path)).blob();
       const cleanName = (d.name || 'score').replace(/[^A-Za-z0-9._-]/g, '_');
-      const storagePath = userId + '/' + Date.now() + '-' + cleanName + '.png';
+      const ext = (d.path.match(/\.[^./]+$/) || ['.dat'])[0];
+      const storagePath = userId + '/' + Date.now() + '-' + cleanName + ext;
       const { error: uploadErr } = await client.storage.from(SCORES_BUCKET)
         .upload(storagePath, blob, { contentType: d.mimeType });
       if (uploadErr) throw uploadErr;
