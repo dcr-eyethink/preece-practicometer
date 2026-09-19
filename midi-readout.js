@@ -17,6 +17,8 @@
   let hidden = false;
   try { hidden = localStorage.getItem(PREF_KEY) === '1'; } catch (e) {}
   let connected = false;
+  let deviceName = '';
+  let pedal = false;
   let shown = [];
   let prevCount = 0;
   let clearTimer = null;
@@ -65,7 +67,7 @@
     } else {
       const info = M.analyzeChord(shown);
       chordEl.textContent = info ? musical(info.name) : pcNames.join(' ');
-      chordEl.className = 'midi-chord' + (info && info.name.length <= 6 ? '' : ' long');
+      chordEl.className = 'midi-chord' + (info && info.name.length <= 7 ? '' : ' long');
     }
     notesEl.textContent = withOctaves.replace(/([A-G])b/g, '$1♭').replace(/([A-G])#/g, '$1♯');
     circle.className = 'midi-circle playing' + (updateGrid() > 0 ? ' match' : '');
@@ -84,9 +86,16 @@
     prevCount = held.length;
   });
 
+  function updateLabel() {
+    label.textContent = (deviceName ? 'MIDI · ' + deviceName : 'MIDI') + (pedal ? ' · sustain' : '');
+  }
+  M.onPedal(down => { pedal = down; updateLabel(); });
+
   M.onStatus(st => {
     connected = st.state === 'ready' && st.names.length > 0;
-    label.textContent = connected ? 'MIDI · ' + st.names[0] : 'MIDI';
+    deviceName = connected ? st.names[0] : '';
+    if (!connected) pedal = false;
+    updateLabel();
     if (!connected) { shown = []; prevCount = 0; render(); }
     applyVisibility();
   });

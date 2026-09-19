@@ -7,18 +7,6 @@
   const ROOT_PC = { C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11 };
   const CHORD_WINDOW_MS = 220;
 
-  // Templates for naming a set of pitch classes; first match wins, bass note tried as root first.
-  const TEMPLATES = [
-    ['', [0, 4, 7]], ['m', [0, 3, 7]], ['dim', [0, 3, 6]], ['aug', [0, 4, 8]],
-    ['sus2', [0, 2, 7]], ['sus4', [0, 5, 7]],
-    ['7', [0, 4, 7, 10]], ['maj7', [0, 4, 7, 11]], ['m7', [0, 3, 7, 10]],
-    ['m7♭5', [0, 3, 6, 10]], ['dim7', [0, 3, 6, 9]], ['m(maj7)', [0, 3, 7, 11]],
-    ['6', [0, 4, 7, 9]], ['m6', [0, 3, 7, 9]],
-    ['9', [0, 2, 4, 7, 10]], ['maj9', [0, 2, 4, 7, 11]], ['m9', [0, 2, 3, 7, 10]],
-    ['7 (no 5)', [0, 4, 10]], ['maj7 (no 5)', [0, 4, 11]], ['m7 (no 5)', [0, 3, 10]],
-    ['5', [0, 7]]
-  ];
-
   // Chord types the grids use, as intervals above the root; `optional` may be left out.
   const GRID_TYPES = {
     note: { required: [0], optional: [] },
@@ -29,13 +17,16 @@
     dom7: { required: [0, 4, 10], optional: [7] }
   };
 
-  const held = new Set();
-  const noteOnFns = [], heldFns = [], chordFns = [], statusFns = [];
+  const keysDown = new Set();   // physically held
+  const sustained = new Set(); // released while the pedal was down — still sounding
+  let pedalDown = false;
+  const noteOnFns = [], heldFns = [], chordFns = [], statusFns = [], pedalFns = [];
   let status = { state: 'idle', names: [] }; // idle | unsupported | denied | ready
   let started = false;
   let burst = [], burstTimer = null;
 
-  function heldNotes() { return [...held].sort((a, b) => a - b); }
+  function heldNotes() { return [...new Set([...keysDown, ...sustained])].sort((a, b) => a - b); }
+  function clearAll() { keysDown.clear(); sustained.clear(); }
   function emitHeld() { const h = heldNotes(); heldFns.forEach(fn => fn(h)); }
   function setStatus(next) {
     status = next;
@@ -46,16 +37,25 @@
     const [b0, note, vel] = e.data;
     const cmd = b0 & 0xf0;
     if (cmd === 0x90 && vel > 0) {
-      held.add(note);
+      keysDown.add(note);
+      sustained.delete(note);
       noteOnFns.forEach(fn => fn(note, vel));
       burst.push(note);
       clearTimeout(burstTimer);
       burstTimer = setTimeout(() => { const notes = burst; burst = []; chordFns.forEach(fn => fn(notes)); }, CHORD_WINDOW_MS);
       emitHeld();
     } else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
-      if (held.delete(note)) emitHeld();
+      if (!keysDown.delete(note)) return;
+      if (pedalDown) sustained.add(note);
+      emitHeld();
+    } else if (cmd === 0xb0 && note === 64) { // sustain pedal
+      const down = vel >= 64;
+      if (down === pedalDown) return;
+      pedalDown = down;
+      pedalFns.forEach(fn => fn(pedalDown));
+      if (!down && sustained.size) { sustained.clear(); emitHeld(); }
     } else if (cmd === 0xb0 && (note === 123 || note === 120)) { // all notes / sound off
-      if (held.size) { held.clear(); emitHeld(); }
+      if (keysDown.size || sustained.size) { clearAll(); emitHeld(); }
     }
   }
 
@@ -68,7 +68,7 @@
       const attach = () => {
         const inputs = Array.from(access.inputs.values()).filter(i => i.state !== 'disconnected');
         inputs.forEach(inp => inp.addEventListener('midimessage', onMessage));
-        if (!inputs.length && held.size) { held.clear(); emitHeld(); }
+        if (!inputs.length && (keysDown.size || sustained.size)) { clearAll(); pedalDown = false; emitHeld(); }
         setStatus({ state: 'ready', names: inputs.map(i => i.name) });
       };
       attach();
@@ -82,6 +82,45 @@
 
   function pcSet(notes) { return new Set(notes.map(n => ((n % 12) + 12) % 12)); }
 
+  // Cost of each interval above a candidate root; lower = more "structural" to the chord.
+  // Picks the most plausible root, preferring the bass note (slash chords cost extra).
+  const INTERVAL_COST = { 0: 0, 7: 0, 3: 0, 4: 0, 10: 0, 11: 0.5, 2: 1, 9: 1, 5: 1.5, 6: 2, 8: 2, 1: 3 };
+
+  function nameFromRoot(rootPc, set) {
+    const has = i => set.has((rootPc + i) % 12);
+    const major = has(4), minor = has(3) && !major;
+    const sus = !major && !minor && (has(2) || has(5));
+    if (!major && !minor && !sus) return has(7) && set.size === 2 ? PC_NAMES[rootPc] + '5' : null;
+    const dimFifth = minor && has(6) && !has(7);
+    const augFifth = major && has(8) && !has(7);
+    const dim7 = dimFifth && has(9) && !has(10) && !has(11);
+    const seventh = has(11) ? 'maj7' : has(10) ? '7' : dim7 ? '7' : null;
+    const sixth = !seventh && has(9); // a 6th chord rather than a 13th
+    const alts = [];
+    if (has(1)) alts.push('♭9');
+    if (has(2) && !sus) alts.push('9');
+    if (has(3) && major) alts.push('♯9');
+    if (has(5) && !sus && (major || minor)) alts.push('11');
+    if (has(6) && has(7)) alts.push('♯11');
+    if (has(8) && has(7)) alts.push('♭13');
+    if (has(9) && seventh && !dim7) alts.push('13');
+    if (has(6) && !has(7) && major) alts.push('♭5');
+    let q = minor ? 'm' : '';
+    if (dimFifth && !seventh) q = 'dim';
+    else if (dimFifth && seventh === '7' && has(10)) q = 'm7♭5';
+    else if (dim7) q = 'dim7';
+    else if (augFifth && !seventh) q = 'aug';
+    else if (seventh === 'maj7') q += minor ? '(maj7)' : 'maj7';
+    else if (seventh === '7') q += '7';
+    if (sus) q = (has(5) ? 'sus4' : 'sus2') + (seventh ? (seventh === 'maj7' ? 'maj7' : '7') : '');
+    if (sixth) q += (has(2) ? '6/9' : '6');
+    const ext = alts.filter(a => !(sixth && a === '9'));
+    const addWord = !seventh && !sixth && ext.length && !dimFifth && !augFifth;
+    let out = PC_NAMES[rootPc] + q;
+    if (ext.length) out += addWord ? '(add' + ext.join(',') + ')' : '(' + ext.join(',') + ')';
+    return out;
+  }
+
   // Names a chord from any voicing (inversions/octaves/doublings ignored). null if unrecognised.
   function analyzeChord(notes) {
     if (!notes.length) return null;
@@ -89,16 +128,22 @@
     const bassPc = ((sorted[0] % 12) + 12) % 12;
     const set = pcSet(sorted);
     if (set.size < 2) return null;
-    const roots = [bassPc, ...[...set].filter(p => p !== bassPc)];
-    for (const r of roots) {
-      for (const [sym, iv] of TEMPLATES) {
-        if (iv.length === set.size && iv.every(i => set.has((r + i) % 12))) {
-          const slash = r !== bassPc ? '/' + PC_NAMES[bassPc] : '';
-          return { rootPc: r, bassPc, quality: sym, name: PC_NAMES[r] + sym + slash };
-        }
-      }
+    if (set.size === 2) { // only a power chord (root + 5th) counts as a chord
+      const [a, b] = [...set];
+      const root = (b - a + 12) % 12 === 7 ? a : (a - b + 12) % 12 === 7 ? b : null;
+      return root == null ? null : { rootPc: root, bassPc, name: PC_NAMES[root] + '5' + (root !== bassPc ? '/' + PC_NAMES[bassPc] : '') };
     }
-    return null;
+    let best = null;
+    for (const r of set) {
+      const name = nameFromRoot(r, set);
+      if (!name) continue;
+      let cost = r === bassPc ? 0 : 1.5;
+      set.forEach(pc => { cost += INTERVAL_COST[(pc - r + 12) % 12]; });
+      if (!best || cost < best.cost) best = { rootPc: r, name, cost };
+    }
+    if (!best) return null;
+    const slash = best.rootPc !== bassPc ? '/' + PC_NAMES[bassPc] : '';
+    return { rootPc: best.rootPc, bassPc, name: best.name + slash };
   }
 
   // Do these notes spell the given grid chord (root name + type)? Octave/inversion-agnostic.
@@ -127,6 +172,7 @@
     onNoteOn: fn => subscribe(noteOnFns, fn),
     onHeldChange: fn => subscribe(heldFns, fn),
     onChord: fn => subscribe(chordFns, fn),
+    onPedal: fn => subscribe(pedalFns, fn),
     onStatus: fn => { const off = subscribe(statusFns, fn); fn(status); return off; },
     analyzeChord, matchesChord, parseTriad, noteName, pcName: pc => PC_NAMES[((pc % 12) + 12) % 12]
   };
