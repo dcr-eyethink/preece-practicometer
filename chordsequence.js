@@ -96,6 +96,7 @@
   }
 
   let initialized = false;
+  let answered = false;
   let statusRevertTimer = null;
 
   let ctx = null;
@@ -298,6 +299,7 @@
   }
 
   function onCorrectSingle(degree, btnEl) {
+    answered = true;
     btnEl.classList.add('correct-flash');
     setStatus('Correct — that was ' + DEGREE_INFO[degree].roman);
     recordAttempt(true);
@@ -333,11 +335,34 @@
       lastProg = seq;
       state.targetSeq = seq.slice();
     }
+    answered = false;
     state.guessSeq = new Array(currentSeqLen).fill(null);
     state.correctMask = new Array(currentSeqLen).fill(false);
     renderGuessDisplay();
     setStatus(currentSeqLen === 1 ? 'Click the second chord' : 'Rebuild the sequence you just heard');
     playTurnAudio();
+  }
+
+  function submitGuess() {
+    if (state.guessSeq.some(v => v == null)) return;
+    let correct = true;
+    state.guessSeq.forEach((d, i) => {
+      if (d === state.targetSeq[i]) state.correctMask[i] = true;
+      else correct = false;
+    });
+    recordAttempt(correct);
+    stepStaircase(correct);
+    if (correct) {
+      answered = true;
+      setStatus('Correct! ' + state.targetSeq.map(d => DEGREE_INFO[d].roman).join('–'));
+      setTimeout(newTurn, 1400);
+    } else {
+      setStatus('Not quite — the green ones are locked in, fix the rest');
+      // Keep locked-correct guesses in place; only the wrong slots reopen.
+      state.guessSeq = state.guessSeq.map((d, i) => state.correctMask[i] ? d : null);
+      renderGuessDisplay();
+      playTurnAudio();
+    }
   }
 
   function wireControls() {
@@ -382,26 +407,7 @@
       renderGuessDisplay();
     });
 
-    document.getElementById('csSubmitBtn').addEventListener('click', () => {
-      if (state.guessSeq.some(v => v == null)) return;
-      let correct = true;
-      state.guessSeq.forEach((d, i) => {
-        if (d === state.targetSeq[i]) state.correctMask[i] = true;
-        else correct = false;
-      });
-      recordAttempt(correct);
-      stepStaircase(correct);
-      if (correct) {
-        setStatus('Correct! ' + state.targetSeq.map(d => DEGREE_INFO[d].roman).join('–'));
-        setTimeout(newTurn, 1400);
-      } else {
-        setStatus('Not quite — the green ones are locked in, fix the rest');
-        // Keep locked-correct guesses in place; only the wrong slots reopen.
-        state.guessSeq = state.guessSeq.map((d, i) => state.correctMask[i] ? d : null);
-        renderGuessDisplay();
-        playTurnAudio();
-      }
-    });
+    document.getElementById('csSubmitBtn').addEventListener('click', submitGuess);
 
     function openChordSeqPanel() {
       if (window.showCentralPanel) window.showCentralPanel('chordseq');
@@ -425,9 +431,102 @@
     });
   }
 
+
+  // ===================== MIDI chord answers =====================
+  // Play the chord on a MIDI keyboard instead of clicking its button. Notes struck
+  // within CHORD_WINDOW_MS of each other count as one chord (so rolled chords work);
+  // recognition is by pitch class, so any inversion / octave / doubling is fine.
+  const CHORD_WINDOW_MS = 220;
+  const PC_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+  let midiStarted = false, burstNotes = [], burstTimer = null;
+
+  function setMidiStatus(text) {
+    const el = document.getElementById('csMidiStatus');
+    if (el) el.textContent = text;
+  }
+
+  async function initMidi() {
+    if (midiStarted) return;
+    midiStarted = true;
+    if (!navigator.requestMIDIAccess) { setMidiStatus('MIDI isn’t supported in this browser — use the chord buttons.'); return; }
+    try {
+      const access = await navigator.requestMIDIAccess({ sysex: false });
+      const attach = () => {
+        const inputs = Array.from(access.inputs.values());
+        inputs.forEach(inp => inp.addEventListener('midimessage', onMidiMessage));
+        setMidiStatus(inputs.length
+          ? 'MIDI: ' + inputs.map(i => i.name).join(', ') + ' — or play the chord on your keyboard to answer.'
+          : 'No MIDI keyboard found — use the chord buttons.');
+      };
+      attach();
+      access.onstatechange = attach;
+    } catch (err) {
+      setMidiStatus('MIDI access denied — use the chord buttons.');
+    }
+  }
+
+  function onMidiMessage(e) {
+    if ((e.data[0] & 0xf0) !== 0x90 || e.data[2] === 0) return;
+    if (getComputedStyle(document.getElementById('chordSeqPanel')).display === 'none') return;
+    burstNotes.push(e.data[1]);
+    clearTimeout(burstTimer);
+    burstTimer = setTimeout(() => { const notes = burstNotes; burstNotes = []; onChordPlayed(notes); }, CHORD_WINDOW_MS);
+  }
+
+  function diatonicTriadPcs(degree) {
+    return triadFor(48 + KEY_LIST[state.keyIndex].pc, degree).map(m => m % 12);
+  }
+
+  function recognizeDiatonic(notes) {
+    const pcs = new Set(notes.map(n => n % 12));
+    const exact = [1, 2, 3, 4, 5, 6].find(d => {
+      const t = diatonicTriadPcs(d);
+      return t.length === pcs.size && t.every(pc => pcs.has(pc));
+    });
+    if (exact) return exact;
+    const contained = [1, 2, 3, 4, 5, 6].filter(d => diatonicTriadPcs(d).every(pc => pcs.has(pc)));
+    if (contained.length === 1) return contained[0];
+    if (contained.length > 1) {
+      const bassPc = Math.min(...notes) % 12;
+      return contained.find(d => diatonicTriadPcs(d)[0] === bassPc) || null;
+    }
+    return null;
+  }
+
+  function nameAnyTriad(notes) {
+    const pcs = new Set(notes.map(n => n % 12));
+    if (pcs.size !== 3) return null;
+    for (let r = 0; r < 12; r++) {
+      if (pcs.has(r) && pcs.has((r + 4) % 12) && pcs.has((r + 7) % 12)) return PC_NAMES[r];
+      if (pcs.has(r) && pcs.has((r + 3) % 12) && pcs.has((r + 7) % 12)) return PC_NAMES[r] + 'm';
+    }
+    return null;
+  }
+
+  function onChordPlayed(notes) {
+    if (answered || new Set(notes.map(n => n % 12)).size < 3) return;
+    const revert = currentSeqLen === 1 ? 'Click the second chord' : 'Rebuild the sequence you just heard';
+    const deg = recognizeDiatonic(notes);
+    if (!deg) {
+      const other = nameAnyTriad(notes);
+      flashStatus(other ? 'Heard ' + window.musicalChord(other) + ' — that isn’t one of the chords in this key' : 'Couldn’t recognise that as a chord in this key', revert, 1500);
+      return;
+    }
+    const btn = document.querySelector('#csChordRow .cs-chord-btn[data-degree="' + deg + '"]');
+    if (currentSeqLen === 1) { onChordButtonClick(deg, btn); return; }
+    if (state.guessSeq.every(v => v != null)) return;
+    onChordButtonClick(deg, btn);
+    flashStatus('Heard ' + chordDisplayName(deg) + ' (' + DEGREE_INFO[deg].roman + ')', revert, 900);
+    if (state.guessSeq.every(v => v != null)) {
+      const turnSeq = state.targetSeq;
+      setTimeout(() => { if (state.targetSeq === turnSeq && !answered && state.guessSeq.every(v => v != null)) submitGuess(); }, 800);
+    }
+  }
+
   function ensureInit() {
     if (initialized) return;
     initialized = true;
+    initMidi();
     ensureSamplesLoaded();
     buildChordButtons();
     state.keyIndex = Math.floor(Math.random() * KEY_LIST.length);
