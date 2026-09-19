@@ -7,6 +7,7 @@
   const chordEl = document.getElementById('midiChord');
   const notesEl = document.getElementById('midiNotes');
   const hideBtn = document.getElementById('midiHideBtn');
+  const showBtn = document.getElementById('midiShowBtn');
   const label = document.getElementById('midiDeviceLabel');
   if (!M || !wrap) return;
 
@@ -26,7 +27,8 @@
   function applyVisibility() {
     wrap.style.display = connected ? '' : 'none';
     circle.style.display = hidden ? 'none' : '';
-    hideBtn.textContent = hidden ? 'show' : 'hide';
+    showBtn.style.display = hidden ? '' : 'none';
+    wrap.classList.toggle('collapsed', hidden);
   }
 
   function musical(name) { return window.musicalChord ? window.musicalChord(name) : name; }
@@ -52,7 +54,7 @@
 
   function render() {
     if (!shown.length) {
-      circle.className = 'midi-circle idle';
+      circle.className = 'midi-box idle';
       chordEl.className = 'midi-chord';
       chordEl.textContent = '–';
       notesEl.textContent = '';
@@ -70,7 +72,7 @@
       chordEl.className = 'midi-chord' + (info && info.name.length <= 7 ? '' : ' long');
     }
     notesEl.textContent = withOctaves.replace(/([A-G])b/g, '$1♭').replace(/([A-G])#/g, '$1♯');
-    circle.className = 'midi-circle playing' + (updateGrid() > 0 ? ' match' : '');
+    circle.className = 'midi-box playing' + (updateGrid() > 0 ? ' match' : '');
   }
 
   M.onHeldChange(held => {
@@ -87,7 +89,7 @@
   });
 
   function updateLabel() {
-    label.textContent = (deviceName ? 'MIDI · ' + deviceName : 'MIDI') + (pedal ? ' · sustain' : '');
+    label.textContent = (pedal ? '● sustain · ' : '') + (deviceName || 'MIDI');
   }
   M.onPedal(down => { pedal = down; updateLabel(); });
 
@@ -100,11 +102,13 @@
     applyVisibility();
   });
 
-  hideBtn.addEventListener('click', () => {
-    hidden = !hidden;
+  function setHidden(next) {
+    hidden = next;
     try { localStorage.setItem(PREF_KEY, hidden ? '1' : '0'); } catch (e) {}
     applyVisibility();
-  });
+  }
+  hideBtn.addEventListener('click', () => setHidden(true));
+  showBtn.addEventListener('click', () => setHidden(false));
 
   applyVisibility();
   // Only ask for MIDI once someone's signed in (the browser prompts for permission).
