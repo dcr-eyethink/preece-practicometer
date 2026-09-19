@@ -115,6 +115,8 @@
   .insert-menu-item:hover { background: #f0f4ff; }
   .insert-menu-empty { padding: 6px 8px 10px; font-size: 13px; color: #aaa; font-style: italic; }
   th.col-actions { width: 56px; }
+  th#thActions { width: 108px; }
+  td.row-actions { white-space: nowrap; }
   .drag-handle { cursor: grab; color: #bbb; font-size: 16px; padding: 4px 6px; user-select: none; }
   .activity-cell { display: flex; align-items: center; }
   .activity-cell input { width: auto; flex: 1; min-width: 0; }
@@ -1539,7 +1541,7 @@
       arrows.appendChild(up); arrows.appendChild(dn); tc.appendChild(inT); tc.appendChild(arrows); tdT.appendChild(tc); tr.appendChild(tdT);
 
       if (!practiceActive) {
-        const tdActs = document.createElement('td');
+        const tdActs = document.createElement('td'); tdActs.className = 'row-actions';
         const addR = document.createElement('button'); addR.className = 'add-row-btn'; addR.textContent = '+'; addR.setAttribute('data-tip', 'Insert a new item below this one.');
         addR.addEventListener('click', () => { rows.splice(i + 1, 0, { activity: '', time: '' }); renderEditor(); updateTotal(); snapshotRatios(); const inp = document.querySelectorAll('#tbody tr')[i + 1]?.querySelector('input'); if (inp) inp.focus(); });
         // Same result as dragging a top-bar function/score icon onto this
