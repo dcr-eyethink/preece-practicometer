@@ -433,44 +433,13 @@
 
 
   // ===================== MIDI chord answers =====================
-  // Play the chord on a MIDI keyboard instead of clicking its button. Notes struck
-  // within CHORD_WINDOW_MS of each other count as one chord (so rolled chords work);
-  // recognition is by pitch class, so any inversion / octave / doubling is fine.
-  const CHORD_WINDOW_MS = 220;
-  const PC_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-  let midiStarted = false, burstNotes = [], burstTimer = null;
-
-  function setMidiStatus(text) {
-    const el = document.getElementById('csMidiStatus');
-    if (el) el.textContent = text;
-  }
-
-  async function initMidi() {
-    if (midiStarted) return;
-    midiStarted = true;
-    if (!navigator.requestMIDIAccess) { setMidiStatus('MIDI isn’t supported in this browser — use the chord buttons.'); return; }
-    try {
-      const access = await navigator.requestMIDIAccess({ sysex: false });
-      const attach = () => {
-        const inputs = Array.from(access.inputs.values());
-        inputs.forEach(inp => inp.addEventListener('midimessage', onMidiMessage));
-        setMidiStatus(inputs.length
-          ? 'MIDI: ' + inputs.map(i => i.name).join(', ') + ' — or play the chord on your keyboard to answer.'
-          : 'No MIDI keyboard found — use the chord buttons.');
-      };
-      attach();
-      access.onstatechange = attach;
-    } catch (err) {
-      setMidiStatus('MIDI access denied — use the chord buttons.');
-    }
-  }
-
-  function onMidiMessage(e) {
-    if ((e.data[0] & 0xf0) !== 0x90 || e.data[2] === 0) return;
-    if (getComputedStyle(document.getElementById('chordSeqPanel')).display === 'none') return;
-    burstNotes.push(e.data[1]);
-    clearTimeout(burstTimer);
-    burstTimer = setTimeout(() => { const notes = burstNotes; burstNotes = []; onChordPlayed(notes); }, CHORD_WINDOW_MS);
+  // Play the chord on a MIDI keyboard instead of clicking its button (see midi.js).
+  // Recognition is by pitch class, so any inversion / octave / doubling is fine.
+  function midiStatusText(st) {
+    if (st.state === 'unsupported') return 'MIDI isn’t supported in this browser — use the chord buttons.';
+    if (st.state === 'denied') return 'MIDI access denied — use the chord buttons.';
+    if (st.state === 'ready' && st.names.length) return 'MIDI: ' + st.names.join(', ') + ' — or play the chord on your keyboard to answer.';
+    return st.state === 'ready' ? 'No MIDI keyboard found — use the chord buttons.' : '';
   }
 
   function diatonicTriadPcs(degree) {
@@ -493,23 +462,14 @@
     return null;
   }
 
-  function nameAnyTriad(notes) {
-    const pcs = new Set(notes.map(n => n % 12));
-    if (pcs.size !== 3) return null;
-    for (let r = 0; r < 12; r++) {
-      if (pcs.has(r) && pcs.has((r + 4) % 12) && pcs.has((r + 7) % 12)) return PC_NAMES[r];
-      if (pcs.has(r) && pcs.has((r + 3) % 12) && pcs.has((r + 7) % 12)) return PC_NAMES[r] + 'm';
-    }
-    return null;
-  }
-
   function onChordPlayed(notes) {
+    if (getComputedStyle(document.getElementById('chordSeqPanel')).display === 'none') return;
     if (answered || new Set(notes.map(n => n % 12)).size < 3) return;
     const revert = currentSeqLen === 1 ? 'Click the second chord' : 'Rebuild the sequence you just heard';
     const deg = recognizeDiatonic(notes);
     if (!deg) {
-      const other = nameAnyTriad(notes);
-      flashStatus(other ? 'Heard ' + window.musicalChord(other) + ' — that isn’t one of the chords in this key' : 'Couldn’t recognise that as a chord in this key', revert, 1500);
+      const other = window.MidiInput.analyzeChord(notes);
+      flashStatus(other ? 'Heard ' + window.musicalChord(other.name) + ' — that isn’t one of the chords in this key' : 'Couldn’t recognise that as a chord in this key', revert, 1500);
       return;
     }
     const btn = document.querySelector('#csChordRow .cs-chord-btn[data-degree="' + deg + '"]');
@@ -523,10 +483,16 @@
     }
   }
 
+  window.MidiInput.onChord(onChordPlayed);
+  window.MidiInput.onStatus(st => {
+    const el = document.getElementById('csMidiStatus');
+    if (el) el.textContent = midiStatusText(st);
+  });
+
   function ensureInit() {
     if (initialized) return;
     initialized = true;
-    initMidi();
+    window.MidiInput.start();
     ensureSamplesLoaded();
     buildChordButtons();
     state.keyIndex = Math.floor(Math.random() * KEY_LIST.length);

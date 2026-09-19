@@ -90,7 +90,6 @@
   }
 
   let initialized = false;
-  let midiInitStarted = false;
   let matchStreak = 0;
   let lastUserMidi = null;
   let lastUserPitchClass = null;
@@ -124,7 +123,6 @@
   let analyser = null;
   let dataArray = null;
   let rafId = null;
-  let midiAccess = null;
   let selectedMicId = null;
 
   function noteName(midi) {
@@ -491,29 +489,14 @@
 
   // ===================== MIDI =====================
 
-  async function initMIDI() {
-    if (!navigator.requestMIDIAccess) { setMidiStatus('Web MIDI not supported in this browser.'); return; }
-    try {
-      midiAccess = await navigator.requestMIDIAccess({ sysex: false });
-      attachMidiInputs();
-      midiAccess.onstatechange = attachMidiInputs;
-    } catch (err) {
-      setMidiStatus('MIDI access denied.');
-    }
-  }
-
-  function attachMidiInputs() {
-    const inputs = Array.from(midiAccess.inputs.values());
-    inputs.forEach(inp => { inp.onmidimessage = onMIDIMessage; });
-    setMidiStatus(inputs.length ? `MIDI: ${inputs.map(i => i.name).join(', ')}` : 'No MIDI device connected.');
-  }
-
-  function onMIDIMessage(e) {
-    const data = e.data;
-    const cmd = data[0] & 0xf0;
-    const note = data[1], vel = data[2];
-    if (cmd === 0x90 && vel > 0) handleUserNote(note, 'midi');
-  }
+  // Notes come from the shared MIDI module (midi.js); only act on them mid-game.
+  window.MidiInput.onNoteOn(note => { if (state.running) handleUserNote(note, 'midi'); });
+  window.MidiInput.onStatus(st => {
+    setMidiStatus(st.state === 'unsupported' ? 'Web MIDI not supported in this browser.'
+      : st.state === 'denied' ? 'MIDI access denied.'
+      : st.state === 'ready' ? (st.names.length ? `MIDI: ${st.names.join(', ')}` : 'No MIDI device connected.')
+      : '');
+  });
 
   // ===================== Game logic =====================
 
@@ -804,7 +787,7 @@
     document.getElementById('earPlayBtn').addEventListener('click', () => {
       if (!state.running) {
         state.running = true;
-        if (!midiInitStarted) { midiInitStarted = true; initMIDI(); }
+        window.MidiInput.start();
         startTurn();
       } else {
         replayCurrentInterval();

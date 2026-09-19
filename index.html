@@ -214,6 +214,7 @@
   .chord-grid-selected-key { font-size: 11px; color: #888; margin-bottom: 6px; text-align: center; }
   .chord-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .chord-cell { background: #f0f4ff; border: 1.5px solid #c8d8f8; border-radius: 10px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: #1a3060; cursor: default; transition: background 0.2s, border-color 0.2s; }
+  .chord-cell.midi-match, .chord-cell.active.midi-match { background: #c9f2d3; border-color: #2fa35a; color: #0f5a2c; box-shadow: 0 0 8px 2px rgba(47,163,90,0.35); }
   .chord-cell.active { background: #fff9c4; border-color: #f0c040; box-shadow: 0 0 8px 2px rgba(240,192,0,0.3); }
   .c5-mode-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 8px; }
   .c5-mode-btn { padding: 5px 16px; border: 1.5px solid #c0ccee; border-radius: 14px; background: #e8ecf8; font-size: 13px; font-weight: 600; color: #445; cursor: pointer; }
@@ -339,6 +340,20 @@
   .score-value { font-size: 14px; font-weight: 600; color: #555; background: #f2f4f8; border-radius: 8px; padding: 5px 12px; }
   .score-reset { background: none; border: none; font-size: 12px; color: #999; cursor: pointer; text-decoration: underline; padding: 0; }
   .score-reset:hover { color: #555; }
+
+  /* ---- Live MIDI readout (under the metronome) ---- */
+  .midi-readout { margin-top: 0.25rem; text-align: center; }
+  .midi-readout-head { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
+  .midi-hide-btn { font: inherit; text-transform: none; letter-spacing: 0; color: #888; background: none; border: 1px solid #ddd; border-radius: 10px; padding: 1px 8px; cursor: pointer; }
+  .midi-hide-btn:hover { background: #f3f3f3; }
+  .midi-circle { width: 168px; height: 168px; margin: 0.75rem auto 0; border-radius: 50%; border: 3px solid #d5def0; background: #f6f8fd; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 14px; box-sizing: border-box; transition: border-color 0.15s, background 0.15s; }
+  .midi-circle.playing { border-color: #1a56db; background: #eef3ff; }
+  .midi-circle.match { border-color: #2fa35a; background: #e6f8eb; }
+  .midi-chord { font-size: 26px; font-weight: 700; color: #1a3060; line-height: 1.1; }
+  .midi-circle.match .midi-chord { color: #0f5a2c; }
+  .midi-chord.long { font-size: 18px; }
+  .midi-notes { font-size: 12px; color: #667; line-height: 1.35; max-width: 130px; overflow-wrap: anywhere; }
+  .midi-circle.idle .midi-chord { color: #c3cbe0; font-weight: 400; }
 
   /* ---- Hover tooltips ---- */
   .app-tooltip {
@@ -467,6 +482,13 @@
     <button class="adj-btn minus" id="minusBtn" data-tip="Decrease the tempo by 10 BPM.">-10</button>
     <button class="play-btn" id="playBtn" data-tip="Start or stop the metronome.">Start</button>
     <button class="adj-btn plus" id="plusBtn" data-tip="Increase the tempo by 10 BPM.">+10</button>
+  </div>
+  <div class="midi-readout" id="midiReadout" style="display:none">
+    <div class="midi-readout-head"><span id="midiDeviceLabel">MIDI</span><button class="midi-hide-btn" id="midiHideBtn" data-tip="Hide or show the live readout of the notes and chords you play on your MIDI keyboard.">hide</button></div>
+    <div class="midi-circle idle" id="midiCircle" data-tip="What you're playing on your MIDI keyboard right now. If it matches a square in the Chord Grid or Circle of 5ths, that square turns green.">
+      <div class="midi-chord" id="midiChord">–</div>
+      <div class="midi-notes" id="midiNotes"></div>
+    </div>
   </div>
   
 </div>
@@ -877,20 +899,24 @@
     window.api.resizeWindow(w + (opening ? 360 : -360), APP_HEIGHT);
   }
 
+  // Random order with no two identical items adjacent. The greedy pick can paint itself into
+  // a corner (only one repeated value left, and it's the same as the last pick), so retry.
   function shuffle(arr) {
-    const freq = {};
-    arr.forEach(x => freq[x] = (freq[x] || 0) + 1);
-    const pool = Object.entries(freq).map(([val, count]) => ({ val, count }));
-    const result = [];
-    let last = null;
-    for (let i = 0; i < arr.length; i++) {
-      const avail = pool.filter(p => p.count > 0 && p.val !== last);
-      const pick = avail[Math.floor(Math.random() * avail.length)];
-      result.push(pick.val);
-      last = pick.val;
-      pick.count--;
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const pool = arr.slice();
+      const result = [];
+      let last = null;
+      while (pool.length) {
+        const avail = pool.map((v, i) => i).filter(i => pool[i] !== last);
+        if (!avail.length) break;
+        const idx = avail[Math.floor(Math.random() * avail.length)];
+        last = pool[idx];
+        result.push(last);
+        pool.splice(idx, 1);
+      }
+      if (!pool.length) return result;
     }
-    return result;
+    return arr.slice();
   }
 
   function musicalChord(name) {
@@ -912,6 +938,7 @@
       const cell = document.createElement('div');
       cell.className = 'chord-cell';
       cell.textContent = musicalChord(ch);
+      cell.dataset.chord = ch;
       cell.style.cursor = 'pointer';
       cell.setAttribute('data-tip', 'Click to select this chord. It advances automatically on the beat if the metronome is running.');
       cell.addEventListener('click', () => {
@@ -1881,8 +1908,10 @@
 
 })();
 </script>
+<script src="midi.js" defer></script>
 <script src="eartraining.js" defer></script>
 <script src="chordsequence.js" defer></script>
+<script src="midi-readout.js" defer></script>
 <script src="tooltips.js" defer></script>
 </body>
 </html>
