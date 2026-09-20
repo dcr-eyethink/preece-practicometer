@@ -1031,6 +1031,22 @@
 
   buildPiano();
 
+  // With the metronome off, playing the highlighted chord/note on a MIDI keyboard moves the
+  // highlight to the next square (the metronome does this on the beat when it's running).
+  window.addEventListener('DOMContentLoaded', () => {
+    if (!window.MidiInput) return;
+    window.MidiInput.onChord(notes => {
+      if (metroRunning || !chordGridActive) return;
+      if (!document.getElementById('chordSection').classList.contains('visible')) return;
+      const cell = chordCells[chordIdx];
+      if (!cell || cell.offsetParent === null || !cell.classList.contains('active')) return;
+      if (!window.MidiInput.matchesCell(cell, notes)) return;
+      chordIdx = (chordIdx + 1) % chordCells.length;
+      highlightChordCell(chordIdx);
+      chordStarted = true; chordCountIn = 0;
+    });
+  });
+
 
   const NAV_ICON_IDS = ['practiceListBtn', 'logBtn', 'chordToggleBtn', 'c5ToggleBtn', 'earEchoIconBtn', 'earPlayIconBtn', 'csIconBtn'];
   window.setActiveTopBarIcon = function(id) {

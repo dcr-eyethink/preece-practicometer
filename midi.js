@@ -163,6 +163,17 @@
     return m ? { rootName: m[1], type: m[2] ? 'min' : 'maj' } : null;
   }
 
+  // Do these notes spell the chord/note shown in a chord-grid or circle-of-5ths square?
+  const C5_TYPES = { note: 'note', maj7: 'maj7', min7: 'min7', dom7: 'dom7' };
+  function matchesCell(cell, notes) {
+    if (cell.dataset.chord) {
+      const p = parseTriad(cell.dataset.chord);
+      return !!p && matchesChord(notes, p.rootName, p.type);
+    }
+    if (cell.dataset.key) return matchesChord(notes, cell.dataset.key, C5_TYPES[cell.dataset.type] || 'note');
+    return false;
+  }
+
   function noteName(midi) { return PC_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1); }
 
   window.MidiInput = {
@@ -174,6 +185,6 @@
     onChord: fn => subscribe(chordFns, fn),
     onPedal: fn => subscribe(pedalFns, fn),
     onStatus: fn => { const off = subscribe(statusFns, fn); fn(status); return off; },
-    analyzeChord, matchesChord, parseTriad, noteName, pcName: pc => PC_NAMES[((pc % 12) + 12) % 12]
+    analyzeChord, matchesChord, matchesCell, parseTriad, noteName, pcName: pc => PC_NAMES[((pc % 12) + 12) % 12]
   };
 })();

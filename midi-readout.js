@@ -13,7 +13,6 @@
 
   const PREF_KEY = 'midiReadoutHidden';
   const AFTERGLOW_MS = 1500;
-  const C5_TYPES = { note: 'note', maj7: 'maj7', min7: 'min7', dom7: 'dom7' };
 
   let hidden = false;
   try { hidden = localStorage.getItem(PREF_KEY) === '1'; } catch (e) {}
@@ -37,15 +36,7 @@
   function updateGrid() {
     let count = 0;
     document.querySelectorAll('#chordGrid .chord-cell, #c5Grid .chord-cell').forEach(cell => {
-      let match = false;
-      if (shown.length) {
-        if (cell.dataset.chord) {
-          const p = M.parseTriad(cell.dataset.chord);
-          match = !!p && M.matchesChord(shown, p.rootName, p.type);
-        } else if (cell.dataset.key) {
-          match = M.matchesChord(shown, cell.dataset.key, C5_TYPES[cell.dataset.type] || 'note');
-        }
-      }
+      const match = shown.length > 0 && M.matchesCell(cell, shown);
       cell.classList.toggle('midi-match', match);
       if (match) count++;
     });
