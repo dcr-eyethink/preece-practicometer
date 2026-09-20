@@ -214,7 +214,8 @@
   .chord-grid-selected-key { font-size: 11px; color: #888; margin-bottom: 6px; text-align: center; }
   .chord-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .chord-cell { background: #f0f4ff; border: 1.5px solid #c8d8f8; border-radius: 10px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: #1a3060; cursor: default; transition: background 0.2s, border-color 0.2s; }
-  .chord-cell.midi-match, .chord-cell.active.midi-match { background: #c9f2d3; border-color: #2fa35a; color: #0f5a2c; box-shadow: 0 0 8px 2px rgba(47,163,90,0.35); }
+  .chord-cell.midi-match { border-color: #2fa35a; box-shadow: inset 0 0 0 4px #2fa35a; }
+  .chord-cell.active.midi-match { box-shadow: inset 0 0 0 4px #2fa35a, 0 0 8px 2px rgba(240,192,0,0.3); }
   .chord-cell.active { background: #fff9c4; border-color: #f0c040; box-shadow: 0 0 8px 2px rgba(240,192,0,0.3); }
   .c5-mode-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 8px; }
   .c5-mode-btn { padding: 5px 16px; border: 1.5px solid #c0ccee; border-radius: 14px; background: #e8ecf8; font-size: 13px; font-weight: 600; color: #445; cursor: pointer; }
@@ -1672,6 +1673,10 @@
     if (sessionTimerId) clearInterval(sessionTimerId);
     sessionTimerId = setInterval(() => { sessionElapsed++; sessionTimeEl.textContent = fmtTime(sessionElapsed); }, 1000);
   }
+  function resumeSessionTimer() {
+    if (sessionTimerId) return;
+    sessionTimerId = setInterval(() => { sessionElapsed++; sessionTimeEl.textContent = fmtTime(sessionElapsed); }, 1000);
+  }
   function stopSessionTimer() { if (sessionTimerId) { clearInterval(sessionTimerId); sessionTimerId = null; } }
 
   // ── Practice log ──
@@ -1909,14 +1914,14 @@
   function goToItem(idx) { loadPracticeItem(idx, true); }
   function startPracticeTimer() {
     if (timerId) return;
-    if (!sessionStarted) { sessionStarted = true; startSessionTimer(); }
+    if (!sessionStarted) { sessionStarted = true; startSessionTimer(); } else resumeSessionTimer();
     goBtn.style.display = 'none'; pauseBtn.style.display = '';
     timerId = setInterval(() => { remainSec--; updateCircle(); if (remainSec === 0 && totalSec > 0) playChime(); }, 1000);
   }
   function stopPracticeTimer() { if (timerId) { clearInterval(timerId); timerId = null; } goBtn.style.display = ''; pauseBtn.style.display = 'none'; }
 
   goBtn.addEventListener('click', startPracticeTimer);
-  pauseBtn.addEventListener('click', stopPracticeTimer);
+  pauseBtn.addEventListener('click', () => { stopPracticeTimer(); stopSessionTimer(); });
   restartBtn.addEventListener('click', () => loadPracticeItem(practiceIdx, true));
   nextBtn.addEventListener('click', () => loadPracticeItem(practiceIdx + 1, true));
 
