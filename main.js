@@ -13,7 +13,7 @@ const LAUNCHABLE_APPS = ['GarageBand', 'iReal Pro', 'forScore'];
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1000,
+    width: 1360,
     height: 826,
     resizable: true,
     acceptFirstMouse: true,
