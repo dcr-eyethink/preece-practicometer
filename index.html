@@ -1753,19 +1753,24 @@
     if (idx >= rows.length) {
       activityEl.style.display = 'none'; indexEl.style.display = 'none'; timerWrap.style.display = 'none'; controlsEl.style.display = 'none'; doneEl.style.display = 'block';
       showCentralPanel('editor');
+      if (notesOpen && notesAuto) closeNotes();
       return;
     }
     activityEl.style.display = ''; indexEl.style.display = ''; timerWrap.style.display = ''; controlsEl.style.display = 'flex'; doneEl.style.display = 'none';
     const row = rows[idx]; activityEl.textContent = row.activity; indexEl.textContent = (idx + 1) + ' of ' + rows.length;
     if (practiceActive) sessionActivities.push({ activity: row.activity, minutes: parseFloat(row.time) || 0 });
     dispatchActiveRow(row);
-    if (notesOpen) openNotesForRow(idx);
+    // During practice, an item's notes show under the timer automatically; if the user has the
+    // notes button on, they stay open for every item (empty ones included).
+    if (notesOpen && !notesAuto) openNotesForRow(idx);
+    else if ((row.notes || '').trim()) { openNotesForRow(idx); notesAuto = true; }
+    else if (notesOpen) closeNotes();
     const mins = parseFloat(row.time) || 0; totalSec = Math.round(mins * 60); remainSec = totalSec;
     goBtn.style.display = ''; pauseBtn.style.display = 'none'; updateCircle();
     if (autoStart) startPracticeTimer();
   }
   // ── Notes panel ──
-  let notesOpen = false, notesRowIdx = -1;
+  let notesOpen = false, notesRowIdx = -1, notesAuto = false; // notesAuto: opened by practice itself, not the notes button
 
   function renderMarkdown(md) {
     if (!md) return '';
@@ -1850,6 +1855,7 @@
   function closeNotes() {
     saveCurrentNotes();
     notesOpen = false;
+    notesAuto = false;
     notesRowIdx = -1;
     const panel = document.getElementById('notesPanel');
     const wasInline = panel.classList.contains('inline');
@@ -1880,6 +1886,7 @@
     // practice was actually running) was the bug: it opened notes for a
     // stale/unrelated row instead of the one just clicked in the editor.
     const targetIdx = practiceActive ? practiceIdx : selectedRowIdx;
+    notesAuto = false;
     if (notesOpen && notesRowIdx === targetIdx) { closeNotes(); }
     else { openNotesForRow(targetIdx); }
   });
