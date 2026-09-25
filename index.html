@@ -273,7 +273,6 @@
   .ear-panel { display: none; flex: 1; flex-direction: column; padding: 1.5rem 2rem; overflow-y: auto; position: relative; }
   .ear-panel h2 { margin: 0; font-size: 20px; font-weight: 600; }
   .ear-header-row { display: flex; align-items: center; justify-content: flex-start; gap: 12px; margin-bottom: 1rem; }
-  .ear-header-row .ear-status { margin-left: auto; margin-bottom: 0; text-align: right; max-width: 55%; }
   .panel-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; }
   .panel-title-row h2 { margin: 0; }
   .panel-icon { width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0; }
@@ -283,8 +282,10 @@
   .ear-toggle-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; display: block; margin-bottom: 6px; }
   .ear-toggle-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
   .ear-toggle-header .ear-toggle-label { margin-bottom: 0; }
-  .ear-staircase-btn { padding: 4px 12px; border: 1.5px solid #ccc; border-radius: 14px; background: #f9f9f9; font-size: 12px; font-weight: 600; color: #666; cursor: pointer; }
-  .ear-staircase-btn.active { background: #fff4d6; border-color: #e0a83a; color: #8a5a10; }
+  .ear-staircase-btn { padding: 3px; border: 2px solid transparent; border-radius: 12px; background: none; cursor: pointer; line-height: 0; transition: border-color 0.15s; }
+  .ear-staircase-btn img { display: block; width: 32px; height: 32px; border-radius: 8px; }
+  .ear-staircase-btn:hover { border-color: #c0ccee; }
+  .ear-staircase-btn.active { border-color: #e0a83a; background: #fff4d6; }
   .ear-staircase-status { font-size: 13px; color: #8a5a10; font-weight: 600; margin-top: 6px; }
   .ear-num-row.locked { opacity: 0.55; pointer-events: none; }
   .ear-dir-btn, .ear-num-btn { padding: 7px 16px; border: 1.5px solid #ccc; border-radius: 8px; background: #f9f9f9; color: #555; font-size: 14px; font-weight: 500; cursor: pointer; }
@@ -300,9 +301,9 @@
   .ear-target-display { font-size: 22px; font-weight: 700; text-align: center; color: #1a4a8a; margin: 0.5rem 0 1rem; min-height: 30px; }
   .ear-keyboard-wrap { margin-bottom: 1rem; }
   .ear-key { cursor: pointer; }
-  .ear-play-row { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 1.25rem; }
-  .ear-play-btn { width: 72px; height: 72px; border-radius: 50%; border: none; cursor: pointer; background: #1a56db; color: #fff; font-size: 26px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(26,86,219,0.35); }
-  .ear-play-btn:hover { background: #1543ab; }
+  .ear-play-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+  .ear-play-btn { width: 72px; height: 72px; padding: 0; border: none; border-radius: 18px; cursor: pointer; background: none; flex-shrink: 0; }
+  .ear-play-btn img { display: block; width: 72px; height: 72px; border-radius: 18px; }
   .ear-play-btn:active { transform: scale(0.94); }
   .ear-stop-btn { width: 72px; height: 72px; border-radius: 50%; border: none; cursor: pointer; background: #888; color: #fff; font-size: 22px; display: flex; align-items: center; justify-content: center; }
   .ear-stop-btn:hover { background: #6f6f6f; }
@@ -310,9 +311,14 @@
   .ear-dial-col { display: flex; flex-direction: column; align-items: center; }
   .ear-dial-wrap { width: 150px; height: 84px; flex-shrink: 0; }
   .ear-pitch-readout { font-size: 16px; color: #555; }
-  .ear-skip-btn { width: 48px; height: 48px; border-radius: 50%; border: none; cursor: pointer; background: #e0e4ee; color: #445; font-size: 18px; display: flex; align-items: center; justify-content: center; align-self: center; }
-  .ear-skip-btn:hover { background: #ccd2e4; }
+  .ear-skip-btn { width: 44px; height: 44px; padding: 0; border: none; border-radius: 10px; cursor: pointer; background: none; align-self: center; flex-shrink: 0; }
+  .ear-skip-btn img { display: block; width: 44px; height: 44px; border-radius: 10px; }
   .ear-skip-btn:active { transform: scale(0.94); }
+  .ear-mic-btn { width: 44px; height: 44px; padding: 0; border: none; border-radius: 10px; cursor: pointer; background: none; align-self: center; flex-shrink: 0; }
+  .ear-mic-btn img { display: block; width: 44px; height: 44px; border-radius: 10px; }
+  .ear-mic-btn:active { transform: scale(0.94); }
+  .score-octave-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 0.75rem 0 1rem; }
+  .score-octave-row .score-row, .score-octave-row .ear-octave-row { margin-bottom: 0; }
   .ear-octave-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 1rem; }
   .ear-octave-label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
   .ear-octave-btn { width: 26px; height: 26px; border-radius: 50%; border: 1px solid #ccd2e4; background: #fff; color: #445; font-size: 15px; cursor: pointer; line-height: 1; }
@@ -359,7 +365,7 @@
 
   /* ---- Score widget (shared by Ear Training / Chord Sequences) ---- */
   .score-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
-  .score-value { font-size: 14px; font-weight: 600; color: #555; background: #f2f4f8; border-radius: 8px; padding: 5px 12px; }
+  .score-value { font-size: 13px; font-weight: 600; color: #555; background: #f2f4f8; border-radius: 8px; padding: 5px 9px; }
   .score-reset { background: none; border: none; font-size: 12px; color: #999; cursor: pointer; text-decoration: underline; padding: 0; }
   .score-reset:hover { color: #555; }
 
@@ -641,36 +647,15 @@
     <div class="ear-header-row">
       <button class="practice-close" id="earBackBtn" data-tip="Back to the practice list."><img src="icons/back.png" alt="Back"></button>
       <h2 id="earPanelTitle">Ear Training</h2>
-      <div class="ear-status" id="earStatus" data-tip="Shows what to do next during a turn.">Set your difficulty below, then click Play to hear your first interval.</div>
       <img class="panel-icon panel-icon-lg" id="earPanelIcon" alt="">
     </div>
 
-    <div class="score-row">
-      <span class="score-value" id="earScore">Score: 0/0 (—%)</span>
-      <button class="score-reset" id="earScoreReset" data-tip="Clear your saved accuracy and best staircase level for Ear Training.">reset</button>
-    </div>
-
-    <div class="ear-octave-row">
-      <span class="ear-octave-label">Octave</span>
-      <button class="ear-octave-btn" id="earOctaveDownBtn" data-tip="Shift the reference tones down an octave.">−</button>
-      <span class="ear-octave-value" id="earOctaveValue">0</span>
-      <button class="ear-octave-btn" id="earOctaveUpBtn" data-tip="Shift the reference tones up an octave.">+</button>
-    </div>
-
-    <div class="ear-play-row">
-      <button class="ear-play-btn" id="earPlayBtn" data-tip="Press to start (or, once running, to replay the current interval).">▶</button>
-      <div class="ear-dial-col">
-        <div class="ear-dial-wrap" id="earDialWrap" data-tip="Shows how sharp or flat your sung note is compared to the target."></div>
-        <div class="ear-pitch-readout" id="earPitchReadout">—</div>
-      </div>
-      <button class="ear-stop-btn" id="earStopBtn" data-tip="Stop the current ear-training session.">■</button>
-      <button class="ear-skip-btn" id="earSkipBtn" data-tip="Skip this item, reveal the answer, and move to the next one.">⏭</button>
-    </div>
+    <div class="ear-status" id="earStatus" data-tip="Shows what to do next during a turn.">Set your difficulty below, then click the ear to hear your first interval.</div>
 
     <div class="ear-toggle-group">
       <div class="ear-toggle-header">
         <span class="ear-toggle-label">Interval &amp; Direction</span>
-        <button class="ear-staircase-btn" id="earStaircaseBtn" data-tip="Staircase mode: the app picks the difficulty for you — one step harder each time you're right, one step easier each time you're wrong. Turns off manual interval/direction selection while active.">🪜 Staircase</button>
+        <button class="ear-staircase-btn" id="earStaircaseBtn" data-tip="Staircase mode: the app picks the difficulty for you — one step harder each time you're right, one step easier each time you're wrong. Turns off manual interval/direction selection while active."><img src="icons/staircase.png" alt="Staircase"></button>
       </div>
       <div class="ear-num-row" id="earIntervalRow"></div>
       <div class="ear-staircase-status" id="earStaircaseStatus" style="display:none"></div>
@@ -679,6 +664,30 @@
     <div class="ear-target-display" id="earTargetDisplay"></div>
 
     <div class="ear-keyboard-wrap" id="earKeyboardWrap"></div>
+
+    <div class="score-octave-row">
+      <div class="score-row">
+        <span class="score-value" id="earScore">Score: 0/0 (—%)</span>
+        <button class="score-reset" id="earScoreReset" data-tip="Clear your saved accuracy and best staircase level for Ear Training.">reset</button>
+      </div>
+      <div class="ear-octave-row">
+        <span class="ear-octave-label">Octave</span>
+        <button class="ear-octave-btn" id="earOctaveDownBtn" data-tip="Shift the reference tones down an octave.">−</button>
+        <span class="ear-octave-value" id="earOctaveValue">0</span>
+        <button class="ear-octave-btn" id="earOctaveUpBtn" data-tip="Shift the reference tones up an octave.">+</button>
+      </div>
+    </div>
+
+    <div class="ear-play-row">
+      <button class="ear-play-btn" id="earPlayBtn" data-tip="Press to hear the interval — press again to hear it once more."><img src="icons/ear.png" alt="Play"></button>
+      <button class="ear-skip-btn" id="earSkipBtn" data-tip="Skip this item, reveal the answer, and move to the next one."><img src="icons/white-flag.png" alt="Skip"></button>
+      <button class="ear-mic-btn" id="earMicToggleBtn" data-tip="Turn the microphone on to answer by singing — the pitch meter appears here once it's on."><img id="earMicIcon" src="icons/mic-off.png" alt="Microphone"></button>
+      <button class="ear-stop-btn" id="earStopBtn" data-tip="Stop the current ear-training session." style="display:none">■</button>
+      <div class="ear-dial-col" id="earDialCol" style="display:none">
+        <div class="ear-dial-wrap" id="earDialWrap" data-tip="Shows how sharp or flat your sung note is compared to the target."></div>
+        <div class="ear-pitch-readout" id="earPitchReadout">—</div>
+      </div>
+    </div>
 
     <div class="ear-feedback" id="earFeedback"></div>
 
@@ -1851,7 +1860,11 @@
     chordgrid: "*Click this text to edit or replace with your own notes for this practice*\n\n"
       + "Press a note to generate a random chord sequence in that key. Practice the chords, transitioning between them, and choosing inversions. If you turn on the metronome, a new chord will be highlighted on each new bar. Click chords directly to jump to them. If your MIDI keyboard is connected, the chords will turn green when played. For more difficult challenges, practice different rhythms, embellishments, or passing notes. Or you could practice 2-5-1 transitions into each chord.",
     c5: "*Click this text to edit or replace with your own notes for this practice*\n\n"
-      + "Click to generate a random sequence of notes from the circle of 5ths. Then play the scales for each of those keys. Or choose a chord type, and practice the inversions for each chord. If you have a MIDI keyboard, it will detect when you play a chord and progress the yellow highlight (you might need to use the pedal so that all notes are registered). You can also turn on the metronome to practice in time. For more difficult challenges, practice playing shells or strides in the left hand."
+      + "Click to generate a random sequence of notes from the circle of 5ths. Then play the scales for each of those keys. Or choose a chord type, and practice the inversions for each chord. If you have a MIDI keyboard, it will detect when you play a chord and progress the yellow highlight (you might need to use the pedal so that all notes are registered). You can also turn on the metronome to practice in time. For more difficult challenges, practice playing shells or strides in the left hand.",
+    'ear-echo': "*Click this text to edit or replace with your own notes for this practice*\n\n"
+      + "Click on the ear to listen to an interval, then click the keyboard or play the second note on your MIDI keyboard. You can click the ear to hear it again. If you click the microphone icon, the pitch meter will tell you if you are sharp or flat, and the closest note will be highlighted on the keyboard — you can use this to help find the note. Once you have clicked or played the correct note, you will be given another interval. If you can't get it, click the white flag button to move on. Difficulty can be changed by highlighting all the different intervals you could be given, and whether they should be up, down, or both. Or you can click the staircase button and that will automatically begin at an easier level, making things harder when you get questions right and easier when you start getting them wrong.",
+    'ear-play': "*Click this text to edit or replace with your own notes for this practice*\n\n"
+      + "Click on the ear to listen to an interval, then click the keyboard or play the second note on your MIDI keyboard. You can click the ear to hear it again. If you click the microphone icon, the pitch meter will tell you if you are sharp or flat, and the closest note will be highlighted on the keyboard — you can use this to help find the note. Once you have clicked or played the correct note, you will be given another interval. If you can't get it, click the white flag button to move on. Difficulty can be changed by highlighting all the different intervals you could be given, and whether they should be up, down, or both. Or you can click the staircase button and that will automatically begin at an easier level, making things harder when you get questions right and easier when you start getting them wrong."
   };
 
   function makeFunctionRow(functionId) {
@@ -2342,6 +2355,13 @@
     showNotesPreview();
     positionAndOpenNotesPanel();
   }
+  window.openNotesForFunction = openNotesForFunction;
+  // Closes notes only if they're showing a function's help text (not a real
+  // practice-list item's notes) — used when leaving a function opened
+  // directly from the top bar (e.g. ear training's own back button).
+  window.closeFunctionNotes = function() {
+    if (notesOpen && notesRowIdx === -1) closeNotes();
+  };
 
   function closeNotes() {
     saveCurrentNotes();

@@ -18,7 +18,7 @@
 
   const state = {
     mode: 'echo',
-    activeIntervals: new Set([2, 3, 4, 5, 6, 7]),
+    activeIntervals: new Set([2, 3, 4, 5, 6, 7, 8]),
     activeDirections: new Set(['up']),
     baseMidi: null,
     intervalNum: null,
@@ -124,6 +124,9 @@
   let dataArray = null;
   let rafId = null;
   let selectedMicId = null;
+  // Off by default — singing/pitch detection only requests the mic and runs
+  // the pitch loop once the user explicitly turns it on via #earMicToggleBtn.
+  let micOn = false;
 
   function noteName(midi) {
     return NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
@@ -139,8 +142,8 @@
   // name and answers blind, with Play-again as an optional audio hint.
   function idlePrompt() {
     return state.mode === 'echo'
-      ? 'Set your difficulty below, then click Play to hear your first interval.'
-      : 'Set your difficulty below, then click Play to hear the base note — sing the interval named above from it.';
+      ? 'Set your difficulty below, then click the ear to hear your first interval.'
+      : 'Set your difficulty below, then click the ear to hear the base note — sing the interval named above from it.';
   }
   function answerPrompt() {
     return state.mode === 'echo'
@@ -548,7 +551,7 @@
     playReferenceAudio(() => {
       if (!state.turnActive) return;
       setStatus(answerPrompt());
-      startListening();
+      if (micOn) startListening();
     });
   }
 
@@ -616,7 +619,7 @@
 
   function exitStaircase() {
     staircase.active = false;
-    state.activeIntervals = manualIntervalsSnapshot || new Set([2, 3, 4, 5, 6, 7]);
+    state.activeIntervals = manualIntervalsSnapshot || new Set([2, 3, 4, 5, 6, 7, 8]);
     state.activeDirections = manualDirectionsSnapshot || new Set(['up']);
     CENTS_TOLERANCE = 40;
     document.getElementById('earIntervalRow').classList.remove('locked');
@@ -731,7 +734,7 @@
     playReferenceAudio(() => {
       if (!state.turnActive) return;
       setStatus(answerPrompt());
-      startListening();
+      if (micOn) startListening();
     });
   }
 
@@ -775,7 +778,7 @@
     sep.className = 'ear-dir-sep';
     row.appendChild(sep);
 
-    for (let i = 2; i <= 7; i++) {
+    for (let i = 2; i <= 8; i++) {
       const b = document.createElement('button');
       b.className = 'ear-num-btn' + (state.activeIntervals.has(i) ? ' active' : '');
       b.dataset.interval = i;
@@ -821,6 +824,24 @@
     document.getElementById('earStopBtn').addEventListener('click', stopSession);
     document.getElementById('earSkipBtn').addEventListener('click', skipTurn);
 
+    document.getElementById('earMicToggleBtn').addEventListener('click', () => {
+      micOn = !micOn;
+      const btn = document.getElementById('earMicToggleBtn');
+      btn.classList.toggle('active', micOn);
+      document.getElementById('earMicIcon').src = micOn ? 'icons/mic-on.png' : 'icons/mic-off.png';
+      document.getElementById('earDialCol').style.display = micOn ? '' : 'none';
+      if (micOn) {
+        // A direct click is a user gesture, which is what getUserMedia
+        // needs — start listening right away if a turn is already waiting
+        // on an answer, rather than only picking it up on the next turn.
+        if (state.turnActive) startListening();
+      } else {
+        releaseMic();
+        smoothedPitch = null;
+        updatePitchReadout(null, 0);
+      }
+    });
+
     function updateOctaveReadout() {
       const el = document.getElementById('earOctaveValue');
       if (el) el.textContent = (octaveShift > 0 ? '+' : '') + octaveShift;
@@ -864,15 +885,21 @@
     if (earEchoIconBtn) earEchoIconBtn.addEventListener('click', () => {
       if (window.clearSettingsRowTarget) window.clearSettingsRowTarget();
       openEcho();
+      // Opened directly from the top bar (not a practice-list item) — show
+      // this function's help text in the notes panel, same as chord
+      // grid/randomiser.
+      if (window.openNotesForFunction) window.openNotesForFunction('ear-echo');
     });
     const earPlayIconBtn = document.getElementById('earPlayIconBtn');
     if (earPlayIconBtn) earPlayIconBtn.addEventListener('click', () => {
       if (window.clearSettingsRowTarget) window.clearSettingsRowTarget();
       openPlay();
+      if (window.openNotesForFunction) window.openNotesForFunction('ear-play');
     });
 
     document.getElementById('earBackBtn').addEventListener('click', () => {
       if (window.captureActiveRowSettings) window.captureActiveRowSettings();
+      if (window.closeFunctionNotes) window.closeFunctionNotes();
       stopSession();
       if (window.hideAllCentralPanels) window.hideAllCentralPanels();
       else {
