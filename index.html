@@ -206,7 +206,6 @@
   .pbtn { background: none; border: 2px solid transparent; border-radius: 14px; padding: 2px; cursor: pointer; transition: border-color 0.15s, transform 0.1s; }
   .pbtn:hover { border-color: #c0ccee; transform: scale(1.06); }
   .pbtn img { display: block; width: 48px; height: 48px; border-radius: 11px; }
-  .pbtn-finish img { width: 40px; height: 40px; }
   .pbtn-lg img { width: 96px; height: 96px; border-radius: 20px; }
   .session-timer { margin-top: 1.5rem; font-size: 13px; color: #999; }
   .session-timer span { font-weight: 600; font-size: 15px; color: #666; }
@@ -478,6 +477,14 @@
     .right-panel, .editor-panel, .practice-panel, #scoresPanel { min-width: 0; }
     .sets-panel { max-width: none; }
     .ear-panel, .chordseq-panel, .side-panel { padding: 1.25rem; }
+
+    /* The editor title row (back + title + save/duplicate/start-practice)
+       is too tight at phone width for the title to stay readable — let the
+       toolbar drop to its own right-justified line instead of squeezing
+       the title down to a sliver. */
+    .editor-title-row { flex-wrap: wrap; row-gap: 8px; }
+    .editor-title-row .editor-title { min-width: 140px; }
+    .editor-title-row .toolbar { margin-left: auto; }
 
     /* The top bar's ~9 icons plus volume/exit don't fit at phone width —
        let it scroll horizontally instead of trying to shrink or wrap. */
