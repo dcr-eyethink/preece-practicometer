@@ -1341,7 +1341,17 @@
 
   let currentFeature = null; // 'chordgrid' | 'c5' | null
 
+  // Which practice-list row (if any) a currently-open learning function was
+  // launched from — settings picked while it's open (chord-grid key, the
+  // randomiser's mode, ear-training/chord-sequences difficulty, tempo) get
+  // saved back onto that row so it starts the same way next time. -1 means
+  // the function was opened directly from the top bar, not a practice item,
+  // so nothing gets remembered.
+  let settingsTargetRowIdx = -1;
+  window.clearSettingsRowTarget = function() { settingsTargetRowIdx = -1; };
+
   function deactivateAll() {
+    if (typeof captureActiveRowSettings === 'function') captureActiveRowSettings();
     currentFeature = null;
     document.getElementById('chordGridPanel').classList.remove('visible');
     document.getElementById('rndPanel').style.display = 'none';
@@ -1353,25 +1363,41 @@
 
   // Unconditionally opens chord grid / circle of 5ths (used by the top-bar
   // click toggle below, and by the practice-item dispatch, which must never
-  // treat re-landing on the same function as a close).
-  function openFeature(name) {
+  // treat re-landing on the same function as a close). `settings`, when
+  // given, seeds the remembered key/mode — dispatchActiveRow always redoes
+  // the actual chord/note randomisation fresh regardless.
+  function openFeature(name, settings) {
     currentFeature = name;
     showCentralPanel(name);
     const isCG = name === 'chordgrid';
     document.getElementById('cgPanel').style.display = isCG ? '' : 'none';
     document.getElementById('rndPanel').style.display = isCG ? 'none' : 'block';
     window.setActiveTopBarIcon(isCG ? 'chordToggleBtn' : 'rndToggleBtn');
-    if (!isCG) {
+    if (isCG) {
+      const key = (settings && settings.key) || currentChordKey;
+      if (key) showChordGrid(key);
+    } else {
       // reset chord grid state when switching to c5, and jump straight to a randomised grid
       document.getElementById('chordGridPanel').classList.remove('visible');
       chordGridActive = false; chordCells = []; currentChordKey = null; refreshPiano();
       rndMixedCycleNext = false;
-      generateRndGrid(rndCurrentMode);
+      const mode = (settings && settings.mode) || rndCurrentMode;
+      if (mode !== rndCurrentMode) {
+        rndCurrentMode = mode;
+        document.querySelectorAll('.rnd-mode-btn').forEach(b => b.classList.remove('active'));
+        const btnId = { note: 'rndNoteBtn', major: 'rndMajorBtn', dominant: 'rndDomBtn', minor: 'rndMinorBtn', mixed: 'rndMixedBtn' }[mode];
+        const btn = btnId && document.getElementById(btnId);
+        if (btn) btn.classList.add('active');
+      }
+      generateRndGrid(mode);
     }
+    if (settings && typeof settings.bpm === 'number') updateBpm(settings.bpm);
     resizeToPane('chordgrid');
   }
 
   function activateFeature(name) {
+    if (typeof captureActiveRowSettings === 'function') captureActiveRowSettings();
+    settingsTargetRowIdx = -1;
     if (currentFeature === name) { deactivateAll(); return; }
     openFeature(name);
   }
@@ -2028,6 +2054,33 @@
     updateCircle();
   }
 
+  // Reads back whatever settings the function currently open for
+  // settingsTargetRowIdx is left at, and saves them onto that row — called
+  // whenever practice moves off that row/function (loadPracticeItem,
+  // deactivateAll, a function's own back button, ending practice). Never
+  // touches the row's actual randomised content, just the knobs a user set.
+  function captureActiveRowSettings() {
+    if (settingsTargetRowIdx < 0 || settingsTargetRowIdx >= rows.length) return;
+    const row = rows[settingsTargetRowIdx];
+    settingsTargetRowIdx = -1;
+    if (!row || row.kind !== 'function') return;
+    let settings = null;
+    switch (row.functionId) {
+      case 'chordgrid': settings = currentChordKey ? { key: currentChordKey, bpm } : null; break;
+      case 'c5': settings = { mode: rndCurrentMode, bpm }; break;
+      case 'ear-echo': case 'ear-play':
+        settings = window.EarTrainer && window.EarTrainer.getSettings ? window.EarTrainer.getSettings() : null;
+        break;
+      case 'chordseq':
+        settings = window.ChordSeq && window.ChordSeq.getSettings ? window.ChordSeq.getSettings() : null;
+        break;
+    }
+    if (!settings) return;
+    row.settings = settings;
+    if (filePath) window.api.saveCSV(filePath, rows).catch(err => console.error('Failed to save row settings:', err));
+  }
+  window.captureActiveRowSettings = captureActiveRowSettings;
+
   // Shows whatever the active practice-list row calls for in the middle
   // panel: a learning function, an active score, or (for an ordinary task,
   // or once a function/score's own back button is used) the row table.
@@ -2037,12 +2090,14 @@
       if (window.api && window.api.trackFunctionUsage) {
         window.api.trackFunctionUsage(FUNCTION_LABELS[row.functionId] || row.functionId);
       }
+      settingsTargetRowIdx = practiceIdx;
+      const settings = row.settings || null;
       switch (row.functionId) {
-        case 'chordgrid': openFeature('chordgrid'); return;
-        case 'c5': openFeature('c5'); return;
-        case 'ear-echo': if (window.EarTrainer) window.EarTrainer.openEcho(); return;
-        case 'ear-play': if (window.EarTrainer) window.EarTrainer.openPlay(); return;
-        case 'chordseq': if (window.ChordSeq) window.ChordSeq.open(); return;
+        case 'chordgrid': openFeature('chordgrid', settings); return;
+        case 'c5': openFeature('c5', settings); return;
+        case 'ear-echo': if (window.EarTrainer) window.EarTrainer.openEcho(settings); return;
+        case 'ear-play': if (window.EarTrainer) window.EarTrainer.openPlay(settings); return;
+        case 'chordseq': if (window.ChordSeq) window.ChordSeq.open(settings); return;
       }
     } else if (kind === 'score') {
       if (window.api && window.api.trackFunctionUsage) window.api.trackFunctionUsage('Scores');
@@ -2054,6 +2109,7 @@
   }
 
   function loadPracticeItem(idx, autoStart) {
+    captureActiveRowSettings();
     stopPracticeTimer();
     // skip disabled rows
     while (idx < rows.length && rows[idx].disabled) idx++;
@@ -2245,6 +2301,7 @@
     setMobileView('practice');
   });
   document.getElementById('practiceClose').addEventListener('click', () => {
+    captureActiveRowSettings();
     stopPracticeTimer(); stopSessionTimer();
     finishPracticeLogSession();
     if (notesOpen) closeNotes();

@@ -240,16 +240,40 @@
     });
   }
 
-  function enterStaircase() {
+  function enterStaircase(startLevel) {
     manualSeqLenSnapshot = currentSeqLen;
     staircase.active = true;
-    staircase.level = 1;
-    staircase.peakLevel = 1;
+    staircase.level = Math.max(1, Math.min(STAIRCASE_LEVELS.length, startLevel || 1));
+    staircase.peakLevel = staircase.level;
     document.getElementById('csModeRow').classList.add('cs-locked');
     document.getElementById('csKeyBtn').classList.add('cs-locked');
     document.getElementById('csStaircaseStatus').style.display = 'block';
     updateStaircaseStatus();
     newTurn();
+  }
+
+  // Remembers/restores the difficulty a given practice-list item was left
+  // at — never the actual chord/progression drawn next, which is always
+  // freshly randomized. See saveActiveRowSettings/dispatchActiveRow in
+  // index.html.
+  function getSettings() {
+    return { staircaseActive: staircase.active, level: staircase.level };
+  }
+  function applySavedSettings(settings) {
+    const btn = document.getElementById('csStaircaseBtn');
+    if (!settings || !settings.staircaseActive) {
+      if (staircase.active) exitStaircase();
+      if (btn) btn.classList.remove('active');
+      return;
+    }
+    if (staircase.active) {
+      staircase.level = Math.max(1, Math.min(STAIRCASE_LEVELS.length, settings.level || 1));
+      staircase.peakLevel = Math.max(staircase.peakLevel, staircase.level);
+      updateStaircaseStatus();
+    } else {
+      enterStaircase(settings.level);
+    }
+    if (btn) btn.classList.add('active');
   }
 
   function exitStaircase() {
@@ -409,18 +433,25 @@
 
     document.getElementById('csSubmitBtn').addEventListener('click', submitGuess);
 
-    function openChordSeqPanel() {
+    // settings, when given (dispatched from a practice-list item), come from
+    // getSettings()'s own shape — see saveActiveRowSettings in index.html.
+    function openChordSeqPanel(settings) {
       if (window.showCentralPanel) window.showCentralPanel('chordseq');
       if (window.setActiveTopBarIcon) window.setActiveTopBarIcon('csIconBtn');
       const dims = window.APP_DIMENSIONS;
       if (window.api && window.api.resizeWindow) window.api.resizeWindow(dims ? dims.width2 : 1000, dims ? dims.height : 826);
       ensureInit();
+      applySavedSettings(settings);
     }
     const csIconBtn = document.getElementById('csIconBtn');
-    if (csIconBtn) csIconBtn.addEventListener('click', openChordSeqPanel);
-    window.ChordSeq = { open: openChordSeqPanel };
+    if (csIconBtn) csIconBtn.addEventListener('click', () => {
+      if (window.clearSettingsRowTarget) window.clearSettingsRowTarget();
+      openChordSeqPanel();
+    });
+    window.ChordSeq = { open: openChordSeqPanel, getSettings };
 
     document.getElementById('csBackBtn').addEventListener('click', () => {
+      if (window.captureActiveRowSettings) window.captureActiveRowSettings();
       if (window.hideAllCentralPanels) window.hideAllCentralPanels();
       else {
         document.getElementById('chordSeqPanel').style.display = 'none';

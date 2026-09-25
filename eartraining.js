@@ -579,15 +579,39 @@
     if (flashNew) flashIntervalButtons(cfg.intervals.filter(iv => !prevIntervals.has(iv)));
   }
 
-  function enterStaircase() {
+  function enterStaircase(startLevel) {
     manualIntervalsSnapshot = new Set(state.activeIntervals);
     manualDirectionsSnapshot = new Set(state.activeDirections);
     staircase.active = true;
-    staircase.level = 1;
-    staircase.peakLevel = 1;
+    staircase.level = Math.max(1, Math.min(STAIRCASE_LEVELS.length, startLevel || 1));
+    staircase.peakLevel = staircase.level;
     document.getElementById('earIntervalRow').classList.add('locked');
     document.getElementById('earStaircaseStatus').style.display = 'block';
     applyStaircaseLevel();
+  }
+
+  // Remembers/restores the difficulty a given practice-list item was left
+  // at — never the actual interval/direction drawn next, which is always
+  // freshly randomized. See saveActiveRowSettings/dispatchActiveRow in
+  // index.html.
+  function getSettings() {
+    return { staircaseActive: staircase.active, level: staircase.level };
+  }
+  function applySavedSettings(settings) {
+    const btn = document.getElementById('earStaircaseBtn');
+    if (!settings || !settings.staircaseActive) {
+      if (staircase.active) exitStaircase();
+      if (btn) btn.classList.remove('active');
+      return;
+    }
+    if (staircase.active) {
+      staircase.level = Math.max(1, Math.min(STAIRCASE_LEVELS.length, settings.level || 1));
+      staircase.peakLevel = Math.max(staircase.peakLevel, staircase.level);
+      applyStaircaseLevel();
+    } else {
+      enterStaircase(settings.level);
+    }
+    if (btn) btn.classList.add('active');
   }
 
   function exitStaircase() {
@@ -822,22 +846,33 @@
       if (window.api && window.api.resizeWindow) window.api.resizeWindow(dims ? dims.width2 : 1000, dims ? dims.height : 826);
       ensureInit();
     }
-    function openEcho() {
+    // settings, when given (dispatched from a practice-list item), come from
+    // getSettings()'s own shape — see saveActiveRowSettings in index.html.
+    function openEcho(settings) {
       state.mode = 'echo';
       if (state.turnActive) updateTargetDisplay();
       openEarPanel();
+      applySavedSettings(settings);
     }
-    function openPlay() {
+    function openPlay(settings) {
       state.mode = 'play';
       if (state.turnActive) updateTargetDisplay();
       openEarPanel();
+      applySavedSettings(settings);
     }
     const earEchoIconBtn = document.getElementById('earEchoIconBtn');
-    if (earEchoIconBtn) earEchoIconBtn.addEventListener('click', openEcho);
+    if (earEchoIconBtn) earEchoIconBtn.addEventListener('click', () => {
+      if (window.clearSettingsRowTarget) window.clearSettingsRowTarget();
+      openEcho();
+    });
     const earPlayIconBtn = document.getElementById('earPlayIconBtn');
-    if (earPlayIconBtn) earPlayIconBtn.addEventListener('click', openPlay);
+    if (earPlayIconBtn) earPlayIconBtn.addEventListener('click', () => {
+      if (window.clearSettingsRowTarget) window.clearSettingsRowTarget();
+      openPlay();
+    });
 
     document.getElementById('earBackBtn').addEventListener('click', () => {
+      if (window.captureActiveRowSettings) window.captureActiveRowSettings();
       stopSession();
       if (window.hideAllCentralPanels) window.hideAllCentralPanels();
       else {
@@ -870,5 +905,5 @@
 
   const { openEcho, openPlay } = wireControls();
 
-  window.EarTrainer = { stop: stopSession, openEcho, openPlay };
+  window.EarTrainer = { stop: stopSession, openEcho, openPlay, getSettings };
 })();
