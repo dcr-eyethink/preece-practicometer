@@ -353,18 +353,24 @@
   .cs-mode-btn.active { border-color: #7090e0; }
   .cs-locked { opacity: 0.55; pointer-events: none; }
   .cs-key-label { font-size: 15px; font-weight: 700; color: #1a4a8a; margin: 0 0 0.5rem; }
-  .cs-key-keyboard { width: 50%; margin-bottom: 1rem; }
+  .cs-key-row { display: flex; align-items: center; gap: 16px; margin-bottom: 1rem; }
+  .cs-key-keyboard { width: 50%; flex-shrink: 0; }
+  .cs-tonic-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; padding: 0; }
+  .cs-tonic-btn img { display: block; width: 32px; height: 32px; border-radius: 8px; }
+  .cs-tonic-btn span { font-size: 11px; color: #667; font-weight: 600; }
+  .cs-tonic-btn:active { transform: scale(0.94); }
   .cs-chord-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
-  .cs-chord-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 10px 4px; width: 64px; border: 1.5px solid #ccc; border-radius: 10px; background: #f9f9f9; color: #333; cursor: pointer; }
+  .cs-chord-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 10px 4px; width: 64px; border: 1.5px solid #ccc; border-radius: 10px; background: #f9f9f9; color: #333; cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s, background 0.15s; }
   .cs-chord-roman { font-size: 18px; font-weight: 700; }
   .cs-chord-name { font-size: 11px; font-weight: 500; opacity: 0.65; }
   .cs-chord-btn:hover { background: #eef3ff; }
-  .cs-chord-btn.wrong { background: #fbe1e1; border-color: #e08080; color: #c0392b; }
-  .cs-chord-btn.correct-flash { background: #dff5e6; border-color: #5cb87a; color: #1a7a3a; }
+  .cs-chord-btn.wrong { background: #fbe1e1; border-color: #e05050; color: #c0392b; box-shadow: 0 0 0 3px rgba(224, 80, 80, 0.25); }
+  .cs-chord-btn.correct-flash { background: #dff5e6; border-color: #2ecc71; color: #1a7a3a; box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.35); }
   .cs-guess-row { display: flex; gap: 8px; align-items: center; justify-content: flex-start; flex-wrap: wrap; }
-  .cs-guess-slot { min-width: 50px; padding: 11px 10px; border: 1.5px dashed #ccc; border-radius: 8px; text-align: center; font-size: 19px; font-weight: 700; color: #333; background: #fafafa; }
+  .cs-guess-slot { min-width: 50px; padding: 11px 10px; border: 1.5px dashed #ccc; border-radius: 8px; text-align: center; font-size: 19px; font-weight: 700; color: #333; background: #fafafa; transition: box-shadow 0.15s, border-color 0.15s, background 0.15s; }
   .cs-guess-slot.filled { border-style: solid; border-color: #a0b4f0; background: #eef3ff; color: #1a56db; }
-  .cs-guess-slot.correct { border-style: solid; border-color: #5cb87a; background: #dff5e6; color: #1a7a3a; }
+  .cs-guess-slot.correct { border-style: solid; border-color: #2ecc71; background: #dff5e6; color: #1a7a3a; box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.35); }
+  .cs-guess-slot.wrong { border-style: solid; border-color: #e05050; background: #fbe1e1; color: #c0392b; box-shadow: 0 0 0 3px rgba(224, 80, 80, 0.25); }
   .cs-status { font-size: 14px; color: #888; margin-bottom: 0.75rem; min-height: 20px; }
 
   /* ---- Score widget (shared by Ear Training / Chord Sequences) ---- */
@@ -670,6 +676,7 @@
     <div class="ear-status" id="earStatus" data-tip="Shows what to do next during a turn." style="display:none"></div>
 
     <div class="ear-target-display" id="earTargetDisplay"></div>
+    <div class="ear-feedback" id="earFeedback"></div>
 
     <div class="ear-strip-label">Active basenotes</div>
     <div class="ear-keyboard-wrap" id="earKeyboardWrap"></div>
@@ -700,8 +707,6 @@
       <select class="ear-mic-select" id="earMicSelect" data-tip="Choose which microphone to use for singing."></select>
     </div>
 
-    <div class="ear-feedback" id="earFeedback"></div>
-
     <div class="ear-midi-status" id="earMidiStatus" data-tip="Shows whether a connected MIDI keyboard was found — you can answer on it directly."></div>
   </div>
 
@@ -717,7 +722,6 @@
       <button class="ear-play-btn" id="csPlayBtn" data-tip="Play (or replay) the current question."><img src="icons/ear.png" alt="Play"></button>
       <div class="cs-guess-row" id="csGuessRow"></div>
       <div class="cs-actions">
-        <button class="ear-skip-btn" id="csSubmitBtn" data-tip="Check your guessed sequence against what was played."><img src="icons/submit.png" alt="Submit"></button>
         <button class="ear-skip-btn" id="csDeleteBtn" data-tip="Remove the last chord from your guess."><img src="icons/delete.png" alt="Delete"></button>
         <button class="ear-skip-btn" id="csGiveUpBtn" data-tip="Give up on this one, reveal the answer, and move to the next."><img src="icons/white-flag.png" alt="Give up"></button>
       </div>
@@ -737,7 +741,13 @@
     <div class="cs-chord-row" id="csChordRow"></div>
 
     <div class="cs-key-label" id="csKeyLabel">Key: C major</div>
-    <div class="cs-key-keyboard" id="csKeyKeyboard" data-tip="Click a key to practise in that key."></div>
+    <div class="cs-key-row">
+      <div class="cs-key-keyboard" id="csKeyKeyboard" data-tip="Click a key to practise in that key."></div>
+      <button class="cs-tonic-btn" id="csTonicBtn" data-tip="Play just the I chord of the current key, for reference.">
+        <img src="icons/ear.png" alt="">
+        <span>Play chord I</span>
+      </button>
+    </div>
 
     <div class="score-row">
       <span class="score-value" id="csScore">Score: 0/0 (—%)</span>
@@ -1882,10 +1892,10 @@
       + "Difficulty can be changed by highlighting all the different intervals you could be given, and whether they should be up, down, or both. You can also choose which notes intervals start from — tick the small boxes above the keyboard for any notes you want (they're linked across octaves, so ticking one C ticks every C); by default only C and G are active.\n\n"
       + "Or click the {{icon:staircase-on}} staircase button and that will automatically begin at an easier level, making things harder when you get questions right and easier when you start getting them wrong.",
     chordseq: "{{icon:ear}} Click the ear to hear a chord sequence in the current key.\n\n"
-      + "In Single chord mode you'll hear the I chord followed by one other chord — identify the second one. In 2, 3 or 4 chord mode you'll hear a short progression — rebuild it in order by clicking the chord buttons below, then press {{icon:submit}} submit. Click the ear again to replay the sequence.\n\n"
-      + "Use the {{icon:delete}} delete button to remove your last guess, or the {{icon:white-flag}} white flag to give up and reveal the answer.\n\n"
+      + "In Single chord mode you'll hear the I chord followed by one other chord — identify the second one. In 2, 3 or 4 chord mode you'll hear a short progression — rebuild it in order by clicking the chord buttons below. As soon as every slot is filled it's checked automatically — no submit button needed. Click the ear again to replay the sequence.\n\n"
+      + "Right and wrong guesses flash green or red on both the button and the slot, whether you click or play them on MIDI. Use the {{icon:delete}} delete button to remove your last guess, or the {{icon:white-flag}} white flag to give up and reveal the answer.\n\n"
       + "Difficulty can be changed with the single/2/3/4 chord buttons, or click the {{icon:staircase-on}} staircase button to have the app pick the level automatically, widening the chord pool and lengthening the sequence as you get things right, and easing back off when you don't.\n\n"
-      + "Click a key on the keyboard at the bottom to choose which key you're practising in — a new key is picked at random each time you start."
+      + "Click a key on the keyboard at the bottom to choose which key you're practising in — a new key is picked at random each time you start. The small ear button beside it just plays the I chord of the current key, for reference."
   };
 
   function makeFunctionRow(functionId) {

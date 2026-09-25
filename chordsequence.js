@@ -178,6 +178,14 @@
     });
   }
 
+  async function playTonicOnly() {
+    const c = getCtx();
+    if (c.state === 'suspended') c.resume();
+    await ensureSamplesLoaded();
+    const tonicMidi = 48 + KEY_LIST[state.keyIndex].pc;
+    playChordTones(triadFor(tonicMidi, 1), c.currentTime + 0.05);
+  }
+
   // Key picker keyboard — a single octave, same visual pattern as the Chord
   // Grid key picker (buildPiano in index.html), scoped to this module.
   const CS_PIANO_WHITES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -261,7 +269,10 @@
     refreshKeyKeyboard();
   }
 
-  function renderGuessDisplay() {
+  // wrongMask, when given, is a transient per-slot flag for "this guess was
+  // just checked and was wrong" — separate from state.correctMask, which is
+  // the permanent "locked in as correct" flag.
+  function renderGuessDisplay(wrongMask) {
     const row = document.getElementById('csGuessRow');
     row.innerHTML = '';
     for (let i = 0; i < currentSeqLen; i++) {
@@ -269,7 +280,8 @@
       const value = state.guessSeq[i];
       const filled = value != null;
       const locked = !!state.correctMask[i];
-      slot.className = 'cs-guess-slot' + (filled ? ' filled' : '') + (locked ? ' correct' : '');
+      const isWrong = !!(wrongMask && wrongMask[i]);
+      slot.className = 'cs-guess-slot' + (filled ? ' filled' : '') + (locked ? ' correct' : '') + (isWrong ? ' wrong' : '');
       slot.textContent = filled ? DEGREE_INFO[value].roman : '?';
       slot.setAttribute('data-tip', locked
         ? 'Chord ' + (i + 1) + ' — correct, locked in.'
@@ -286,7 +298,7 @@
       b.className = 'cs-chord-btn';
       b.dataset.degree = deg;
       b.innerHTML = `<span class="cs-chord-roman">${DEGREE_INFO[deg].roman}</span><span class="cs-chord-name"></span>`;
-      b.setAttribute('data-tip', 'Click to answer with this chord — directly in single-chord mode, or added to your guess sequence in 2–4 chord mode.');
+      b.setAttribute('data-tip', 'Click to add this chord to your guess — checked automatically once every slot is filled.');
       b.addEventListener('click', () => onChordButtonClick(deg));
       row.appendChild(b);
     });
@@ -356,29 +368,39 @@
 
   // Answering always works the same way regardless of sequence length: click
   // chord buttons to fill the guess slots (one slot in Single chord mode,
-  // up to four otherwise), then press submit — no more special-cased
-  // instant-answer for the single-chord case.
+  // up to four otherwise). There's no separate submit step — once every
+  // slot is filled, that's the answer and it's checked immediately.
   function onChordButtonClick(degree) {
     if (answered) return;
     const nextOpen = state.guessSeq.findIndex(v => v == null);
     if (nextOpen === -1) return;
     state.guessSeq[nextOpen] = degree;
     renderGuessDisplay();
-    // A single chord IS the whole answer — no reason to make the user press
-    // submit separately when there's nothing left to build.
-    if (currentSeqLen === 1) submitGuess();
+    if (state.guessSeq.every(v => v != null)) submitGuess();
   }
 
-  // Briefly flashes the matching answer button green whenever a chord is
-  // heard on MIDI, whether or not it ends up being the right guess — pure
-  // "I heard that" feedback, same idea as Chord Grid's played-note flash.
-  function flashHeardChord(degree) {
+  // Briefly flashes the matching answer button — green if a checked guess
+  // ended up right, red if wrong — held for a beat so it's actually seen.
+  function flashAnswerButton(degree, ok) {
     const btn = document.querySelector('#csChordRow .cs-chord-btn[data-degree="' + degree + '"]');
     if (!btn) return;
-    btn.classList.remove('correct-flash');
+    const cls = ok ? 'correct-flash' : 'wrong';
+    btn.classList.remove('correct-flash', 'wrong');
+    void btn.offsetWidth;
+    btn.classList.add(cls);
+    setTimeout(() => btn.classList.remove(cls), 1000);
+  }
+
+  // A quick, short-lived green flash just to confirm "I heard that chord"
+  // on a MIDI note — separate from flashAnswerButton's longer correct/wrong
+  // hold, which only applies once a full guess has actually been checked.
+  function flashHeardCue(degree) {
+    const btn = document.querySelector('#csChordRow .cs-chord-btn[data-degree="' + degree + '"]');
+    if (!btn) return;
+    btn.classList.remove('correct-flash', 'wrong');
     void btn.offsetWidth;
     btn.classList.add('correct-flash');
-    setTimeout(() => btn.classList.remove('correct-flash'), 400);
+    setTimeout(() => btn.classList.remove('correct-flash'), 350);
   }
 
   function newTurn() {
@@ -417,22 +439,30 @@
   function submitGuess() {
     if (state.guessSeq.some(v => v == null)) return;
     let correct = true;
-    state.guessSeq.forEach((d, i) => {
-      if (d === state.targetSeq[i]) state.correctMask[i] = true;
-      else correct = false;
+    const wrongMask = state.guessSeq.map((d, i) => {
+      const ok = d === state.targetSeq[i];
+      if (ok) state.correctMask[i] = true; else correct = false;
+      return !ok;
     });
     recordAttempt(correct);
     stepStaircase(correct);
+    // Show green/red on both the guess slots and the answer buttons right
+    // away, and hold it there for a beat before moving on, so the feedback
+    // is actually visible rather than instantly overwritten.
+    renderGuessDisplay(wrongMask);
+    state.guessSeq.forEach((d, i) => flashAnswerButton(d, !wrongMask[i]));
     if (correct) {
       answered = true;
       setStatus('Correct! ' + state.targetSeq.map(d => DEGREE_INFO[d].roman).join('–'));
       setTimeout(newTurn, 1400);
     } else {
       setStatus('Not quite — the green ones are locked in, fix the rest');
-      // Keep locked-correct guesses in place; only the wrong slots reopen.
-      state.guessSeq = state.guessSeq.map((d, i) => state.correctMask[i] ? d : null);
-      renderGuessDisplay();
-      playTurnAudio();
+      setTimeout(() => {
+        // Keep locked-correct guesses in place; only the wrong slots reopen.
+        state.guessSeq = state.guessSeq.map((d, i) => state.correctMask[i] ? d : null);
+        renderGuessDisplay();
+        playTurnAudio();
+      }, 1000);
     }
   }
 
@@ -471,6 +501,7 @@
     });
 
     document.getElementById('csPlayBtn').addEventListener('click', playTurnAudio);
+    document.getElementById('csTonicBtn').addEventListener('click', playTonicOnly);
 
     document.getElementById('csDeleteBtn').addEventListener('click', () => {
       for (let i = state.guessSeq.length - 1; i >= 0; i--) {
@@ -482,7 +513,6 @@
       renderGuessDisplay();
     });
 
-    document.getElementById('csSubmitBtn').addEventListener('click', submitGuess);
     document.getElementById('csGiveUpBtn').addEventListener('click', giveUp);
 
     // settings, when given (dispatched from a practice-list item), come from
@@ -566,13 +596,9 @@
       return;
     }
     if (state.guessSeq.every(v => v != null)) return;
-    flashHeardChord(deg);
-    onChordButtonClick(deg);
+    flashHeardCue(deg);
+    onChordButtonClick(deg); // fills the next slot and auto-submits once full
     flashStatus('Heard ' + chordDisplayName(deg) + ' (' + DEGREE_INFO[deg].roman + ')', revert, 900);
-    if (state.guessSeq.every(v => v != null)) {
-      const turnSeq = state.targetSeq;
-      setTimeout(() => { if (state.targetSeq === turnSeq && !answered && state.guessSeq.every(v => v != null)) submitGuess(); }, 800);
-    }
   }
 
   window.MidiInput.onChord(onChordPlayed);
