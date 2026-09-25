@@ -47,7 +47,7 @@
   .click-icon-btn { opacity: 0.45; }
   .click-icon-btn.active { opacity: 1; border-color: #7090e0; }
   .swing-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-  .swing-edge-icon { width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; }
+  .swing-edge-icon { width: 54px; height: 54px; border-radius: 12px; flex-shrink: 0; }
   .swing-row input[type=range] { flex: 1 1 0%; min-width: 0; }
   .swing-value-row { text-align: center; margin-bottom: 4px; }
   .swing-value { font-size: 12px; color: #888; }
@@ -64,6 +64,9 @@
   /* Sets list */
   .sets-panel { padding: 1.5rem; overflow-y: auto; flex: 1; max-width: 460px; }
   .sets-panel h2 { margin: 0 0 1rem; font-size: 20px; font-weight: 600; }
+  .sets-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+  .sets-title-row h2 { margin: 0; flex: 1; min-width: 0; }
+  .sets-title-row .toolbar { margin-bottom: 0; flex-wrap: nowrap; flex-shrink: 0; }
   .set-list { list-style: none; padding: 0; margin: 0 0 1rem; }
   .set-list li { padding: 10px 14px; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 6px; cursor: pointer; font-size: 15px; transition: background 0.1s; }
   .set-list li:hover { background: #f5f5f5; }
@@ -198,11 +201,13 @@
   .timer-wrap.throb .timer-fg { stroke: #e74c3c; animation: throb 1.5s ease-in-out infinite; }
   .timer-wrap.throb .timer-text { animation: throb 1.5s ease-in-out infinite; color: #e74c3c; }
   .timer-wrap.overtime .timer-text { animation: none; color: #e74c3c; }
-  .practice-controls { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; }
+  .practice-controls { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .practice-controls-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
   .pbtn { background: none; border: 2px solid transparent; border-radius: 14px; padding: 2px; cursor: pointer; transition: border-color 0.15s, transform 0.1s; }
   .pbtn:hover { border-color: #c0ccee; transform: scale(1.06); }
   .pbtn img { display: block; width: 48px; height: 48px; border-radius: 11px; }
   .pbtn-finish img { width: 40px; height: 40px; }
+  .pbtn-lg img { width: 96px; height: 96px; border-radius: 20px; }
   .session-timer { margin-top: 1.5rem; font-size: 13px; color: #999; }
   .session-timer span { font-weight: 600; font-size: 15px; color: #666; }
   .practice-done { font-size: 28px; font-weight: 700; color: #27ae60; }
@@ -267,6 +272,7 @@
   .panel-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; }
   .panel-title-row h2 { margin: 0; }
   .panel-icon { width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0; }
+  .panel-icon-lg { width: 60px; height: 60px; border-radius: 13px; margin-left: auto; }
   .ear-num-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 0.5rem; }
   .ear-toggle-group { margin-bottom: 1rem; }
   .ear-toggle-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; display: block; margin-bottom: 6px; }
@@ -586,11 +592,15 @@
 
   <!-- Sets list (start state) -->
   <div class="sets-panel" id="setsPanel">
-    <h2>Practice Sets</h2>
+    <div class="sets-title-row">
+      <h2>Practice Sets</h2>
+      <div class="toolbar">
+        <button class="icon-action-btn" id="newSetBtn" data-tip="Create a new, empty practice set."><img src="icons/new-set.png" alt="New Set"></button>
+        <button class="icon-action-btn icon-action-btn-lg" id="openSetBtn" disabled data-tip="Open the selected practice set. You can also just double-click a set in the list."><img src="icons/open.png" alt="Open"></button>
+      </div>
+    </div>
     <ul class="set-list" id="setList"></ul>
     <div id="setsEmpty" class="sets-empty" style="display:none">No practice sets yet — create one to get started.</div>
-    <button class="icon-action-btn" id="openSetBtn" disabled data-tip="Open the selected practice set. You can also just double-click a set in the list."><img src="icons/open.png" alt="Open"></button>
-    <button class="icon-action-btn" id="newSetBtn" data-tip="Create a new, empty practice set."><img src="icons/new-set.png" alt="New Set"></button>
 
     <div class="welcome-text">
       <h3>Welcome to the Preece Practicometer!</h3>
@@ -619,9 +629,9 @@
   <div class="ear-panel" id="earPanel">
     <div class="ear-header-row">
       <button class="practice-close" id="earBackBtn" data-tip="Back to the practice list."><img src="icons/back.png" alt="Back"></button>
-      <img class="panel-icon" id="earPanelIcon" alt="">
       <h2 id="earPanelTitle">Ear Training</h2>
       <div class="ear-status" id="earStatus" data-tip="Shows what to do next during a turn.">Set your difficulty below, then click Play to hear your first interval.</div>
+      <img class="panel-icon panel-icon-lg" id="earPanelIcon" alt="">
     </div>
 
     <div class="score-row">
@@ -672,7 +682,8 @@
   <div class="chordseq-panel" id="chordSeqPanel">
     <div class="panel-title-row">
       <button class="practice-close" id="csBackBtn" data-tip="Back to the practice list."><img src="icons/back.png" alt="Back"></button>
-      <img class="panel-icon" id="csPanelIcon" alt=""><h2>Chord Sequences</h2>
+      <h2>Chord Sequences</h2>
+      <img class="panel-icon panel-icon-lg" id="csPanelIcon" alt="">
     </div>
 
     <div class="score-row">
@@ -715,7 +726,8 @@
     <div id="cgPanel">
       <div class="panel-title-row">
         <button class="practice-close" id="chordSectionBackBtn" data-tip="Back to the practice list."><img src="icons/back.png" alt="Back"></button>
-        <img class="panel-icon" id="cgPanelIcon" alt=""><h2>Chord Grid</h2>
+        <h2>Chord Grid</h2>
+        <img class="panel-icon panel-icon-lg" id="cgPanelIcon" alt="">
       </div>
       <div id="keyButtons" data-tip="Click a key to see common chords in that key."></div>
       <div class="chord-grid-panel" id="chordGridPanel">
@@ -725,7 +737,8 @@
     <div id="rndPanel">
       <div class="panel-title-row">
         <button class="practice-close" id="chordSectionBackBtn2" data-tip="Back to the practice list."><img src="icons/back.png" alt="Back"></button>
-        <img class="panel-icon" id="rndPanelIcon" alt=""><h2>Randomiser</h2>
+        <h2>Randomiser</h2>
+        <img class="panel-icon panel-icon-lg" id="rndPanelIcon" alt="">
       </div>
       <div class="c5-mode-row">
         <button class="rnd-mode-btn active" id="rndNoteBtn" data-tip="Show plain note names around the circle.">note</button>
@@ -744,7 +757,8 @@
   <div class="side-panel" id="scorePanel">
     <div class="panel-title-row">
       <button class="practice-close" id="scoreBackBtn" data-tip="Back to the practice list."><img src="icons/back.png" alt="Back"></button>
-      <img class="panel-icon" id="scorePanelIcon" alt=""><h2 id="scoreActiveTitle">Score</h2>
+      <h2 id="scoreActiveTitle">Score</h2>
+      <img class="panel-icon panel-icon-lg" id="scorePanelIcon" alt="">
     </div>
     <div class="score-viewer" id="scoreViewer"></div>
   </div>
@@ -756,9 +770,9 @@
         <button class="practice-close" id="backBtn" data-tip="Back to the practice sets list."><img src="icons/back.png" alt="Back"></button>
         <input class="editor-title" id="editorTitle" type="text" value="Practice Set" spellcheck="false" data-tip="Practice set name — click to rename. Saved automatically when you click away.">
         <div class="toolbar">
-          <button class="icon-action-btn icon-action-btn-lg" id="practiceBtn" data-tip="Start a timed practice session, working through the list from the top."><img src="icons/start-practice-list.png" alt="Start Practice"></button>
           <button class="icon-action-btn" id="saveBtn" data-tip="Save changes to this practice set."><img src="icons/save.png" alt="Save"></button>
           <button class="icon-action-btn" id="dupBtn" data-tip="Duplicate this practice set under a new name."><img src="icons/duplicate.png" alt="Duplicate"></button>
+          <button class="icon-action-btn icon-action-btn-lg" id="practiceBtn" data-tip="Start a timed practice session, working through the list from the top."><img src="icons/start-practice-list.png" alt="Start Practice"></button>
         </div>
       </div>
       <div class="total-row">
@@ -801,11 +815,15 @@
           <div class="timer-text" id="timerText">0:00</div>
         </div>
         <div class="practice-controls" id="practiceControls">
-          <button class="pbtn pbtn-go" id="goBtn" data-tip="Start the countdown for this item."><img src="icons/go.png" alt="Go"></button>
-          <button class="pbtn pbtn-pause" id="pauseBtn" style="display:none" data-tip="Pause the countdown."><img src="icons/pause.png" alt="Pause"></button>
-          <button class="pbtn pbtn-restart" id="restartBtn" data-tip="Restart the countdown for this item from the beginning."><img src="icons/restart.png" alt="Restart"></button>
-          <button class="pbtn pbtn-next" id="nextBtn" data-tip="Skip to the next item in the list."><img src="icons/next.png" alt="Next"></button>
-          <button class="pbtn pbtn-finish" id="practiceClose" data-tip="Stop the timer, end this practice session, and record it in your practice log."><img src="icons/finish-practice.png" alt="Finish Practice"></button>
+          <div class="practice-controls-row">
+            <button class="pbtn pbtn-go pbtn-lg" id="goBtn" data-tip="Start the countdown for this item."><img src="icons/go.png" alt="Go"></button>
+            <button class="pbtn pbtn-pause pbtn-lg" id="pauseBtn" style="display:none" data-tip="Pause the countdown."><img src="icons/pause.png" alt="Pause"></button>
+          </div>
+          <div class="practice-controls-row">
+            <button class="pbtn pbtn-restart" id="restartBtn" data-tip="Restart the countdown for this item from the beginning."><img src="icons/restart.png" alt="Restart"></button>
+            <button class="pbtn pbtn-next" id="nextBtn" data-tip="Skip to the next item in the list."><img src="icons/next.png" alt="Next"></button>
+            <button class="pbtn pbtn-finish" id="practiceClose" data-tip="Stop the timer, end this practice session, and record it in your practice log."><img src="icons/finish-practice.png" alt="Finish Practice"></button>
+          </div>
         </div>
       </div>
       <div class="practice-done" id="practiceDone" style="display:none">Practice Complete!</div>
