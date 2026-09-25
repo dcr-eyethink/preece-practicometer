@@ -9,6 +9,7 @@
   const hideBtn = document.getElementById('midiHideBtn');
   const showBtn = document.getElementById('midiShowBtn');
   const label = document.getElementById('midiDeviceLabel');
+  const unsupportedEl = document.getElementById('midiUnsupported');
   if (!M || !wrap) return;
 
   const PREF_KEY = 'midiReadoutHidden';
@@ -90,6 +91,7 @@
     if (!connected) pedal = false;
     updateLabel();
     if (!connected) { shown = []; prevCount = 0; render(); }
+    if (unsupportedEl) unsupportedEl.style.display = st.state === 'unsupported' ? '' : 'none';
     applyVisibility();
   });
 

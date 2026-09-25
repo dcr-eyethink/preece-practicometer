@@ -6,11 +6,16 @@ create table if not exists feedback (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id),
   user_email text not null,
+  enjoyment smallint check (enjoyment between 1 and 9),
   liked text,
   improve text,
   disliked text,
   created_at timestamptz not null default now()
 );
+
+-- Safe to re-run: adds the column if you already ran this script before the
+-- enjoyment slider was added.
+alter table feedback add column if not exists enjoyment smallint check (enjoyment between 1 and 9);
 
 alter table feedback enable row level security;
 

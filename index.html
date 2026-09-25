@@ -372,6 +372,7 @@
   .midi-chord.long { font-size: 22px; }
   .midi-notes { font-size: 15px; color: #556; line-height: 1.3; max-width: 100%; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .midi-box.idle .midi-chord { color: #c3cbe0; font-weight: 400; }
+  .midi-unsupported { font-size: 12px; line-height: 1.4; color: #8a6d3b; background: #fdf6e3; border: 1px solid #f0e0b0; border-radius: 10px; padding: 8px 12px; margin-bottom: 1.5rem; text-align: center; }
 
   /* ---- Home panel: right-hand slot at startup; the timer, scores library or notes replace it ---- */
   .home-panel { flex: 1; min-width: 340px; background: #f8f9fb; border-left: 1px solid #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 2rem; overflow-y: auto; }
@@ -421,6 +422,13 @@
 <div id="feedbackOverlay" class="feedback-overlay" style="display:none">
   <div class="feedback-box">
     <h2>Feedback</h2>
+    <label for="fbEnjoyment">How much are you enjoying the Practicometer?</label>
+    <div class="fb-enjoyment-row">
+      <span class="fb-enjoyment-end">1</span>
+      <input type="range" min="1" max="9" value="5" step="1" id="fbEnjoyment">
+      <span class="fb-enjoyment-end">9</span>
+      <span class="fb-enjoyment-value" id="fbEnjoymentValue">5</span>
+    </div>
     <label for="fbLiked">What feature did you like?</label>
     <textarea id="fbLiked" rows="3"></textarea>
     <label for="fbImprove">What feature could be improved, and how?</label>
@@ -440,6 +448,10 @@
   .feedback-box h2 { margin: 0 0 8px; font-size: 18px; text-align: center; }
   .feedback-box label { font-size: 13px; font-weight: 600; color: #445; margin-top: 6px; }
   .feedback-box textarea { padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 6px; resize: vertical; font-family: inherit; }
+  .fb-enjoyment-row { display: flex; align-items: center; gap: 8px; }
+  .fb-enjoyment-row input[type=range] { flex: 1; }
+  .fb-enjoyment-end { font-size: 12px; color: #999; }
+  .fb-enjoyment-value { font-size: 15px; font-weight: 700; color: #1a56db; min-width: 20px; text-align: center; }
   .feedback-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
   .feedback-status { font-size: 13px; text-align: center; min-height: 16px; color: #2a8f4a; }
   .feedback-status.error { color: #c0392b; }
@@ -523,6 +535,9 @@
       <div class="midi-notes" id="midiNotes"></div>
     </div>
     <button class="midi-show-btn" id="midiShowBtn" style="display:none" data-tip="Show the live readout of the notes and chords you play on your MIDI keyboard.">🎹 MIDI</button>
+  </div>
+  <div class="midi-unsupported" id="midiUnsupported" style="display:none">
+    🎹 MIDI keyboards aren't supported in this browser. Try Chrome to connect one.
   </div>
   <div class="beat-row" id="beatRow" data-tip="Beat indicator — lights up on every click, with the first beat of the bar shown larger."></div>
   <div class="bpm-display">

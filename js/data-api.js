@@ -334,12 +334,14 @@
     return email === ADMIN_EMAIL;
   }
 
-  async function submitFeedback({ liked, improve, disliked }) {
+  async function submitFeedback({ enjoyment, liked, improve, disliked }) {
+    // Captures the signed-in user's id/email now, while the session is still
+    // active — callers on the sign-out flow must call this BEFORE Auth.signOut().
     const userId = await currentUserId();
     const email = await currentUserEmail();
     const { error } = await client
       .from(FEEDBACK_TABLE)
-      .insert({ user_id: userId, user_email: email, liked, improve, disliked });
+      .insert({ user_id: userId, user_email: email, enjoyment, liked, improve, disliked });
     if (error) throw error;
     return true;
   }
@@ -350,7 +352,7 @@
     requireClient();
     const { data, error } = await client
       .from(FEEDBACK_TABLE)
-      .select('user_email, liked, improve, disliked, created_at')
+      .select('user_email, enjoyment, liked, improve, disliked, created_at')
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data;

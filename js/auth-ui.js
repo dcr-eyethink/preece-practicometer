@@ -48,9 +48,16 @@
     });
   });
 
-  signOutBtn.addEventListener('click', async () => {
-    await window.Auth.signOut();
-    location.reload();
+  signOutBtn.addEventListener('click', () => {
+    const doSignOut = async () => {
+      await window.Auth.signOut();
+      location.reload();
+    };
+    if (window.FeedbackUI) {
+      window.FeedbackUI.openOnExit(doSignOut);
+    } else {
+      doSignOut();
+    }
   });
 
   window.Auth.getSession().then(async session => {
