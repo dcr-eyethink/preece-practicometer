@@ -301,7 +301,7 @@
   .ear-target-display { font-size: 22px; font-weight: 700; text-align: center; color: #1a4a8a; margin: 0.5rem 0 1rem; min-height: 30px; }
   .ear-keyboard-wrap { margin-bottom: 1rem; }
   .ear-key { cursor: pointer; }
-  .ear-play-row { display: flex; align-items: center; justify-content: flex-start; gap: 14px; margin-bottom: 0.75rem; }
+  .ear-play-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 0.75rem; }
   .ear-play-icons { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
   .ear-play-btn { width: 60px; height: 60px; padding: 0; border: none; border-radius: 16px; cursor: pointer; background: none; flex-shrink: 0; }
   .ear-play-btn img { display: block; width: 60px; height: 60px; border-radius: 16px; }
@@ -309,11 +309,11 @@
   .ear-stop-btn { width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; background: #888; color: #fff; font-size: 22px; display: flex; align-items: center; justify-content: center; }
   .ear-stop-btn:hover { background: #6f6f6f; }
   .ear-stop-btn:active { transform: scale(0.94); }
-  .ear-dial-col { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 110px; min-height: 60px; flex-shrink: 0; visibility: hidden; }
+  .ear-dial-col { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 60px; visibility: hidden; }
   .ear-dial-col.visible { visibility: visible; }
   .ear-dial-wrap { width: 110px; height: 60px; flex-shrink: 0; }
   .ear-pitch-readout { font-size: 13px; color: #555; }
-  .ear-skip-btn { width: 40px; height: 40px; padding: 0; border: none; border-radius: 9px; cursor: pointer; background: none; align-self: center; flex-shrink: 0; }
+  .ear-skip-btn { width: 40px; height: 40px; padding: 0; border: none; border-radius: 9px; cursor: pointer; background: none; align-self: center; flex-shrink: 0; margin-left: auto; }
   .ear-skip-btn img { display: block; width: 40px; height: 40px; border-radius: 9px; }
   .ear-skip-btn:active { transform: scale(0.94); }
   .ear-mic-btn { width: 40px; height: 40px; padding: 0; border: none; border-radius: 9px; cursor: pointer; background: none; align-self: center; flex-shrink: 0; }
@@ -655,14 +655,14 @@
     <div class="ear-play-row">
       <div class="ear-play-icons">
         <button class="ear-play-btn" id="earPlayBtn" data-tip="Press to hear the interval — press again to hear it once more."><img src="icons/ear.png" alt="Play"></button>
-        <button class="ear-skip-btn" id="earSkipBtn" data-tip="Skip this item, reveal the answer, and move to the next one."><img src="icons/white-flag.png" alt="Skip"></button>
-        <button class="ear-mic-btn" id="earMicToggleBtn" data-tip="Turn the microphone on to answer by singing — the pitch meter appears to the right once it's on."><img id="earMicIcon" src="icons/mic-off.png" alt="Microphone"></button>
+        <button class="ear-mic-btn" id="earMicToggleBtn" data-tip="Turn the microphone on to answer by singing — the pitch meter appears here once it's on."><img id="earMicIcon" src="icons/mic-off.png" alt="Microphone"></button>
         <button class="ear-stop-btn" id="earStopBtn" data-tip="Stop the current ear-training session." style="display:none">■</button>
       </div>
       <div class="ear-dial-col" id="earDialCol">
         <div class="ear-dial-wrap" id="earDialWrap" data-tip="Shows how sharp or flat your sung note is compared to the target."></div>
         <div class="ear-pitch-readout" id="earPitchReadout">—</div>
       </div>
+      <button class="ear-skip-btn" id="earSkipBtn" data-tip="Skip this item, reveal the answer, and move to the next one."><img src="icons/white-flag.png" alt="Skip"></button>
     </div>
 
     <div class="ear-status" id="earStatus" data-tip="Shows what to do next during a turn." style="display:none"></div>
