@@ -20,6 +20,10 @@
     mode: 'echo',
     activeIntervals: new Set([2, 3, 4, 5, 6, 7, 8]),
     activeDirections: new Set(['up']),
+    // Which base (starting) notes a question can be drawn from, by pitch
+    // class (0=C … 11=B) — shown as little checkboxes above the keyboard,
+    // linked across every octave of the same note. Defaults to C and G.
+    activeBaseNotes: new Set([0, 7]),
     baseMidi: null,
     intervalNum: null,
     direction: null,
@@ -158,11 +162,14 @@
 
   // ===================== Keyboard =====================
 
+  const CB_ROW_H = 20, CB_R = 6;
+  let baseCbEls = {}; // midi -> circle element, for the base-note checkbox row
+
   function buildKeyboard() {
     const ns = 'http://www.w3.org/2000/svg';
     const container = document.getElementById('earKeyboardWrap');
     container.innerHTML = '';
-    const W = 26, H = 92, BW = 15, BH = 58;
+    const W = 26, KH = 92, BW = 15, BH = 58, H = KH + CB_ROW_H;
 
     let whiteCount = 0;
     for (let m = KB_LOW; m <= KB_HIGH; m++) {
@@ -177,17 +184,19 @@
     keyRects = {};
     let whiteIndex = 0;
     const whiteX = {};
+    const centerX = {};
     for (let m = KB_LOW; m <= KB_HIGH; m++) {
       const pc = ((m % 12) + 12) % 12;
-      if (!BLACK_PC.has(pc)) { whiteX[m] = whiteIndex * W; whiteIndex++; }
+      if (!BLACK_PC.has(pc)) { whiteX[m] = whiteIndex * W; centerX[m] = whiteIndex * W + (W - 1) / 2; whiteIndex++; }
+      else { centerX[m] = whiteIndex * W; }
     }
 
     for (let m = KB_LOW; m <= KB_HIGH; m++) {
       const pc = ((m % 12) + 12) % 12;
       if (BLACK_PC.has(pc)) continue;
       const r = document.createElementNS(ns, 'rect');
-      r.setAttribute('x', whiteX[m]); r.setAttribute('y', 0);
-      r.setAttribute('width', W - 1); r.setAttribute('height', H);
+      r.setAttribute('x', whiteX[m]); r.setAttribute('y', CB_ROW_H);
+      r.setAttribute('width', W - 1); r.setAttribute('height', KH);
       r.setAttribute('rx', 3); r.setAttribute('fill', 'white');
       r.setAttribute('stroke', '#aaa'); r.setAttribute('stroke-width', 1.2);
       r.classList.add('ear-key');
@@ -203,7 +212,7 @@
       if (!BLACK_PC.has(pc)) { whiteIndex++; continue; }
       const x = whiteIndex * W - BW / 2;
       const r = document.createElementNS(ns, 'rect');
-      r.setAttribute('x', x); r.setAttribute('y', 0);
+      r.setAttribute('x', x); r.setAttribute('y', CB_ROW_H);
       r.setAttribute('width', BW); r.setAttribute('height', BH);
       r.setAttribute('rx', 2); r.setAttribute('fill', '#1a1a1a');
       r.setAttribute('stroke', '#000');
@@ -214,7 +223,45 @@
       keyRects[m] = r;
     }
 
+    // Base-note checkboxes: one little circle above every occurrence of a
+    // note, all octaves of the same pitch class kept in sync since they're
+    // really just one on/off setting per note name.
+    baseCbEls = {};
+    for (let m = KB_LOW; m <= KB_HIGH; m++) {
+      const pc = ((m % 12) + 12) % 12;
+      const c = document.createElementNS(ns, 'circle');
+      c.setAttribute('cx', centerX[m]);
+      c.setAttribute('cy', CB_ROW_H / 2);
+      c.setAttribute('r', CB_R);
+      c.setAttribute('stroke', '#7090e0');
+      c.setAttribute('stroke-width', 1.3);
+      c.classList.add('ear-basenote-cb');
+      c.dataset.pc = pc;
+      c.setAttribute('data-tip', NOTE_NAMES[pc] + ' as a starting note — linked across every octave.');
+      c.addEventListener('mousedown', e => { e.stopPropagation(); toggleBaseNote(pc); });
+      svg.appendChild(c);
+      baseCbEls[m] = c;
+    }
+
     container.appendChild(svg);
+    renderBaseNoteCheckboxes();
+  }
+
+  function renderBaseNoteCheckboxes() {
+    Object.values(baseCbEls).forEach(c => {
+      const on = state.activeBaseNotes.has(Number(c.dataset.pc));
+      c.setAttribute('fill', on ? '#3a6fe0' : 'white');
+    });
+  }
+
+  function toggleBaseNote(pc) {
+    if (state.activeBaseNotes.has(pc)) {
+      if (state.activeBaseNotes.size === 1) return; // at least one must stay on
+      state.activeBaseNotes.delete(pc);
+    } else {
+      state.activeBaseNotes.add(pc);
+    }
+    renderBaseNoteCheckboxes();
   }
 
   function setKeyState(midi, kind) {
@@ -503,6 +550,14 @@
 
   // ===================== Game logic =====================
 
+  function candidateBaseMidis() {
+    const out = [];
+    for (let m = KB_LOW; m <= KB_HIGH; m++) {
+      if (state.activeBaseNotes.has(((m % 12) + 12) % 12)) out.push(m);
+    }
+    return out.length ? out : [KB_LOW];
+  }
+
   function feasibleChoices(base) {
     const out = [];
     state.activeDirections.forEach(dir => {
@@ -598,9 +653,15 @@
   // freshly randomized. See saveActiveRowSettings/dispatchActiveRow in
   // index.html.
   function getSettings() {
-    return { staircaseActive: staircase.active, level: staircase.level };
+    return { staircaseActive: staircase.active, level: staircase.level, baseNotes: Array.from(state.activeBaseNotes) };
   }
   function applySavedSettings(settings) {
+    if (settings && Array.isArray(settings.baseNotes) && settings.baseNotes.length) {
+      state.activeBaseNotes = new Set(settings.baseNotes);
+    } else {
+      state.activeBaseNotes = new Set([0, 7]);
+    }
+    renderBaseNoteCheckboxes();
     const btn = document.getElementById('earStaircaseBtn');
     if (!settings || !settings.staircaseActive) {
       if (staircase.active) exitStaircase();
@@ -700,8 +761,9 @@
   async function startTurn() {
     clearTimeout(turnTimeout);
     let base, choices, tries = 0;
+    const candidates = candidateBaseMidis();
     do {
-      base = KB_LOW + Math.floor(Math.random() * (KB_HIGH - KB_LOW + 1));
+      base = candidates[Math.floor(Math.random() * candidates.length)];
       choices = feasibleChoices(base);
       tries++;
     } while (choices.length === 0 && tries < 50);
@@ -825,11 +887,17 @@
     document.getElementById('earSkipBtn').addEventListener('click', skipTurn);
 
     document.getElementById('earMicToggleBtn').addEventListener('click', () => {
+      // In Sing Training the mic is the whole point, so once it's on we
+      // don't offer a way to turn it off again — clicking just (re)activates
+      // it. Ear Training keeps the full on/off toggle since it's optional
+      // there (a hint on top of the keyboard/MIDI answer path).
+      if (state.mode === 'play' && micOn) return;
       micOn = !micOn;
       const btn = document.getElementById('earMicToggleBtn');
       btn.classList.toggle('active', micOn);
       document.getElementById('earMicIcon').src = micOn ? 'icons/mic-on.png' : 'icons/mic-off.png';
       document.getElementById('earDialCol').classList.toggle('visible', micOn);
+      updateMicButtonForMode();
       if (micOn) {
         // A direct click is a user gesture, which is what getUserMedia
         // needs — start listening right away if a turn is already waiting
@@ -855,6 +923,20 @@
       updateOctaveReadout();
     });
 
+    function updateMicButtonForMode() {
+      const btn = document.getElementById('earMicToggleBtn');
+      if (!btn) return;
+      if (state.mode === 'play') {
+        btn.setAttribute('data-tip', micOn
+          ? 'Microphone is on — sing your answers.'
+          : 'Click to activate the microphone — Sing Training needs it to hear your answers.');
+        btn.classList.toggle('needs-activation', !micOn);
+      } else {
+        btn.setAttribute('data-tip', 'Turn the microphone on to answer by singing — the pitch meter appears here once it\'s on.');
+        btn.classList.remove('needs-activation');
+      }
+    }
+
     function openEarPanel() {
       if (window.showCentralPanel) window.showCentralPanel(state.mode === 'echo' ? 'echo' : 'play');
       const iconId = state.mode === 'echo' ? 'earEchoIconBtn' : 'earPlayIconBtn';
@@ -862,6 +944,7 @@
       if (window.copyIcon) window.copyIcon(iconId, 'earPanelIcon');
       const titleEl = document.getElementById('earPanelTitle');
       if (titleEl) titleEl.textContent = state.mode === 'echo' ? 'Ear Training' : 'Sing Training';
+      updateMicButtonForMode();
       if (!state.running) setStatus(idlePrompt());
       const dims = window.APP_DIMENSIONS;
       if (window.api && window.api.resizeWindow) window.api.resizeWindow(dims ? dims.width2 : 1000, dims ? dims.height : 826);

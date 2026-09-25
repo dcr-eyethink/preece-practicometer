@@ -447,11 +447,13 @@
     if (csIconBtn) csIconBtn.addEventListener('click', () => {
       if (window.clearSettingsRowTarget) window.clearSettingsRowTarget();
       openChordSeqPanel();
+      if (window.openNotesForFunction) window.openNotesForFunction('chordseq');
     });
     window.ChordSeq = { open: openChordSeqPanel, getSettings };
 
     document.getElementById('csBackBtn').addEventListener('click', () => {
       if (window.captureActiveRowSettings) window.captureActiveRowSettings();
+      if (window.closeFunctionNotes) window.closeFunctionNotes();
       if (window.hideAllCentralPanels) window.hideAllCentralPanels();
       else {
         document.getElementById('chordSeqPanel').style.display = 'none';
