@@ -36,7 +36,7 @@
   // Turns every grid square that spells the shown notes green; returns how many matched.
   function updateGrid() {
     let count = 0;
-    document.querySelectorAll('#chordGrid .chord-cell, #c5Grid .chord-cell').forEach(cell => {
+    document.querySelectorAll('#chordGrid .chord-cell, #rndGrid .chord-cell').forEach(cell => {
       const match = shown.length > 0 && M.matchesCell(cell, shown);
       cell.classList.toggle('midi-match', match);
       if (match) count++;
