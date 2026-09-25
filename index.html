@@ -1399,6 +1399,10 @@
     window.MidiInput.onChord(notes => {
       if (metroRunning || !chordGridActive) return;
       if (!document.getElementById('chordSection').classList.contains('visible')) return;
+      // The randomiser's "note" mode is a scale-practice aid, not a chord
+      // drill — there's no sense highlighting one note, waiting to hear it
+      // played, then moving on, so skip the auto-advance entirely there.
+      if (currentFeature === 'c5' && rndCurrentMode === 'note') return;
       const cell = chordCells[chordIdx];
       if (!cell || cell.offsetParent === null || !cell.classList.contains('active')) return;
       if (!window.MidiInput.matchesCell(cell, notes)) return;
@@ -1831,8 +1835,20 @@
     });
   });
 
+  // Starter notes for a freshly-added practice item, shown for functions
+  // where a bit of "how to use this" guidance is worth handing the user
+  // up front. The italic first line is a hint that this is just a
+  // starting point, not fixed instructions — the notes panel is fully
+  // editable, same as any other item's notes.
+  const DEFAULT_FUNCTION_NOTES = {
+    chordgrid: "*Click this text to edit or replace with your own notes for this practice*\n\n"
+      + "Press a note to generate a random chord sequence in that key. Practice the chords, transitioning between them, and choosing inversions. If you turn on the metronome, a new chord will be highlighted on each new bar. Click chords directly to jump to them. If your MIDI keyboard is connected, the chords will turn green when played. For more difficult challenges, practice different rhythms, embellishments, or passing notes. Or you could practice 2-5-1 transitions into each chord.",
+    c5: "*Click this text to edit or replace with your own notes for this practice*\n\n"
+      + "Click to generate a random sequence of notes from the circle of 5ths. Then play the scales for each of those keys. Or choose a chord type, and practice the inversions for each chord. If you have a MIDI keyboard, it will detect when you play a chord and progress the yellow highlight (you might need to use the pedal so that all notes are registered). You can also turn on the metronome to practice in time. For more difficult challenges, practice playing shells or strides in the left hand."
+  };
+
   function makeFunctionRow(functionId) {
-    return { activity: FUNCTION_LABELS[functionId] || functionId, time: 5, notes: '', kind: 'function', functionId };
+    return { activity: FUNCTION_LABELS[functionId] || functionId, time: 5, notes: DEFAULT_FUNCTION_NOTES[functionId] || '', kind: 'function', functionId };
   }
   function makeScoreRow(scoreId, scoreName) {
     return { activity: scoreName || 'Score', time: 5, notes: '', kind: 'score', scoreId };
