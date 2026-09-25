@@ -1041,6 +1041,22 @@
     osc.start(time); osc.stop(time + 0.05);
   }
 
+  // Brushes on a snare: a soft swell-and-fade swish rather than a sharp
+  // crack — no tonal component, and the attack ramps up instead of hitting
+  // instantly, which is what makes a stick hit read as brushes instead.
+  function playBrush(time) {
+    const ctx = getCtx();
+    const dur = 0.22;
+    const noise = ctx.createBufferSource(); noise.buffer = noiseBuffer(ctx, dur);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2200; bp.Q.value = 0.5;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(volume * 0.45, time + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+    noise.connect(bp); bp.connect(g); g.connect(ctx.destination);
+    noise.start(time); noise.stop(time + dur + 0.02);
+  }
+
   // pattern functions: given the beat index within the bar, the 16th-note
   // subdivision within that beat (0-3), and beatsPerBar, return which drums hit
   const DRUM_STYLES = {
@@ -1080,7 +1096,7 @@
       const kickSyncBeat = beats >= 4 ? 2 : (beats === 3 ? 1 : 0);
       if (sub === 2 && beatIdx === kickSyncBeat) hits.push('kickSoft');
       const snareBeats = beats === 4 ? [1, 3] : beats === 3 ? [1, 2] : [1];
-      if (sub === 0 && snareBeats.includes(beatIdx)) hits.push('snare');
+      if (sub === 0 && snareBeats.includes(beatIdx)) hits.push('brush');
       return hits;
     },
     latin: (beatIdx, sub, beats) => {
@@ -1118,13 +1134,18 @@
       const hits = patternFn(beatIdx, sub, beatsPerBar);
       if (hits.length === 0) continue;
       const t = now + subdivisionFraction(sub, swingT) * secondsPerBeat;
+      // Ride/brush drag a touch behind the beat — the kick stays locked to
+      // the grid, giving the classic laid-back jazz feel instead of
+      // everything landing perfectly together.
+      const layback = t + secondsPerBeat * 0.02;
       hits.forEach(h => {
         if (h === 'kick') playKick(t);
         else if (h === 'kickSoft') playKick(t, 0.4);
         else if (h === 'snare') playSnare(t);
+        else if (h === 'brush') playBrush(layback);
         else if (h === 'hihat') playHihat(t, false);
         else if (h === 'hihatOpen') playHihat(t, true);
-        else if (h === 'ride') playRide(t);
+        else if (h === 'ride') playRide(layback);
         else if (h === 'rim') playRim(t);
       });
     }
