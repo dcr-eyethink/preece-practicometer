@@ -829,7 +829,7 @@
       const btn = document.getElementById('earMicToggleBtn');
       btn.classList.toggle('active', micOn);
       document.getElementById('earMicIcon').src = micOn ? 'icons/mic-on.png' : 'icons/mic-off.png';
-      document.getElementById('earDialCol').style.display = micOn ? '' : 'none';
+      document.getElementById('earDialCol').classList.toggle('visible', micOn);
       if (micOn) {
         // A direct click is a user gesture, which is what getUserMedia
         // needs — start listening right away if a turn is already waiting
