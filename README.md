@@ -1,7 +1,7 @@
 # Preece Practicometer
 
 A desktop practice companion for piano: metronome, timed practice-set lists with
-notes, a chord-grid/circle-of-fifths reference tool, and two ear-training games.
+notes, a chord-grid/randomiser reference tool, and two ear-training games.
 Built with Electron (plain HTML/CSS/JS, no framework).
 
 ## Layout
@@ -16,7 +16,7 @@ panel:
 - 🎹 **Chord Grid** — click a key on the on-screen piano to see a 12-cell
   chord-progression grid for that key; cells advance automatically in time
   with the metronome.
-- 🔵 **Circle of 5ths** — a randomized circle-of-fifths drill (note / major7 /
+- 🔵 **Randomiser** — a randomized circle-of-fifths drill (note / major7 /
   dominant7 / minor7 / mixed modes); re-opening it always reshuffles.
 - 🎤 **Ear Training** — interval recognition. Echo mode plays the interval
   first; Play mode shows the target and lets you find/sing it. Answer via the

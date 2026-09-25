@@ -1,5 +1,5 @@
 // Live readout of what's being played on the MIDI keyboard (under the metronome), plus
-// turning matching Chord Grid / Circle of 5ths squares green. Built on midi.js.
+// turning matching Chord Grid / Randomiser squares green. Built on midi.js.
 (() => {
   const M = window.MidiInput;
   const wrap = document.getElementById('midiReadout');
