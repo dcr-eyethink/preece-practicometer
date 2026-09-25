@@ -147,7 +147,7 @@
   }
   function answerPrompt() {
     return state.mode === 'echo'
-      ? 'Click the target note on the piano or your keyboard; sing it to help you find it.'
+      ? 'Click the target note on the piano or your keyboard.'
       : 'Sing the named interval from the base note, or click it on the keyboard — Play again replays the base note only.';
   }
 
