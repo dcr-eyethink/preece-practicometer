@@ -7,5 +7,9 @@
 // or your database password here or anywhere in the frontend.
 window.PRACTICOMETER_CONFIG = {
   supabaseUrl: 'https://YOUR-PROJECT-REF.supabase.co',
-  supabaseAnonKey: 'YOUR-ANON-PUBLIC-KEY'
+  supabaseAnonKey: 'YOUR-ANON-PUBLIC-KEY',
+  // user id of the "template" account whose practice sets get cloned into
+  // every brand-new sign-up (see supabase/feedback_and_template.sql). Leave
+  // null to fall back to the static js/default-sets.js / default-scores.js seed.
+  templateUserId: null
 };

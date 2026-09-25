@@ -102,15 +102,68 @@
   function resizeWindow() { /* no-op on the web */ }
   async function getWindowSize() { return [window.innerWidth, window.innerHeight]; }
 
-  // Seeds the starter sets + scores (js/default-sets.js, js/default-scores.js)
-  // into a brand-new account. Scores are seeded first so their freshly
-  // generated ids can resolve the `scoreKey` references in DEFAULT_PRACTICE_SETS'
-  // score-kind rows. Returns true if anything was seeded, false if the
-  // account already has sets (never re-seeds on top of real content).
+  // Clones the "template" account's practice sets (and the scores they refer
+  // to) into a brand-new account, instead of the static js/default-sets.js
+  // seed. Scores are cloned first — reusing the SAME storage file rather than
+  // copying bytes (a "read template score files" RLS policy on storage.objects
+  // permits that) — so their freshly-inserted ids can remap the scoreId
+  // references inside the template's set rows. Returns false (never throws
+  // on "nothing to clone") if the template account has no sets yet.
+  async function cloneFromTemplateAccount(newUserId, templateUserId) {
+    const { data: templateScores, error: scoresErr } = await client
+      .from(SCORES_TABLE).select('id, name, storage_path, mime_type').eq('user_id', templateUserId);
+    if (scoresErr) throw scoresErr;
+
+    const scoreIdMap = {};
+    for (const s of (templateScores || [])) {
+      const { data, error } = await client
+        .from(SCORES_TABLE)
+        .insert({ user_id: newUserId, name: s.name, storage_path: s.storage_path, mime_type: s.mime_type })
+        .select('id')
+        .single();
+      if (error) throw error;
+      scoreIdMap[s.id] = data.id;
+    }
+
+    const { data: templateSets, error: setsErr } = await client
+      .from(TABLE).select('name, rows').eq('user_id', templateUserId);
+    if (setsErr) throw setsErr;
+    if (!templateSets || templateSets.length === 0) return false;
+
+    const remapRows = (rows) => (rows || []).map(r => {
+      if (r.kind === 'score' && r.scoreId && scoreIdMap[r.scoreId]) {
+        return Object.assign({}, r, { scoreId: scoreIdMap[r.scoreId] });
+      }
+      return r;
+    });
+    const { error } = await client
+      .from(TABLE)
+      .insert(templateSets.map(s => ({ user_id: newUserId, name: s.name, rows: remapRows(s.rows) })));
+    if (error) throw error;
+    return true;
+  }
+
+  // Seeds a brand-new account: clones the template account (see above) if
+  // js/config.js sets templateUserId, otherwise falls back to the static
+  // starter sets + scores (js/default-sets.js, js/default-scores.js).
+  // Scores are seeded first so their freshly generated ids can resolve the
+  // `scoreKey` references in DEFAULT_PRACTICE_SETS' score-kind rows. Returns
+  // true if anything was seeded, false if the account already has sets
+  // (never re-seeds on top of real content).
   async function seedDefaultsIfEmpty() {
     const userId = await currentUserId();
     const existing = await listSets();
     if (existing.length > 0) return false;
+
+    const templateUserId = window.PRACTICOMETER_CONFIG && window.PRACTICOMETER_CONFIG.templateUserId;
+    if (templateUserId) {
+      try {
+        const seeded = await cloneFromTemplateAccount(userId, templateUserId);
+        if (seeded) return true;
+      } catch (e) {
+        console.warn('Template account clone failed, falling back to static defaults:', e);
+      }
+    }
 
     const defaultScores = window.DEFAULT_SCORES || [];
     const scoreIdByKey = {};
@@ -267,11 +320,48 @@
     return true;
   }
 
+  // ── Feedback ──
+  const FEEDBACK_TABLE = 'feedback';
+  const ADMIN_EMAIL = 'dcr@eyethink.org';
+
+  async function currentUserEmail() {
+    requireClient();
+    const { data } = await client.auth.getUser();
+    return data.user ? data.user.email : null;
+  }
+
+  function isFeedbackAdmin(email) {
+    return email === ADMIN_EMAIL;
+  }
+
+  async function submitFeedback({ liked, improve, disliked }) {
+    const userId = await currentUserId();
+    const email = await currentUserEmail();
+    const { error } = await client
+      .from(FEEDBACK_TABLE)
+      .insert({ user_id: userId, user_email: email, liked, improve, disliked });
+    if (error) throw error;
+    return true;
+  }
+
+  // Admin-only (RLS enforces this server-side too): every feedback row,
+  // newest first — used to build the CSV export.
+  async function listFeedback() {
+    requireClient();
+    const { data, error } = await client
+      .from(FEEDBACK_TABLE)
+      .select('user_email, liked, improve, disliked, created_at')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data;
+  }
+
   window.api = {
     listSets, readCSV, saveCSV, renameCSV, duplicateCSV, createSet,
     resizeWindow, getWindowSize, seedDefaultsIfEmpty,
     listScores, uploadScore, renameScore, deleteScore, getScoreUrl,
     startPracticeLog, updatePracticeLog, finishPracticeLog,
-    listPracticeLog, updatePracticeLogEntry, deletePracticeLogEntry
+    listPracticeLog, updatePracticeLogEntry, deletePracticeLogEntry,
+    currentUserEmail, isFeedbackAdmin, submitFeedback, listFeedback
   };
 })();

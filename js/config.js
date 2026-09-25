@@ -7,5 +7,9 @@
 // or your database password here or anywhere in the frontend.
 window.PRACTICOMETER_CONFIG = {
   supabaseUrl: 'https://zpvdklhvvhnmjhszinup.supabase.co',
-  supabaseAnonKey: 'sb_publishable_EDvY4czxWvxOVCZ8VYQp7A_mQaqnvH2'
+  supabaseAnonKey: 'sb_publishable_EDvY4czxWvxOVCZ8VYQp7A_mQaqnvH2',
+  // Fill in once newuser@email.com exists and you've run supabase/feedback_and_template.sql —
+  // see that file for the exact steps. Until then this stays null and new
+  // accounts get the old static default-sets.js / default-scores.js seed.
+  templateUserId: null
 };
