@@ -1001,20 +1001,26 @@
 
   function playRide(time) {
     const ctx = getCtx();
+    // "Stick on bronze" thud: broad bandpass noise.
     const dur = 0.4;
     const noise = ctx.createBufferSource(); noise.buffer = noiseBuffer(ctx, dur);
-    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 6000; bp.Q.value = 0.8;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 5000; bp.Q.value = 0.7;
     const g = ctx.createGain();
     g.gain.setValueAtTime(volume * 0.35, time);
     g.gain.exponentialRampToValueAtTime(0.001, time + dur);
     noise.connect(bp); bp.connect(g); g.connect(ctx.destination);
     noise.start(time); noise.stop(time + dur + 0.05);
-    const osc = ctx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = 800;
-    const oscGain = ctx.createGain();
-    oscGain.gain.setValueAtTime(volume * 0.15, time);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
-    osc.connect(oscGain); oscGain.connect(ctx.destination);
-    osc.start(time); osc.stop(time + 0.32);
+    // Shimmer tail: a quieter, longer high-passed noise wash, in place of
+    // the pure oscillator "ping" this used to have — that read as an
+    // electronic bleep rather than a cymbal.
+    const shimDur = 0.5;
+    const shimmer = ctx.createBufferSource(); shimmer.buffer = noiseBuffer(ctx, shimDur);
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 8000;
+    const sg = ctx.createGain();
+    sg.gain.setValueAtTime(volume * 0.12, time);
+    sg.gain.exponentialRampToValueAtTime(0.001, time + shimDur);
+    shimmer.connect(hp); hp.connect(sg); sg.connect(ctx.destination);
+    shimmer.start(time); shimmer.stop(time + shimDur + 0.05);
   }
 
   function playRim(time) {
@@ -1068,9 +1074,11 @@
       const hits = [];
       if (sub === 0) hits.push('ride');
       if (sub === 2 && beatIdx % 2 === 1) hits.push('ride');
-      // "Feathered" walking bass drum — a soft kick on every beat, the way a
-      // jazz drummer quietly walks the bass drum under the ride pattern.
-      if (sub === 0) hits.push('kickSoft');
+      // Syncopated kick: beat 1, plus the "and" of the beat before the end
+      // of the bar (e.g. the & of beat 3 in 4/4) — a common jazz comping hit.
+      if (sub === 0 && beatIdx === 0) hits.push('kickSoft');
+      const kickSyncBeat = beats >= 4 ? 2 : (beats === 3 ? 1 : 0);
+      if (sub === 2 && beatIdx === kickSyncBeat) hits.push('kickSoft');
       const snareBeats = beats === 4 ? [1, 3] : beats === 3 ? [1, 2] : [1];
       if (sub === 0 && snareBeats.includes(beatIdx)) hits.push('snare');
       return hits;
