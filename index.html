@@ -342,14 +342,17 @@
   /* ---- Chord Sequences ---- */
   .chordseq-panel { display: none; flex: 1; flex-direction: column; padding: 1.5rem 2rem; overflow-y: auto; position: relative; }
   .chordseq-panel h2 { margin: 0 0 1rem; font-size: 20px; font-weight: 600; }
-  .cs-mode-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 0.5rem; }
-  .cs-mode-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 0; }
-  .cs-mode-btn { padding: 7px 16px; border: 1.5px solid #ccc; border-radius: 8px; background: #f9f9f9; color: #555; font-size: 14px; font-weight: 500; cursor: pointer; }
-  .cs-mode-btn.active { background: #fdeee0; color: #a85a1a; border-color: #e0a060; }
+  .cs-top-row { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; }
+  .cs-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto; }
+  .cs-mode-header { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 0.5rem; }
+  .cs-mode-row { display: flex; gap: 6px; flex-wrap: nowrap; margin-bottom: 0; }
+  .cs-mode-btn { background: none; border: 2px solid transparent; border-radius: 14px; padding: 2px; cursor: pointer; line-height: 0; transition: border-color 0.15s, transform 0.1s; flex-shrink: 0; }
+  .cs-mode-btn:hover { transform: scale(1.06); }
+  .cs-mode-btn img { display: block; width: 40px; height: 40px; border-radius: 9px; }
+  .cs-mode-btn.active { border-color: #7090e0; }
   .cs-locked { opacity: 0.55; pointer-events: none; }
-  .cs-key-btn { display: block; font-size: 20px; font-weight: 700; color: #1a4a8a; background: none; border: none; cursor: pointer; padding: 4px 10px; border-radius: 8px; margin: 0 0 1rem -10px; }
-  .cs-key-btn:hover { background: #eef3ff; }
-  .cs-key-hint { font-size: 11px; color: #999; margin-left: 6px; font-weight: 400; }
+  .cs-key-label { font-size: 15px; font-weight: 700; color: #1a4a8a; margin: 0 0 0.5rem; }
+  .cs-key-keyboard { margin-bottom: 1rem; }
   .cs-chord-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
   .cs-chord-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 10px 4px; width: 64px; border: 1.5px solid #ccc; border-radius: 10px; background: #f9f9f9; color: #333; cursor: pointer; }
   .cs-chord-roman { font-size: 18px; font-weight: 700; }
@@ -357,16 +360,11 @@
   .cs-chord-btn:hover { background: #eef3ff; }
   .cs-chord-btn.wrong { background: #fbe1e1; border-color: #e08080; color: #c0392b; }
   .cs-chord-btn.correct-flash { background: #dff5e6; border-color: #5cb87a; color: #1a7a3a; }
-  .cs-guess-row { display: flex; gap: 8px; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
-  .cs-guess-slot { min-width: 44px; padding: 8px 10px; border: 1.5px dashed #ccc; border-radius: 8px; text-align: center; font-size: 16px; font-weight: 700; color: #333; background: #fafafa; }
+  .cs-guess-row { display: flex; gap: 8px; align-items: center; justify-content: center; flex: 1; flex-wrap: wrap; }
+  .cs-guess-slot { min-width: 40px; padding: 7px 8px; border: 1.5px dashed #ccc; border-radius: 8px; text-align: center; font-size: 15px; font-weight: 700; color: #333; background: #fafafa; }
   .cs-guess-slot.filled { border-style: solid; border-color: #a0b4f0; background: #eef3ff; color: #1a56db; }
   .cs-guess-slot.correct { border-style: solid; border-color: #5cb87a; background: #dff5e6; color: #1a7a3a; }
-  .cs-guess-actions { display: flex; gap: 8px; margin-bottom: 1rem; }
   .cs-status { font-size: 14px; color: #888; margin-bottom: 0.75rem; min-height: 20px; }
-  .cs-play-row { display: flex; align-items: center; gap: 16px; }
-  .cs-play-btn { width: 72px; height: 72px; border-radius: 50%; border: none; cursor: pointer; background: #1a56db; color: #fff; font-size: 26px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(26,86,219,0.35); }
-  .cs-play-btn:hover { background: #1543ab; }
-  .cs-play-btn:active { transform: scale(0.94); }
 
   /* ---- Score widget (shared by Ear Training / Chord Sequences) ---- */
   .score-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
@@ -712,39 +710,38 @@
       <img class="panel-icon panel-icon-lg" id="csPanelIcon" alt="">
     </div>
 
-    <div class="score-row">
-      <span class="score-value" id="csScore">Score: 0/0 (—%)</span>
-      <button class="score-reset" id="csScoreReset" data-tip="Clear your saved accuracy and best staircase level for Chord Sequences.">reset</button>
+    <div class="cs-top-row">
+      <button class="ear-play-btn" id="csPlayBtn" data-tip="Play (or replay) the current question."><img src="icons/ear.png" alt="Play"></button>
+      <div class="cs-guess-row" id="csGuessRow"></div>
+      <div class="cs-actions">
+        <button class="ear-skip-btn" id="csSubmitBtn" data-tip="Check your guessed sequence against what was played."><img src="icons/submit.png" alt="Submit"></button>
+        <button class="ear-skip-btn" id="csDeleteBtn" data-tip="Remove the last chord from your guess."><img src="icons/delete.png" alt="Delete"></button>
+        <button class="ear-skip-btn" id="csGiveUpBtn" data-tip="Give up on this one, reveal the answer, and move to the next."><img src="icons/white-flag.png" alt="Give up"></button>
+      </div>
     </div>
 
     <div class="cs-mode-header">
       <div class="cs-mode-row" id="csModeRow">
-        <button class="cs-mode-btn active" data-len="1" data-tip="Hear the key's I chord, then one other chord — identify the second one.">Single chord</button>
-        <button class="cs-mode-btn" data-len="2" data-tip="Hear a 2-chord progression and rebuild it in order.">2 chords</button>
-        <button class="cs-mode-btn" data-len="3" data-tip="Hear a 3-chord progression and rebuild it in order.">3 chords</button>
-        <button class="cs-mode-btn" data-len="4" data-tip="Hear a 4-chord progression and rebuild it in order.">4 chords</button>
+        <button class="cs-mode-btn active" data-len="1" data-tip="Hear the key's I chord, then one other chord — identify the second one."><img src="icons/chord-1.png" alt="Single chord"></button>
+        <button class="cs-mode-btn" data-len="2" data-tip="Hear a 2-chord progression and rebuild it in order."><img src="icons/chord-2.png" alt="2 chords"></button>
+        <button class="cs-mode-btn" data-len="3" data-tip="Hear a 3-chord progression and rebuild it in order."><img src="icons/chord-3.png" alt="3 chords"></button>
+        <button class="cs-mode-btn" data-len="4" data-tip="Hear a 4-chord progression and rebuild it in order."><img src="icons/chord-4.png" alt="4 chords"></button>
       </div>
-      <button class="ear-staircase-btn" id="csStaircaseBtn" data-tip="Staircase mode: the app picks the difficulty for you — one step harder each time you're right, one step easier each time you're wrong. Turns off manual mode/key selection while active.">🪜 Staircase</button>
+      <button class="ear-staircase-btn" id="csStaircaseBtn" data-tip="Staircase mode: the app picks the difficulty for you — one step harder each time you're right, one step easier each time you're wrong. Turns off manual mode/key selection while active."><img src="icons/staircase.png" alt="Staircase"></button>
     </div>
     <div class="ear-staircase-status" id="csStaircaseStatus" style="display:none"></div>
 
-    <button class="cs-key-btn" id="csKeyBtn" data-tip="Click to jump to a new random key.">Key: C major<span class="cs-key-hint">(click to change)</span></button>
-
     <div class="cs-chord-row" id="csChordRow"></div>
 
-    <div class="cs-guess-row" id="csGuessRow" style="display:none"></div>
-    <div class="cs-guess-actions" id="csGuessActions" style="display:none">
-      <button class="btn" id="csDeleteBtn" data-tip="Remove the last chord from your guess.">⌫ Delete</button>
-      <button class="btn btn-practice" id="csSubmitBtn" data-tip="Check your guessed sequence against what was played.">Submit</button>
-    </div>
+    <div class="cs-key-label" id="csKeyLabel">Key: C major</div>
+    <div class="cs-key-keyboard" id="csKeyKeyboard" data-tip="Click a key to practise in that key."></div>
 
-    <div class="cs-status" id="csStatus" data-tip="Shows what to do next during a turn.">Press play to hear it</div>
+    <div class="score-row">
+      <span class="score-value" id="csScore">Score: 0/0 (—%)</span>
+      <button class="score-reset" id="csScoreReset" data-tip="Clear your saved accuracy and best staircase level for Chord Sequences.">reset</button>
+    </div>
     <div class="ear-midi-status" id="csMidiStatus" data-tip="Shows whether a connected MIDI keyboard was found — you can answer by playing the chord on it."></div>
-
-    <div class="cs-play-row">
-      <button class="cs-play-btn" id="csPlayBtn" data-tip="Play (or replay) the current question.">▶</button>
-      <button class="btn" id="csReplayTonicBtn" data-tip="Hear the key's tonic (chord I) again, for reference.">🎵 Chord 1</button>
-    </div>
+    <div class="cs-status" id="csStatus" data-tip="Shows what to do next during a turn." style="display:none"></div>
   </div>
 
   <!-- Chord grid / circle of 5ths (hidden until opened) -->

@@ -178,12 +178,64 @@
     });
   }
 
-  async function playTonicOnly() {
-    const c = getCtx();
-    if (c.state === 'suspended') c.resume();
-    await ensureSamplesLoaded();
-    const tonicMidi = 48 + KEY_LIST[state.keyIndex].pc;
-    playChordTones(triadFor(tonicMidi, 1), c.currentTime + 0.05);
+  // Key picker keyboard — a single octave, same visual pattern as the Chord
+  // Grid key picker (buildPiano in index.html), scoped to this module.
+  const CS_PIANO_WHITES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  const CS_PIANO_BLACKS = [{ key: 'Db', x: 26 }, { key: 'Eb', x: 71 }, { key: 'F#', x: 159 }, { key: 'Ab', x: 203 }, { key: 'Bb', x: 247 }];
+  const csKeyRects = {};
+
+  function buildKeyKeyboard() {
+    const ns = 'http://www.w3.org/2000/svg';
+    const container = document.getElementById('csKeyKeyboard');
+    container.innerHTML = '';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 308 82');
+    svg.setAttribute('class', 'piano-svg');
+
+    CS_PIANO_WHITES.forEach((key, i) => {
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('x', i * 44 + 1); r.setAttribute('y', 1);
+      r.setAttribute('width', 42); r.setAttribute('height', 78);
+      r.setAttribute('rx', 3); r.setAttribute('stroke', '#aaa'); r.setAttribute('stroke-width', 1.5);
+      r.style.cursor = 'pointer';
+      r.setAttribute('data-tip', 'Click to practise in this key.');
+      r.addEventListener('mousedown', e => { e.preventDefault(); chooseKeyByName(key); });
+      svg.appendChild(r); csKeyRects[key] = r;
+    });
+
+    CS_PIANO_BLACKS.forEach(({ key, x }) => {
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('x', x); r.setAttribute('y', 1);
+      r.setAttribute('width', 26); r.setAttribute('height', 50);
+      r.setAttribute('rx', 2); r.setAttribute('stroke', '#000'); r.setAttribute('stroke-width', 1);
+      r.style.cursor = 'pointer';
+      r.setAttribute('data-tip', 'Click to practise in this key.');
+      r.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); chooseKeyByName(key); });
+      svg.appendChild(r); csKeyRects[key] = r;
+    });
+
+    container.appendChild(svg);
+    refreshKeyKeyboard();
+  }
+
+  function refreshKeyKeyboard() {
+    const blackSet = new Set(['Db', 'Eb', 'F#', 'Ab', 'Bb']);
+    const currentName = KEY_LIST[state.keyIndex].name;
+    Object.entries(csKeyRects).forEach(([key, r]) => {
+      const sel = currentName === key;
+      r.setAttribute('fill', blackSet.has(key)
+        ? (sel ? '#c8a000' : '#1a1a1a')
+        : (sel ? '#fff0a0' : 'white'));
+    });
+  }
+
+  function chooseKeyByName(keyName) {
+    if (staircase.active) return;
+    const idx = KEY_LIST.findIndex(k => k.name === keyName);
+    if (idx === -1) return;
+    state.keyIndex = idx;
+    updateKeyDisplay();
+    newTurn();
   }
 
   function chordDisplayName(deg) {
@@ -204,9 +256,9 @@
   }
 
   function updateKeyDisplay() {
-    document.getElementById('csKeyBtn').innerHTML =
-      `Key: ${KEY_LIST[state.keyIndex].name} major<span class="cs-key-hint">(click to change)</span>`;
+    document.getElementById('csKeyLabel').textContent = `Key: ${KEY_LIST[state.keyIndex].name} major`;
     refreshChordButtonLabels();
+    refreshKeyKeyboard();
   }
 
   function renderGuessDisplay() {
@@ -235,7 +287,7 @@
       b.dataset.degree = deg;
       b.innerHTML = `<span class="cs-chord-roman">${DEGREE_INFO[deg].roman}</span><span class="cs-chord-name"></span>`;
       b.setAttribute('data-tip', 'Click to answer with this chord — directly in single-chord mode, or added to your guess sequence in 2–4 chord mode.');
-      b.addEventListener('click', () => onChordButtonClick(deg, b));
+      b.addEventListener('click', () => onChordButtonClick(deg));
       row.appendChild(b);
     });
   }
@@ -246,7 +298,7 @@
     staircase.level = Math.max(1, Math.min(STAIRCASE_LEVELS.length, startLevel || 1));
     staircase.peakLevel = staircase.level;
     document.getElementById('csModeRow').classList.add('cs-locked');
-    document.getElementById('csKeyBtn').classList.add('cs-locked');
+    document.getElementById('csKeyKeyboard').classList.add('cs-locked');
     document.getElementById('csStaircaseStatus').style.display = 'block';
     updateStaircaseStatus();
     newTurn();
@@ -281,7 +333,7 @@
     currentSeqLen = manualSeqLenSnapshot || 1;
     document.querySelectorAll('#csModeRow .cs-mode-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.len) === currentSeqLen));
     document.getElementById('csModeRow').classList.remove('cs-locked');
-    document.getElementById('csKeyBtn').classList.remove('cs-locked');
+    document.getElementById('csKeyKeyboard').classList.remove('cs-locked');
     document.getElementById('csStaircaseStatus').style.display = 'none';
     newTurn();
   }
@@ -302,33 +354,16 @@
     updateStaircaseStatus();
   }
 
-  function onChordButtonClick(degree, btnEl) {
-    if (currentSeqLen === 1) {
-      if (degree === state.targetSeq[0]) onCorrectSingle(degree, btnEl);
-      else { recordAttempt(false); stepStaircase(false); flashWrong(btnEl); }
-    } else {
-      const nextOpen = state.guessSeq.findIndex(v => v == null);
-      if (nextOpen === -1) return;
-      state.guessSeq[nextOpen] = degree;
-      renderGuessDisplay();
-    }
-  }
-
-  function flashWrong(btnEl) {
-    btnEl.classList.add('wrong');
-    setTimeout(() => btnEl.classList.remove('wrong'), 350);
-    flashStatus('Not quite — listen again and try another',
-      currentSeqLen === 1 ? 'Click the second chord' : 'Rebuild the sequence you just heard', 1200);
-    playTurnAudio();
-  }
-
-  function onCorrectSingle(degree, btnEl) {
-    answered = true;
-    btnEl.classList.add('correct-flash');
-    setStatus('Correct — that was ' + DEGREE_INFO[degree].roman);
-    recordAttempt(true);
-    stepStaircase(true);
-    setTimeout(() => { btnEl.classList.remove('correct-flash'); newTurn(); }, 1300);
+  // Answering always works the same way regardless of sequence length: click
+  // chord buttons to fill the guess slots (one slot in Single chord mode,
+  // up to four otherwise), then press submit — no more special-cased
+  // instant-answer for the single-chord case.
+  function onChordButtonClick(degree) {
+    if (answered) return;
+    const nextOpen = state.guessSeq.findIndex(v => v == null);
+    if (nextOpen === -1) return;
+    state.guessSeq[nextOpen] = degree;
+    renderGuessDisplay();
   }
 
   function newTurn() {
@@ -340,9 +375,6 @@
         updateKeyDisplay();
       }
     }
-    const showGuessUI = currentSeqLen > 1;
-    document.getElementById('csGuessRow').style.display = showGuessUI ? 'flex' : 'none';
-    document.getElementById('csGuessActions').style.display = showGuessUI ? 'flex' : 'none';
 
     if (currentSeqLen === 1) {
       const pool = (staircase.active && STAIRCASE_LEVELS[staircase.level - 1].pool) || [2, 3, 4, 5, 6];
@@ -389,6 +421,18 @@
     }
   }
 
+  // Reveals the answer and moves on, without counting it right or wrong —
+  // same "no penalty, no credit" semantics as Ear Training's skip button.
+  function giveUp() {
+    if (answered) return;
+    answered = true;
+    state.guessSeq = state.targetSeq.slice();
+    state.correctMask = state.targetSeq.map(() => true);
+    renderGuessDisplay();
+    setStatus('That was ' + state.targetSeq.map(d => DEGREE_INFO[d].roman).join('–'));
+    setTimeout(newTurn, 1400);
+  }
+
   function wireControls() {
     document.getElementById('csScoreReset').addEventListener('click', () => {
       score = { correct: 0, total: 0, staircaseBest: 0 };
@@ -411,15 +455,7 @@
       });
     });
 
-    document.getElementById('csKeyBtn').addEventListener('click', () => {
-      if (staircase.active) return;
-      state.keyIndex = Math.floor(Math.random() * KEY_LIST.length);
-      updateKeyDisplay();
-      newTurn();
-    });
-
     document.getElementById('csPlayBtn').addEventListener('click', playTurnAudio);
-    document.getElementById('csReplayTonicBtn').addEventListener('click', playTonicOnly);
 
     document.getElementById('csDeleteBtn').addEventListener('click', () => {
       for (let i = state.guessSeq.length - 1; i >= 0; i--) {
@@ -432,6 +468,7 @@
     });
 
     document.getElementById('csSubmitBtn').addEventListener('click', submitGuess);
+    document.getElementById('csGiveUpBtn').addEventListener('click', giveUp);
 
     // settings, when given (dispatched from a practice-list item), come from
     // getSettings()'s own shape — see saveActiveRowSettings in index.html.
@@ -440,7 +477,15 @@
       if (window.setActiveTopBarIcon) window.setActiveTopBarIcon('csIconBtn');
       const dims = window.APP_DIMENSIONS;
       if (window.api && window.api.resizeWindow) window.api.resizeWindow(dims ? dims.width2 : 1000, dims ? dims.height : 826);
+      const wasInitialized = initialized;
       ensureInit();
+      if (wasInitialized) {
+        // A fresh random key every time you start this function, same as a
+        // fresh interval/chord — not just the first time the app loads.
+        state.keyIndex = Math.floor(Math.random() * KEY_LIST.length);
+        updateKeyDisplay();
+        if (!(settings && settings.staircaseActive)) newTurn();
+      }
       applySavedSettings(settings);
     }
     const csIconBtn = document.getElementById('csIconBtn');
@@ -505,10 +550,8 @@
       flashStatus(other ? 'Heard ' + window.musicalChord(other.name) + ' — that isn’t one of the chords in this key' : 'Couldn’t recognise that as a chord in this key', revert, 1500);
       return;
     }
-    const btn = document.querySelector('#csChordRow .cs-chord-btn[data-degree="' + deg + '"]');
-    if (currentSeqLen === 1) { onChordButtonClick(deg, btn); return; }
     if (state.guessSeq.every(v => v != null)) return;
-    onChordButtonClick(deg, btn);
+    onChordButtonClick(deg);
     flashStatus('Heard ' + chordDisplayName(deg) + ' (' + DEGREE_INFO[deg].roman + ')', revert, 900);
     if (state.guessSeq.every(v => v != null)) {
       const turnSeq = state.targetSeq;
@@ -528,6 +571,7 @@
     window.MidiInput.start();
     ensureSamplesLoaded();
     buildChordButtons();
+    buildKeyKeyboard();
     state.keyIndex = Math.floor(Math.random() * KEY_LIST.length);
     updateKeyDisplay();
     updateScoreDisplay();
