@@ -270,7 +270,7 @@
       const filled = value != null;
       const locked = !!state.correctMask[i];
       slot.className = 'cs-guess-slot' + (filled ? ' filled' : '') + (locked ? ' correct' : '');
-      slot.textContent = filled ? DEGREE_INFO[value].roman : '–';
+      slot.textContent = filled ? DEGREE_INFO[value].roman : '?';
       slot.setAttribute('data-tip', locked
         ? 'Chord ' + (i + 1) + ' — correct, locked in.'
         : 'Your guess for chord ' + (i + 1) + ' of this sequence.');
@@ -364,6 +364,21 @@
     if (nextOpen === -1) return;
     state.guessSeq[nextOpen] = degree;
     renderGuessDisplay();
+    // A single chord IS the whole answer — no reason to make the user press
+    // submit separately when there's nothing left to build.
+    if (currentSeqLen === 1) submitGuess();
+  }
+
+  // Briefly flashes the matching answer button green whenever a chord is
+  // heard on MIDI, whether or not it ends up being the right guess — pure
+  // "I heard that" feedback, same idea as Chord Grid's played-note flash.
+  function flashHeardChord(degree) {
+    const btn = document.querySelector('#csChordRow .cs-chord-btn[data-degree="' + degree + '"]');
+    if (!btn) return;
+    btn.classList.remove('correct-flash');
+    void btn.offsetWidth;
+    btn.classList.add('correct-flash');
+    setTimeout(() => btn.classList.remove('correct-flash'), 400);
   }
 
   function newTurn() {
@@ -551,6 +566,7 @@
       return;
     }
     if (state.guessSeq.every(v => v != null)) return;
+    flashHeardChord(deg);
     onChordButtonClick(deg);
     flashStatus('Heard ' + chordDisplayName(deg) + ' (' + DEGREE_INFO[deg].roman + ')', revert, 900);
     if (state.guessSeq.every(v => v != null)) {

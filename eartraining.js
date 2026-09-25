@@ -637,12 +637,18 @@
     if (flashNew) flashIntervalButtons(cfg.intervals.filter(iv => !prevIntervals.has(iv)));
   }
 
+  function updateStaircaseIcon() {
+    const img = document.getElementById('earStaircaseIcon');
+    if (img) img.src = staircase.active ? 'icons/staircase-on.png' : 'icons/staircase-off.png';
+  }
+
   function enterStaircase(startLevel) {
     manualIntervalsSnapshot = new Set(state.activeIntervals);
     manualDirectionsSnapshot = new Set(state.activeDirections);
     staircase.active = true;
     staircase.level = Math.max(1, Math.min(STAIRCASE_LEVELS.length, startLevel || 1));
     staircase.peakLevel = staircase.level;
+    updateStaircaseIcon();
     document.getElementById('earIntervalRow').classList.add('locked');
     document.getElementById('earStaircaseStatus').style.display = 'block';
     applyStaircaseLevel();
@@ -683,6 +689,7 @@
     state.activeIntervals = manualIntervalsSnapshot || new Set([2, 3, 4, 5, 6, 7, 8]);
     state.activeDirections = manualDirectionsSnapshot || new Set(['up']);
     CENTS_TOLERANCE = 40;
+    updateStaircaseIcon();
     document.getElementById('earIntervalRow').classList.remove('locked');
     document.getElementById('earStaircaseStatus').style.display = 'none';
     buildIntervalButtons();
@@ -953,12 +960,19 @@
     // settings, when given (dispatched from a practice-list item), come from
     // getSettings()'s own shape — see saveActiveRowSettings in index.html.
     function openEcho(settings) {
+      // Echo and Sing Training share this panel — showCentralPanel() doesn't
+      // tear it down when switching between them (so re-clicking the same
+      // mode doesn't interrupt a turn), which means a turn left running in
+      // the other mode would otherwise carry on unseen under the new title.
+      // Reset it explicitly whenever the mode actually changes.
+      if (state.mode !== 'echo') stopSession();
       state.mode = 'echo';
       if (state.turnActive) updateTargetDisplay();
       openEarPanel();
       applySavedSettings(settings);
     }
     function openPlay(settings) {
+      if (state.mode !== 'play') stopSession();
       state.mode = 'play';
       if (state.turnActive) updateTargetDisplay();
       openEarPanel();
