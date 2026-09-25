@@ -30,7 +30,34 @@ create policy "select own or admin" on feedback
   );
 
 
--- ── 2. Template-account seeding for new sign-ups ────────────────────────────
+-- ── 2. Activity tracking (admin CSV export) ─────────────────────────────────
+-- One row per app session: who, when it started, when it was last seen
+-- (heartbeat, like practice_log's), and which top-bar functions they opened.
+create table if not exists user_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id),
+  user_email text not null,
+  started_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  functions_used text[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+alter table user_sessions enable row level security;
+
+create policy "insert own session" on user_sessions
+  for insert with check (auth.uid() = user_id);
+
+create policy "update own session" on user_sessions
+  for update using (auth.uid() = user_id);
+
+create policy "select own sessions or admin" on user_sessions
+  for select using (
+    auth.uid() = user_id or auth.jwt() ->> 'email' = 'dcr@eyethink.org'
+  );
+
+
+-- ── 3. Template-account seeding for new sign-ups ────────────────────────────
 -- Steps:
 --   a) Create the newuser@email.com / newuser account yourself, via the app's
 --      own "Sign Up" screen (Sign In box -> Sign Up).

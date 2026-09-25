@@ -25,6 +25,16 @@
     return out;
   }
 
+  function toActivityCSV(rows) {
+    let out = 'email,started_at,last_seen_at,duration_min,functions_used\n';
+    for (const r of rows) {
+      const durationMin = Math.max(0, Math.round((new Date(r.last_seen_at) - new Date(r.started_at)) / 60000));
+      const functions = (r.functions_used || []).join('; ');
+      out += [r.user_email, r.started_at, r.last_seen_at, durationMin, functions].map(csvField).join(',') + '\n';
+    }
+    return out;
+  }
+
   function downloadCSV(filename, text) {
     const blob = new Blob([text], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -64,8 +74,12 @@
     try {
       const email = await window.api.currentUserEmail();
       if (window.api.isFeedbackAdmin(email)) {
-        const rows = await window.api.listFeedback();
-        downloadCSV('preece-practicometer-feedback.csv', toCSV(rows));
+        const [feedbackRows, sessionRows] = await Promise.all([
+          window.api.listFeedback(),
+          window.api.listUserSessions()
+        ]);
+        downloadCSV('preece-practicometer-feedback.csv', toCSV(feedbackRows));
+        downloadCSV('preece-practicometer-activity.csv', toActivityCSV(sessionRows));
       } else {
         openForm();
       }

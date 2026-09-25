@@ -836,6 +836,7 @@
 <script src="js/practice-log.js"></script>
 <script src="js/auth-ui.js"></script>
 <script src="js/feedback-ui.js"></script>
+<script src="js/activity-log.js"></script>
 
 <script>
 (function() {
@@ -2033,6 +2034,9 @@
   function dispatchActiveRow(row) {
     const kind = row.kind || 'task';
     if (kind === 'function') {
+      if (window.api && window.api.trackFunctionUsage) {
+        window.api.trackFunctionUsage(FUNCTION_LABELS[row.functionId] || row.functionId);
+      }
       switch (row.functionId) {
         case 'chordgrid': openFeature('chordgrid'); return;
         case 'c5': openFeature('c5'); return;
@@ -2041,6 +2045,7 @@
         case 'chordseq': if (window.ChordSeq) window.ChordSeq.open(); return;
       }
     } else if (kind === 'score') {
+      if (window.api && window.api.trackFunctionUsage) window.api.trackFunctionUsage('Scores');
       showCentralPanel('score');
       if (window.ScoresUI) window.ScoresUI.showActive(row.scoreId);
       return;

@@ -358,12 +358,67 @@
     return data;
   }
 
+  // ── Activity tracking (admin-only CSV export) ──
+  // One row per app session: who, when it started, when it was last seen
+  // (a heartbeat, same pattern as practice_log), and which top-bar functions
+  // got opened. See js/activity-log.js for what calls these.
+  const SESSIONS_TABLE = 'user_sessions';
+  let currentSessionId = null;
+  let currentSessionFunctions = new Set();
+
+  async function startUserSession() {
+    const userId = await currentUserId();
+    const email = await currentUserEmail();
+    const nowIso = new Date().toISOString();
+    const { data, error } = await client
+      .from(SESSIONS_TABLE)
+      .insert({ user_id: userId, user_email: email, started_at: nowIso, last_seen_at: nowIso, functions_used: [] })
+      .select('id')
+      .single();
+    if (error) throw error;
+    currentSessionId = data.id;
+    currentSessionFunctions = new Set();
+    return currentSessionId;
+  }
+
+  async function touchUserSession() {
+    if (!currentSessionId) return;
+    const { error } = await client
+      .from(SESSIONS_TABLE)
+      .update({ last_seen_at: new Date().toISOString(), functions_used: Array.from(currentSessionFunctions) })
+      .eq('id', currentSessionId);
+    if (error) console.error('touchUserSession failed:', error);
+  }
+
+  // Fire-and-forget: records a function as opened this session (once per
+  // distinct name) and immediately syncs it, rather than waiting on the
+  // next heartbeat, so a short session still gets its functions_used right.
+  function trackFunctionUsage(name) {
+    if (!currentSessionId || currentSessionFunctions.has(name)) return;
+    currentSessionFunctions.add(name);
+    touchUserSession();
+  }
+
+  // Admin-only (RLS enforces this server-side too): every session row,
+  // newest first — used to build the CSV export.
+  async function listUserSessions() {
+    requireClient();
+    const { data, error } = await client
+      .from(SESSIONS_TABLE)
+      .select('user_email, started_at, last_seen_at, functions_used')
+      .order('user_email', { ascending: true })
+      .order('started_at', { ascending: false });
+    if (error) throw error;
+    return data;
+  }
+
   window.api = {
     listSets, readCSV, saveCSV, renameCSV, duplicateCSV, createSet,
     resizeWindow, getWindowSize, seedDefaultsIfEmpty,
     listScores, uploadScore, renameScore, deleteScore, getScoreUrl,
     startPracticeLog, updatePracticeLog, finishPracticeLog,
     listPracticeLog, updatePracticeLogEntry, deletePracticeLogEntry,
-    currentUserEmail, isFeedbackAdmin, submitFeedback, listFeedback
+    currentUserEmail, isFeedbackAdmin, submitFeedback, listFeedback,
+    startUserSession, touchUserSession, trackFunctionUsage, listUserSessions
   };
 })();
