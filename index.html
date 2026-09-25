@@ -1434,6 +1434,9 @@
 
   function deactivateAll() {
     if (typeof captureActiveRowSettings === 'function') captureActiveRowSettings();
+    // Close notes only if they're showing a function's help text (not a
+    // real practice-list item's notes, which should stay put).
+    if (notesOpen && notesRowIdx === -1 && typeof closeNotes === 'function') closeNotes();
     currentFeature = null;
     document.getElementById('chordGridPanel').classList.remove('visible');
     document.getElementById('rndPanel').style.display = 'none';
@@ -1482,6 +1485,10 @@
     settingsTargetRowIdx = -1;
     if (currentFeature === name) { deactivateAll(); return; }
     openFeature(name);
+    // Opened directly from the top bar (not a practice-list item) — show
+    // this function's help text in the notes panel, same slot notes use
+    // during practice.
+    if (typeof openNotesForFunction === 'function') openNotesForFunction(name);
   }
 
   document.getElementById('chordToggleBtn').addEventListener('click', () => activateFeature('chordgrid'));
@@ -2272,13 +2279,10 @@
     document.getElementById('notesTextarea').focus();
   }
 
-  function openNotesForRow(idx) {
-    saveCurrentNotes();
-    notesRowIdx = idx;
-    const row = (idx >= 0 && idx < rows.length) ? rows[idx] : null;
-    document.getElementById('notesHeaderTitle').textContent = row ? row.activity : 'Notes';
-    document.getElementById('notesTextarea').value = row ? (row.notes || '') : '';
-    showNotesPreview();
+  // Shared by openNotesForRow and openNotesForFunction — positions the
+  // notes panel (practice-inline / home-slot / beside-the-list) and marks
+  // it open, once the header/textarea contents have already been set.
+  function positionAndOpenNotesPanel() {
     const panel = document.getElementById('notesPanel');
     const wasInline = panel.classList.contains('inline');
     const homePanel = document.getElementById('homePanel');
@@ -2310,6 +2314,33 @@
       // never widened for them, so widen it now that they're a side panel again.
       resizeForNotes(true);
     }
+  }
+
+  function openNotesForRow(idx) {
+    saveCurrentNotes();
+    notesRowIdx = idx;
+    const row = (idx >= 0 && idx < rows.length) ? rows[idx] : null;
+    document.getElementById('notesHeaderTitle').textContent = row ? row.activity : 'Notes';
+    document.getElementById('notesTextarea').value = row ? (row.notes || '') : '';
+    showNotesPreview();
+    positionAndOpenNotesPanel();
+  }
+
+  // Shows a function's help text in the notes panel when it's opened
+  // directly from the top bar (not via a practice-list item) — same
+  // right-hand-slot takeover as during practice, per the user's request.
+  // Not tied to any row, so nothing here is saved anywhere; the textarea
+  // is still freely editable (harmlessly discarded on close), matching
+  // how the notes panel behaves everywhere else.
+  function openNotesForFunction(functionId) {
+    const text = DEFAULT_FUNCTION_NOTES[functionId];
+    if (!text) { if (notesOpen) closeNotes(); return; }
+    saveCurrentNotes();
+    notesRowIdx = -1;
+    document.getElementById('notesHeaderTitle').textContent = FUNCTION_LABELS[functionId] || functionId;
+    document.getElementById('notesTextarea').value = text;
+    showNotesPreview();
+    positionAndOpenNotesPanel();
   }
 
   function closeNotes() {
