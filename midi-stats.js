@@ -2,16 +2,22 @@
 // timing between one note ending and the next starting. Off by default;
 // toggled from the small chart button in the MIDI readout header.
 //
-// For each adjacent pair of notes (in onset order) there's a single signed
-// gap: releaseOfPrevious -> onsetOfNext. Negative means the notes overlapped
-// (blurring); positive means there was a gap (a clean separation). The two
-// are really one measurement, so they share a single zero-centred row:
-// blur to the left (red), gap to the right (blue), perfectly clean legato
-// playing sits at zero either way.
+// Both rows use the same plot: a mean-±-SE diamond (widest at the mean,
+// tapering to points at mean±SE) plus a thin vertical tick for the most
+// recent value.
+//
+// Duration is one-sided (0 up to some max). Blur/Gap is signed: for each
+// adjacent pair of notes (in onset order) there's a single gap,
+// releaseOfPrevious -> onsetOfNext. Negative means the notes overlapped
+// (blurring); positive means there was a gap (a clean separation). Blur and
+// gap are kept as two separate rolling distributions, plotted either side
+// of a shared zero notch: blur's diamond in red to the left, gap's diamond
+// in blue to the right. Perfectly clean legato playing keeps everything
+// sitting on zero.
 //
 // A very long gap is just a rest, not a timing issue, and a long overlap is
 // a deliberately held chord/legato pedal, not blurring — both are filtered
-// out rather than dragging the average around.
+// out rather than dragging the stats around.
 (() => {
   const M = window.MidiInput;
   const wrap = document.getElementById('midiStats');
@@ -20,17 +26,16 @@
   if (!M || !wrap || !circle || !toggleBtn) return;
 
   const PREF_KEY = 'midiStatsShown';
-  const HISTORY = 36;        // samples kept for the sparkline
-  const AVG_WINDOW = 16;     // samples folded into the rolling average / variance
-  const MAX_INTERVAL_MS = 1000; // gaps longer than this are a rest, not counted
-  const MAX_BLUR_MS = 500;      // overlaps longer than this are intentional, not counted
+  const AVG_WINDOW = 16;         // samples folded into the rolling mean/SE
+  const MAX_INTERVAL_MS = 1000;  // gaps longer than this are a rest, not counted
+  const MAX_BLUR_MS = 500;       // overlaps longer than this are intentional, not counted
 
   let shown = false;
   try { shown = localStorage.getItem(PREF_KEY) === '1'; } catch (e) {}
 
   const ROWS = [
-    { key: 'duration', label: 'Duration', kind: 'plain', max: 1200, fmt: v => Math.round(v) + 'ms' },
-    { key: 'timing', label: 'Blur/Gap', kind: 'signed', scale: 500, fmt: v => (v >= 0 ? '+' : '−') + Math.round(Math.abs(v)) + 'ms' }
+    { key: 'duration', label: 'Duration', bipolar: false, scale: 1200, fmt: v => Math.round(v) + 'ms' },
+    { key: 'timing', label: 'Blur/Gap', bipolar: true, scale: 500, fmt: v => (v >= 0 ? '+' : '−') + Math.round(Math.abs(v)) + 'ms' }
   ];
   const stats = {};
   ROWS.forEach(r => { stats[r.key] = { values: [] }; });
@@ -38,20 +43,20 @@
   function push(key, v) {
     const s = stats[key];
     s.values.push(v);
-    if (s.values.length > HISTORY) s.values.shift();
+    if (s.values.length > AVG_WINDOW) s.values.shift();
   }
 
-  function windowStats(key) {
-    const slice = stats[key].values.slice(-AVG_WINDOW);
-    if (!slice.length) return { avg: 0, sd: 0 };
-    const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
-    const variance = slice.reduce((a, b) => a + (b - avg) * (b - avg), 0) / slice.length;
-    return { avg, sd: Math.sqrt(variance) };
+  function meanSE(arr) {
+    if (!arr.length) return null;
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    if (arr.length < 2) return { mean, se: 0 };
+    const variance = arr.reduce((a, b) => a + (b - mean) * (b - mean), 0) / (arr.length - 1);
+    return { mean, se: Math.sqrt(variance / arr.length) };
   }
 
   // Pairs up adjacent notes (by onset order) regardless of pitch, and turns
   // each pair into one signed gap once both ends of the pair are known.
-  const onTimes = new Map(); // note -> { onset, pendingNextOnset }
+  const onTimes = new Map(); // note -> { onset, offset, pendingNextOnset }
   let prevEntry = null;
 
   function recordGap(v) {
@@ -65,80 +70,96 @@
     const row = document.createElement('div');
     row.className = 'midi-stat-row';
     row.setAttribute('data-tip', r.key === 'duration'
-      ? 'How long each note is held down, on average (bar, with the shaded band showing typical spread) and most recently (line).'
-      : 'Time from one note releasing to the next starting. Left of centre (red) = the notes overlapped — blurring. Right of centre (blue) = there was a gap. Long rests and deliberately held/overlapping notes are ignored.');
+      ? 'How long each note is held down. The diamond is the mean ± standard error of the last few notes (widest at the mean); the thin vertical line is the most recent one.'
+      : 'Time from one note releasing to the next starting. Red diamond (left) = mean ± SE of overlapping/blurred notes. Blue diamond (right) = mean ± SE of clean gaps. The thin vertical line is the most recent one. Long rests and deliberately held/overlapping notes are ignored.');
     row.innerHTML =
       '<div class="midi-stat-label">' + r.label + '</div>' +
-      '<div class="midi-stat-bar-track' + (r.kind === 'signed' ? ' signed' : '') + '">' +
-        (r.kind === 'signed' ? '<div class="midi-stat-zero"></div>' : '') +
-        '<div class="midi-stat-errbar"></div>' +
-        '<div class="midi-stat-bar-fill"></div>' +
-      '</div>' +
-      '<canvas class="midi-stat-spark" width="42" height="14"></canvas>' +
+      '<canvas class="midi-stat-plot" width="140" height="20"></canvas>' +
       '<div class="midi-stat-value">–</div>';
     wrap.appendChild(row);
     rowEls[r.key] = {
-      fill: row.querySelector('.midi-stat-bar-fill'),
-      err: row.querySelector('.midi-stat-errbar'),
-      canvas: row.querySelector('.midi-stat-spark'),
+      plot: row.querySelector('.midi-stat-plot'),
       value: row.querySelector('.midi-stat-value')
     };
   });
 
-  function renderBar(key) {
-    const r = ROWS.find(x => x.key === key);
-    const els = rowEls[key];
-    const { avg, sd } = windowStats(key);
-    if (r.kind === 'signed') {
-      const pct = v => Math.max(-50, Math.min(50, (v / r.scale) * 50));
-      const avgPct = pct(avg);
-      els.fill.style.left = (avgPct >= 0 ? 50 : 50 + avgPct) + '%';
-      els.fill.style.width = Math.abs(avgPct) + '%';
-      els.fill.classList.toggle('neg', avg < 0);
-      const loPct = pct(avg - sd), hiPct = pct(avg + sd);
-      els.err.style.left = (50 + Math.min(loPct, hiPct)) + '%';
-      els.err.style.width = Math.abs(hiPct - loPct) + '%';
-    } else {
-      const pct = v => Math.max(0, Math.min(100, (v / r.max) * 100));
-      els.fill.style.left = '0%';
-      els.fill.style.width = pct(avg) + '%';
-      const lo = pct(Math.max(0, avg - sd)), hi = pct(avg + sd);
-      els.err.style.left = lo + '%';
-      els.err.style.width = Math.max(0, hi - lo) + '%';
-    }
+  function drawDiamond(ctx, xMid, xLo, xHi, midY, halfH, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(xLo, midY);
+    ctx.lineTo(xMid, midY - halfH);
+    ctx.lineTo(xHi, midY);
+    ctx.lineTo(xMid, midY + halfH);
+    ctx.closePath();
+    ctx.fill();
   }
 
-  function drawSpark(key) {
+  function renderPlot(key) {
     const r = ROWS.find(x => x.key === key);
-    const s = stats[key];
-    const canvas = rowEls[key].canvas;
+    const canvas = rowEls[key].plot;
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
+    const midY = h / 2;
+    const pad = 5;
+    const halfH = h / 2 - 2;
     ctx.clearRect(0, 0, w, h);
-    if (r.kind === 'signed') {
+
+    const slice = stats[key].values;
+    const last = slice[slice.length - 1];
+
+    if (r.bipolar) {
+      const xForVal = v => w / 2 + Math.max(-1, Math.min(1, v / r.scale)) * (w / 2 - pad);
+      // baseline + zero notch
       ctx.strokeStyle = '#ccd3ea';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(0, h / 2);
-      ctx.lineTo(w, h / 2);
+      ctx.moveTo(pad, midY);
+      ctx.lineTo(w - pad, midY);
       ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(w / 2, midY);
+      ctx.lineTo(w / 2, midY + 4);
+      ctx.stroke();
+
+      const blurStat = meanSE(slice.filter(v => v < 0));
+      const gapStat = meanSE(slice.filter(v => v > 0));
+      [[blurStat, 'rgba(224, 80, 80, 0.75)'], [gapStat, 'rgba(58, 111, 224, 0.75)']].forEach(([stat, color]) => {
+        if (!stat) return;
+        drawDiamond(ctx, xForVal(stat.mean), xForVal(stat.mean - stat.se), xForVal(stat.mean + stat.se), midY, halfH, color);
+      });
+
+      if (last != null) {
+        const x = xForVal(last);
+        ctx.strokeStyle = last < 0 ? '#c0392b' : '#1a56db';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(x, 1);
+        ctx.lineTo(x, h - 1);
+        ctx.stroke();
+      }
+    } else {
+      const scale = Math.max(r.scale, last || 0);
+      const xForVal = v => pad + Math.max(0, Math.min(1, v / scale)) * (w - pad * 2);
+      ctx.strokeStyle = '#ccd3ea';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(pad, midY);
+      ctx.lineTo(w - pad, midY);
+      ctx.stroke();
+
+      const stat = meanSE(slice);
+      if (stat) drawDiamond(ctx, xForVal(stat.mean), xForVal(Math.max(0, stat.mean - stat.se)), xForVal(stat.mean + stat.se), midY, halfH, 'rgba(58, 111, 224, 0.75)');
+
+      if (last != null) {
+        const x = xForVal(last);
+        ctx.strokeStyle = '#1a56db';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(x, 1);
+        ctx.lineTo(x, h - 1);
+        ctx.stroke();
+      }
     }
-    if (s.values.length < 2) return;
-    const vals = s.values;
-    const max = r.kind === 'plain' ? Math.max(r.max, ...vals) : r.scale;
-    ctx.beginPath();
-    vals.forEach((v, i) => {
-      const x = (i / (HISTORY - 1)) * w;
-      const clamped = Math.max(-max, Math.min(max, v));
-      const y = r.kind === 'signed'
-        ? h / 2 - (clamped / max) * (h / 2 - 1)
-        : h - 1 - (Math.max(0, clamped) / max) * (h - 2);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.strokeStyle = r.kind === 'signed' ? '#7a4fd0' : '#3a6fe0';
-    ctx.lineWidth = 1.5;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
   }
 
   function render(key) {
@@ -146,8 +167,7 @@
     const s = stats[key];
     const last = s.values[s.values.length - 1];
     rowEls[key].value.textContent = last == null ? '–' : r.fmt(last);
-    renderBar(key);
-    drawSpark(key);
+    renderPlot(key);
   }
 
   function renderAll() { ROWS.forEach(r => render(r.key)); }
