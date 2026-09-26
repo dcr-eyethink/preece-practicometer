@@ -20,7 +20,7 @@
   const keysDown = new Set();   // physically held
   const sustained = new Set(); // released while the pedal was down — still sounding
   let pedalDown = false;
-  const noteOnFns = [], heldFns = [], chordFns = [], statusFns = [], pedalFns = [];
+  const noteOnFns = [], noteOffFns = [], heldFns = [], chordFns = [], statusFns = [], pedalFns = [];
   let status = { state: 'idle', names: [] }; // idle | unsupported | denied | ready
   let started = false;
   let burst = [], burstTimer = null;
@@ -46,6 +46,7 @@
       emitHeld();
     } else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
       if (!keysDown.delete(note)) return;
+      noteOffFns.forEach(fn => fn(note));
       if (pedalDown) sustained.add(note);
       emitHeld();
     } else if (cmd === 0xb0 && note === 64) { // sustain pedal
@@ -181,6 +182,7 @@
     getStatus: () => status,
     getHeld: heldNotes,
     onNoteOn: fn => subscribe(noteOnFns, fn),
+    onNoteOff: fn => subscribe(noteOffFns, fn),
     onHeldChange: fn => subscribe(heldFns, fn),
     onChord: fn => subscribe(chordFns, fn),
     onPedal: fn => subscribe(pedalFns, fn),

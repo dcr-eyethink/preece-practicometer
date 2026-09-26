@@ -29,6 +29,7 @@
     circle.style.display = hidden ? 'none' : '';
     showBtn.style.display = hidden ? '' : 'none';
     wrap.classList.toggle('collapsed', hidden);
+    if (window.MidiStatsSync) window.MidiStatsSync();
   }
 
   function musical(name) { return window.musicalChord ? window.musicalChord(name) : name; }

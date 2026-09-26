@@ -391,9 +391,12 @@
   .midi-box.match { border-color: #2fa35a; background: #e6f8eb; }
   .midi-box-head { position: absolute; top: 6px; left: 14px; right: 8px; display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
   .midi-box-head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .midi-hide-btn, .midi-show-btn { font: inherit; color: #888; background: none; border: none; cursor: pointer; line-height: 1; }
-  .midi-hide-btn { font-size: 16px; padding: 0 3px; }
-  .midi-hide-btn:hover { color: #333; }
+  .midi-box-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+  .midi-hide-btn, .midi-show-btn, .midi-stats-btn { font: inherit; color: #888; background: none; border: none; cursor: pointer; line-height: 1; }
+  .midi-hide-btn, .midi-stats-btn { font-size: 13px; padding: 0 3px; }
+  .midi-hide-btn { font-size: 16px; }
+  .midi-hide-btn:hover, .midi-stats-btn:hover { color: #333; }
+  .midi-stats-btn.active { color: #1a56db; }
   .midi-show-btn { font-size: 12px; border: 1px solid #ddd; border-radius: 12px; padding: 4px 12px; }
   .midi-show-btn:hover { background: #f3f3f3; }
   .midi-chord { font-size: 34px; font-weight: 700; color: #1a3060; line-height: 1.1; max-width: 100%; text-align: center; overflow-wrap: anywhere; }
@@ -401,6 +404,15 @@
   .midi-chord.long { font-size: 22px; }
   .midi-notes { font-size: 15px; color: #556; line-height: 1.3; max-width: 100%; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .midi-box.idle .midi-chord { color: #c3cbe0; font-weight: 400; }
+
+  /* ---- Live MIDI stats (duration / interval / blurring), toggled from the readout ---- */
+  .midi-stats { margin-top: 8px; border: 1.5px solid #d5def0; border-radius: 12px; background: #f6f8fd; padding: 8px 10px; display: flex; flex-direction: column; gap: 7px; }
+  .midi-stat-row { display: flex; align-items: center; gap: 6px; }
+  .midi-stat-label { font-size: 10px; color: #778; width: 58px; flex-shrink: 0; line-height: 1.2; }
+  .midi-stat-bar-track { flex: 1; height: 6px; background: #e2e8f8; border-radius: 3px; overflow: hidden; min-width: 0; }
+  .midi-stat-bar-fill { height: 100%; width: 0%; background: #3a6fe0; border-radius: 3px; transition: width 0.25s; }
+  .midi-stat-spark { width: 56px; height: 20px; flex-shrink: 0; }
+  .midi-stat-value { font-size: 11px; font-variant-numeric: tabular-nums; color: #1a3060; width: 38px; text-align: right; flex-shrink: 0; }
   .midi-unsupported { font-size: 12px; line-height: 1.4; color: #8a6d3b; background: #fdf6e3; border: 1px solid #f0e0b0; border-radius: 10px; padding: 8px 12px; margin-bottom: 1.5rem; text-align: center; }
 
   /* ---- Home panel: right-hand slot at startup; the timer, scores library or notes replace it ---- */
@@ -567,10 +579,11 @@
 <div class="metro-panel">
   <div class="midi-readout" id="midiReadout" style="display:none">
     <div class="midi-box idle" id="midiCircle" data-tip="What you're playing on your MIDI keyboard right now. If it matches a square in the Chord Grid or Randomiser, that square turns green.">
-      <div class="midi-box-head"><span id="midiDeviceLabel">MIDI</span><button class="midi-hide-btn" id="midiHideBtn" data-tip="Hide the live MIDI readout.">×</button></div>
+      <div class="midi-box-head"><span id="midiDeviceLabel">MIDI</span><div class="midi-box-actions"><button class="midi-stats-btn" id="midiStatsBtn" data-tip="Show live playing stats: note duration, note interval and blurring (notes overlapping).">📊</button><button class="midi-hide-btn" id="midiHideBtn" data-tip="Hide the live MIDI readout.">×</button></div></div>
       <div class="midi-chord" id="midiChord">–</div>
       <div class="midi-notes" id="midiNotes"></div>
     </div>
+    <div class="midi-stats" id="midiStats" style="display:none"></div>
     <button class="midi-show-btn" id="midiShowBtn" style="display:none" data-tip="Show the live readout of the notes and chords you play on your MIDI keyboard.">🎹 MIDI</button>
   </div>
   <div class="midi-unsupported" id="midiUnsupported" style="display:none">
@@ -2491,6 +2504,7 @@
 <script src="eartraining.js" defer></script>
 <script src="chordsequence.js" defer></script>
 <script src="midi-readout.js" defer></script>
+<script src="midi-stats.js" defer></script>
 <script src="tooltips.js" defer></script>
 </body>
 </html>
