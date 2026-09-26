@@ -34,13 +34,13 @@
   const toggleBtn = document.getElementById('midiStatsBtn');
   if (!M || !wrap || !circle || !toggleBtn) return;
 
-  const PREF_KEY = 'midiStatsShown';
   const AVG_WINDOW = 8;          // samples folded into the rolling mean/SE
   const MAX_INTERVAL_MS = 1000;  // gaps longer than this are a rest, not counted
   const MAX_BLUR_MS = 500;       // overlaps longer than this are intentional, not counted
 
+  // Always starts off — it's a diagnostic add-on, not something to leave
+  // running by default, even if it was switched on in an earlier session.
   let shown = false;
-  try { shown = localStorage.getItem(PREF_KEY) === '1'; } catch (e) {}
 
   const ROWS = [
     { key: 'duration', label: 'Duration', bipolar: false, baseScale: 500, fmt: v => Math.round(v) + 'ms' },
@@ -144,18 +144,11 @@
 
     if (r.bipolar) {
       const xForVal = v => w / 2 + Math.max(-1, Math.min(1, v / scale)) * (w / 2 - pad);
-      // baseline + a bigger zero notch
       ctx.strokeStyle = '#ccd3ea';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(pad, midY);
       ctx.lineTo(w - pad, midY);
-      ctx.stroke();
-      ctx.strokeStyle = '#98a6cc';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(w / 2, midY - 2);
-      ctx.lineTo(w / 2, midY + 7);
       ctx.stroke();
 
       drawDots(ctx, slice, xForVal, midY, halfH, v => v < 0 ? 'rgba(224, 80, 80, 0.5)' : 'rgba(58, 111, 224, 0.5)');
@@ -172,6 +165,15 @@
         ctx.lineTo(x, h - 1);
         ctx.stroke();
       }
+
+      // Zero notch drawn last, full height, so it stays visible cutting
+      // through the diamond/dots rather than being buried under them.
+      ctx.strokeStyle = '#5a6fa8';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(w / 2, 0);
+      ctx.lineTo(w / 2, h);
+      ctx.stroke();
     } else {
       const xForVal = v => pad + Math.max(0, Math.min(1, v / scale)) * (w - pad * 2);
       ctx.strokeStyle = '#ccd3ea';
@@ -242,7 +244,6 @@
 
   toggleBtn.addEventListener('click', () => {
     shown = !shown;
-    try { localStorage.setItem(PREF_KEY, shown ? '1' : '0'); } catch (e) {}
     applyVisibility();
   });
 
