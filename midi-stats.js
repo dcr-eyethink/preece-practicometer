@@ -9,15 +9,13 @@
 // plus a thin vertical tick for the most recent value, which switches
 // colour on the Blur/Gap row.
 //
-// The axis zooms to the last 16 notes: it widens immediately to fit an
-// outlier, and — the more interesting direction — zooms back IN to show
-// detail once the last 16 are all sitting in a narrow band, rather than
-// resting at some fixed default range. Endpoints are always rounded to a
-// "nice" step (multiples of 50ms for Duration, 10ms for Blur/Gap) and the
-// axis always includes 0. There's no separate "zoomed in/out" state to
-// track — the range is just recomputed fresh from the last 16 every
-// render — and the current endpoints are printed in small text under the
-// axis.
+// The axis zooms to fit the last 16 notes, in and out, rather than resting
+// at some fixed default range — but it eases toward that target in fixed
+// 100ms steps per note (not an instant jump), so it settles down instead of
+// jumping around on every note. Endpoints are always rounded to a "nice"
+// step (multiples of 50ms for Duration, 10ms for Blur/Gap) and the axis
+// always includes 0. The current endpoints are printed in small text under
+// the axis.
 //
 // Duration is one-sided. Blur/Gap is signed: for each adjacent pair of
 // notes (in onset order) there's a single gap, releaseOfPrevious ->
@@ -40,6 +38,7 @@
 
   const DOT_WINDOW = 8;           // notes shown as dots, and folded into the mean/SD
   const ZOOM_WINDOW = 16;         // notes considered when choosing the axis range
+  const SCALE_STEP_MS = 100;      // max the displayed axis is allowed to move per note
   const MAX_INTERVAL_MS = 1000;   // gaps longer than this are a rest, not counted
   const MAX_BLUR_MS = 500;        // overlaps longer than this are intentional, not counted
 
@@ -52,7 +51,7 @@
     { key: 'timing', label: 'Blur/Gap', bipolar: true, step: 10, fmt: v => (v >= 0 ? '+' : '−') + Math.round(Math.abs(v)) + 'ms' }
   ];
   const stats = {};
-  ROWS.forEach(r => { stats[r.key] = { values: [] }; });
+  ROWS.forEach(r => { stats[r.key] = { values: [], curScale: null }; });
 
   function push(key, v) {
     const s = stats[key];
@@ -68,14 +67,25 @@
     return { mean, sd: Math.sqrt(variance) };
   }
 
-  // Rounds up to the row's "nice" step, so the axis always lands on a
-  // sensible number (multiples of 50ms / 10ms) rather than an arbitrary
-  // outlier value. Looks at the last 16 notes, not just the 8 that get
-  // dots — a wider net for deciding how zoomed-in it's safe to be.
-  function scaleFor(r, allValues) {
+  // The scale the axis "wants" to be at: rounded up to the row's nice step
+  // (multiples of 50ms / 10ms), from the last 16 notes rather than just the
+  // 8 that get dots — a wider net for deciding how zoomed-in it's safe to be.
+  function targetScale(r, allValues) {
     const zoomSlice = allValues.slice(-ZOOM_WINDOW);
     const maxAbs = zoomSlice.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
     return Math.max(r.step, Math.ceil(maxAbs / r.step) * r.step);
+  }
+
+  // Eases the displayed scale toward the target by at most SCALE_STEP_MS
+  // per note, instead of snapping straight to it — so the axis settles
+  // rather than jumping around on every single note.
+  function scaleFor(key, r, allValues) {
+    const target = targetScale(r, allValues);
+    const s = stats[key];
+    if (s.curScale == null) { s.curScale = target; return target; }
+    if (s.curScale < target) s.curScale = Math.min(target, s.curScale + SCALE_STEP_MS);
+    else if (s.curScale > target) s.curScale = Math.max(target, s.curScale - SCALE_STEP_MS);
+    return s.curScale;
   }
 
   // Pairs up adjacent notes (by onset order) regardless of pitch, and turns
@@ -151,7 +161,7 @@
     const full = stats[key].values;
     const dotSlice = full.slice(-DOT_WINDOW);
     const last = dotSlice[dotSlice.length - 1];
-    const scale = scaleFor(r, full);
+    const scale = scaleFor(key, r, full);
 
     ctx.font = '7px sans-serif';
     ctx.fillStyle = '#9aa4c0';
@@ -256,6 +266,18 @@
     onTimes.delete(note);
   });
 
+  // Just resyncs the box's 'has-stats' class, without re-rendering the
+  // plots — midi-readout.js calls this after every note (its own render()
+  // resets the box's whole className, which would otherwise wipe this
+  // class), so it must stay cheap and side-effect-free on the actual stats
+  // data. The data itself is redrawn directly by the onNoteOn/onNoteOff
+  // handlers below, exactly once per note.
+  function syncClass() {
+    const active = shown && circle.style.display !== 'none';
+    circle.classList.toggle('has-stats', active);
+  }
+  window.MidiStatsSync = syncClass;
+
   function applyVisibility() {
     const collapsed = circle.style.display === 'none';
     const active = shown && !collapsed;
@@ -264,7 +286,6 @@
     toggleBtn.classList.toggle('active', shown);
     if (active) renderAll();
   }
-  window.MidiStatsSync = applyVisibility;
 
   toggleBtn.addEventListener('click', () => {
     shown = !shown;
