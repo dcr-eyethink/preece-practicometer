@@ -2,18 +2,18 @@
 // timing between one note ending and the next starting. Off by default;
 // toggled from the small chart button in the MIDI readout header.
 //
-// Both rows use the same plot: a mean-±-SE diamond (widest at the mean,
-// tapering to points at mean±SE) plus a thin vertical tick for the most
-// recent value.
+// Both rows use the same plot: a mean-±-SE diamond in blue (widest at the
+// mean, tapering to points at mean±SE) plus a thin vertical tick for the
+// most recent value, which switches colour on the Blur/Gap row.
 //
 // Duration is one-sided (0 up to some max). Blur/Gap is signed: for each
 // adjacent pair of notes (in onset order) there's a single gap,
 // releaseOfPrevious -> onsetOfNext. Negative means the notes overlapped
-// (blurring); positive means there was a gap (a clean separation). Blur and
-// gap are kept as two separate rolling distributions, plotted either side
-// of a shared zero notch: blur's diamond in red to the left, gap's diamond
-// in blue to the right. Perfectly clean legato playing keeps everything
-// sitting on zero.
+// (blurring); positive means there was a gap (a clean separation). The
+// rolling mean/SE is one blue diamond over the signed values either side of
+// a zero notch; the current-value tick is red when it's a blur (negative)
+// and blue when it's a gap (positive). Perfectly clean legato playing keeps
+// everything sitting on zero.
 //
 // A very long gap is just a rest, not a timing issue, and a long overlap is
 // a deliberately held chord/legato pedal, not blurring — both are filtered
@@ -26,7 +26,7 @@
   if (!M || !wrap || !circle || !toggleBtn) return;
 
   const PREF_KEY = 'midiStatsShown';
-  const AVG_WINDOW = 16;         // samples folded into the rolling mean/SE
+  const AVG_WINDOW = 8;          // samples folded into the rolling mean/SE
   const MAX_INTERVAL_MS = 1000;  // gaps longer than this are a rest, not counted
   const MAX_BLUR_MS = 500;       // overlaps longer than this are intentional, not counted
 
@@ -70,8 +70,8 @@
     const row = document.createElement('div');
     row.className = 'midi-stat-row';
     row.setAttribute('data-tip', r.key === 'duration'
-      ? 'How long each note is held down. The diamond is the mean ± standard error of the last few notes (widest at the mean); the thin vertical line is the most recent one.'
-      : 'Time from one note releasing to the next starting. Red diamond (left) = mean ± SE of overlapping/blurred notes. Blue diamond (right) = mean ± SE of clean gaps. The thin vertical line is the most recent one. Long rests and deliberately held/overlapping notes are ignored.');
+      ? 'How long each note is held down. The blue diamond is the mean ± standard error of the last 8 notes (widest at the mean); the thin vertical line is the most recent one.'
+      : 'Time from one note releasing to the next starting — negative (left of the notch) means the notes overlapped (blurring), positive (right) means there was a gap. The blue diamond is the mean ± SE of the last 8. The thin vertical line is the most recent one, red for a blur and blue for a gap. Long rests and deliberately held/overlapping notes are ignored.');
     row.innerHTML =
       '<div class="midi-stat-label">' + r.label + '</div>' +
       '<canvas class="midi-stat-plot" width="140" height="20"></canvas>' +
@@ -109,24 +109,22 @@
 
     if (r.bipolar) {
       const xForVal = v => w / 2 + Math.max(-1, Math.min(1, v / r.scale)) * (w / 2 - pad);
-      // baseline + zero notch
+      // baseline + a bigger zero notch
       ctx.strokeStyle = '#ccd3ea';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(pad, midY);
       ctx.lineTo(w - pad, midY);
       ctx.stroke();
+      ctx.strokeStyle = '#98a6cc';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(w / 2, midY);
-      ctx.lineTo(w / 2, midY + 4);
+      ctx.moveTo(w / 2, midY - 2);
+      ctx.lineTo(w / 2, midY + 7);
       ctx.stroke();
 
-      const blurStat = meanSE(slice.filter(v => v < 0));
-      const gapStat = meanSE(slice.filter(v => v > 0));
-      [[blurStat, 'rgba(224, 80, 80, 0.75)'], [gapStat, 'rgba(58, 111, 224, 0.75)']].forEach(([stat, color]) => {
-        if (!stat) return;
-        drawDiamond(ctx, xForVal(stat.mean), xForVal(stat.mean - stat.se), xForVal(stat.mean + stat.se), midY, halfH, color);
-      });
+      const stat = meanSE(slice);
+      if (stat) drawDiamond(ctx, xForVal(stat.mean), xForVal(stat.mean - stat.se), xForVal(stat.mean + stat.se), midY, halfH, 'rgba(58, 111, 224, 0.75)');
 
       if (last != null) {
         const x = xForVal(last);

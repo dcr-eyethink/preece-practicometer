@@ -52,6 +52,10 @@
       chordEl.textContent = '–';
       notesEl.textContent = '';
       updateGrid();
+      // circle.className above wipes any class another module (e.g. the
+      // stats readout) added directly to the box — resync it every render,
+      // since this runs on every note played/released, not just on toggle.
+      if (window.MidiStatsSync) window.MidiStatsSync();
       return;
     }
     const withOctaves = shown.map(M.noteName).join(' ');
@@ -66,6 +70,7 @@
     }
     notesEl.textContent = withOctaves.replace(/([A-G])b/g, '$1♭').replace(/([A-G])#/g, '$1♯');
     circle.className = 'midi-box playing' + (updateGrid() > 0 ? ' match' : '');
+    if (window.MidiStatsSync) window.MidiStatsSync();
   }
 
   M.onHeldChange(held => {
