@@ -18,13 +18,20 @@
 // the axis.
 //
 // Duration is one-sided. Blur/Gap is signed: for each adjacent pair of
-// notes (in onset order) there's a single gap, releaseOfPrevious ->
-// onsetOfNext. Negative means the notes overlapped (blurring); positive
-// means there was a gap (a clean separation). The rolling mean/SD is one
-// blue diamond over the signed values either side of a zero notch; the
-// current-value tick is red when it's a blur (negative) and blue when it's
-// a gap (positive). Perfectly clean legato playing keeps everything sitting
-// on zero.
+// notes there's a single gap, releaseOfPrevious -> onsetOfNext. Negative
+// means the notes overlapped (blurring); positive means there was a gap (a
+// clean separation). The rolling mean/SD is one blue diamond over the
+// signed values either side of a zero notch; the current-value tick is red
+// when it's a blur (negative) and blue when it's a gap (positive).
+// Perfectly clean legato playing keeps everything sitting on zero.
+//
+// Notes aren't simply paired in onset order, though — two hands playing the
+// same line an octave (or more) apart would otherwise look like constant
+// blurring between the hands. Notes struck within ~50ms of each other form
+// a "cluster" (both hands hitting a note together, or a chord); pairing
+// only happens ACROSS clusters, one-to-one by sorted pitch position
+// (lowest note pairs with the previous cluster's lowest, etc.), so C2+C3
+// then D2+D3 pairs C2->D2 and C3->D3, never C2->C3.
 //
 // A very long gap is just a rest, not a timing issue, and a long overlap is
 // a deliberately held chord/legato pedal, not blurring — both are filtered
@@ -88,10 +95,34 @@
     return s.curScale;
   }
 
-  // Pairs up adjacent notes (by onset order) regardless of pitch, and turns
-  // each pair into one signed gap once both ends of the pair are known.
+  // Notes struck within this long of each other are one "cluster" — e.g.
+  // both hands hitting a scale degree (or a chord) near-simultaneously.
+  // Notes inside the same cluster are never paired with each other (that's
+  // what stops two hands playing the same line in octaves from registering
+  // as constant blurring); pairing only happens ACROSS clusters, matching
+  // each cluster's notes to the previous cluster's by sorted pitch position
+  // (lowest-with-lowest, next-with-next, ...) — so C2-C3 then D2-D3 pairs
+  // C2->D2 and C3->D3, not C2->C3 or C3->D2.
+  const CLUSTER_WINDOW_MS = 50;
+
   const onTimes = new Map(); // note -> { onset, offset, pendingNextOnset }
-  let prevEntry = null;
+  let clusterNotes = [];     // pending cluster: [{ note, entry }]
+  let clusterTimer = null;
+  let prevVoices = [];       // previous cluster, sorted by pitch: [{ note, entry }]
+
+  function flushCluster() {
+    clusterTimer = null;
+    const cluster = clusterNotes.slice().sort((a, b) => a.note - b.note);
+    clusterNotes = [];
+    const n = Math.min(cluster.length, prevVoices.length);
+    for (let i = 0; i < n; i++) {
+      const prevEntry = prevVoices[i].entry;
+      const newEntry = cluster[i].entry;
+      if (prevEntry.offset != null) recordGap(newEntry.onset - prevEntry.offset);
+      else prevEntry.pendingNextOnset = newEntry.onset;
+    }
+    prevVoices = cluster;
+  }
 
   function recordGap(v) {
     if (v > MAX_INTERVAL_MS || v < -MAX_BLUR_MS) return;
@@ -247,12 +278,10 @@
   M.onNoteOn(note => {
     const now = performance.now();
     const entry = { onset: now, offset: null, pendingNextOnset: null };
-    if (prevEntry) {
-      if (prevEntry.offset != null) recordGap(now - prevEntry.offset);
-      else prevEntry.pendingNextOnset = now;
-    }
     onTimes.set(note, entry);
-    prevEntry = entry;
+    clusterNotes.push({ note, entry });
+    clearTimeout(clusterTimer);
+    clusterTimer = setTimeout(flushCluster, CLUSTER_WINDOW_MS);
   });
 
   M.onNoteOff(note => {
