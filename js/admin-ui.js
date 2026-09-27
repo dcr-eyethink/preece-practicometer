@@ -89,7 +89,9 @@
 
       const name = document.createElement('span');
       name.className = 'admin-set-name';
-      name.textContent = set.name + ' (' + set.itemCount + (set.itemCount === 1 ? ' item' : ' items') + ')';
+      const itemLabel = set.itemCount + (set.itemCount === 1 ? ' item' : ' items');
+      const updatedLabel = set.updatedAt ? ', updated ' + new Date(set.updatedAt).toLocaleString() : '';
+      name.textContent = set.name + ' (' + itemLabel + updatedLabel + ')';
       li.appendChild(name);
 
       const select = document.createElement('select');
@@ -155,6 +157,25 @@
         }
       });
       li.appendChild(moveBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn admin-set-delete-btn';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.addEventListener('click', async () => {
+        if (!window.confirm('Permanently delete "' + set.name + '" from ' + selectedUser.email + '? This cannot be undone.')) return;
+        try {
+          deleteBtn.disabled = true;
+          await window.api.adminDeleteSet(set.id);
+          showStatus('Deleted "' + set.name + '".');
+          loadDetail(selectedUser);
+        } catch (err) {
+          console.error('adminDeleteSet failed:', err);
+          showStatus((err && err.message) || 'Delete failed.', true);
+        } finally {
+          deleteBtn.disabled = false;
+        }
+      });
+      li.appendChild(deleteBtn);
 
       setsList.appendChild(li);
     });

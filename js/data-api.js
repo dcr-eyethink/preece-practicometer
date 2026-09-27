@@ -139,7 +139,11 @@
     const { error } = await client
       .from(TABLE)
       .insert(templateSets.map(s => ({ user_id: newUserId, name: s.name, rows: remapRows(s.rows) })));
-    if (error) throw error;
+    // A unique-violation here means another concurrent load (e.g. the same
+    // brand-new account opened in two tabs at once) already inserted these
+    // same-named rows first — nothing went wrong, this racer just lost;
+    // report success so the caller reloads and shows what the winner seeded.
+    if (error && error.code !== '23505') throw error;
     return true;
   }
 
@@ -196,7 +200,9 @@
     const { error } = await client
       .from(TABLE)
       .insert(defaultSets.map(s => ({ user_id: userId, name: s.name, rows: resolveRows(s.rows) })));
-    if (error) throw error;
+    // Same race as cloneFromTemplateAccount above: a unique-violation means
+    // another concurrent load already seeded these defaults first.
+    if (error && error.code !== '23505') throw error;
     return true;
   }
 
@@ -454,11 +460,16 @@
     requireClient();
     const { data, error } = await client
       .from(TABLE)
-      .select('id, name, rows')
+      .select('id, name, rows, updated_at')
       .eq('user_id', userId)
       .order('name', { ascending: true });
     if (error) throw error;
-    return data.map(s => ({ id: s.id, name: s.name, itemCount: (s.rows || []).length }));
+    return data.map(s => ({
+      id: s.id,
+      name: s.name,
+      itemCount: (s.rows || []).length,
+      updatedAt: s.updated_at
+    }));
   }
 
   async function adminListUserLog(userId) {
@@ -536,6 +547,17 @@
     return newSet;
   }
 
+  // Permanently removes one practice list — e.g. cleaning up an accidental
+  // duplicate (see the race-condition guards in cloneFromTemplateAccount/
+  // seedDefaultsIfEmpty above). Does not touch any scores its rows reference,
+  // since those may still be used by the account's other lists.
+  async function adminDeleteSet(setId) {
+    requireClient();
+    const { error } = await client.from(TABLE).delete().eq('id', setId);
+    if (error) throw error;
+    return true;
+  }
+
   window.api = {
     listSets, readCSV, saveCSV, renameCSV, duplicateCSV, createSet,
     resizeWindow, getWindowSize, seedDefaultsIfEmpty,
@@ -544,6 +566,6 @@
     listPracticeLog, updatePracticeLogEntry, deletePracticeLogEntry,
     currentUserEmail, isFeedbackAdmin, submitFeedback, listFeedback,
     startUserSession, touchUserSession, trackFunctionUsage, listUserSessions,
-    adminListUsers, adminListUserSets, adminListUserLog, adminCopySet, adminMoveSet
+    adminListUsers, adminListUserSets, adminListUserLog, adminCopySet, adminMoveSet, adminDeleteSet
   };
 })();
