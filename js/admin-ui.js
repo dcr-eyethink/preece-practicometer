@@ -85,11 +85,14 @@
 
     sets.forEach(set => {
       const li = document.createElement('li');
-      li.className = 'admin-set-item';
+      li.className = 'admin-set-item' + (set.archived ? ' admin-set-archived' : '');
 
       const name = document.createElement('span');
       name.className = 'admin-set-name';
-      name.textContent = set.name + ' (' + set.itemCount + (set.itemCount === 1 ? ' item' : ' items') + ')';
+      const itemLabel = set.itemCount + (set.itemCount === 1 ? ' item' : ' items');
+      const updatedLabel = set.updatedAt ? ', updated ' + new Date(set.updatedAt).toLocaleString() : '';
+      const archivedLabel = set.archived ? ' — archived' : '';
+      name.textContent = set.name + ' (' + itemLabel + updatedLabel + ')' + archivedLabel;
       li.appendChild(name);
 
       const select = document.createElement('select');
@@ -155,6 +158,46 @@
         }
       });
       li.appendChild(moveBtn);
+
+      if (set.archived) {
+        const restoreBtn = document.createElement('button');
+        restoreBtn.className = 'btn';
+        restoreBtn.textContent = 'Restore';
+        restoreBtn.addEventListener('click', async () => {
+          try {
+            restoreBtn.disabled = true;
+            await window.api.adminRestoreSet(set.id);
+            showStatus('Restored "' + set.name + '" for ' + selectedUser.email + '.');
+            loadDetail(selectedUser);
+          } catch (err) {
+            console.error('adminRestoreSet failed:', err);
+            showStatus((err && err.message) || 'Restore failed.', true);
+          } finally {
+            restoreBtn.disabled = false;
+          }
+        });
+        li.appendChild(restoreBtn);
+      }
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn admin-set-delete-btn';
+      deleteBtn.innerHTML = '<img src="icons/trash.png" alt="Delete">';
+      deleteBtn.setAttribute('title', 'Permanently delete');
+      deleteBtn.addEventListener('click', async () => {
+        if (!window.confirm('Permanently delete "' + set.name + '" from ' + selectedUser.email + '? This cannot be undone.')) return;
+        try {
+          deleteBtn.disabled = true;
+          await window.api.adminDeleteSet(set.id);
+          showStatus('Deleted "' + set.name + '".');
+          loadDetail(selectedUser);
+        } catch (err) {
+          console.error('adminDeleteSet failed:', err);
+          showStatus((err && err.message) || 'Delete failed.', true);
+        } finally {
+          deleteBtn.disabled = false;
+        }
+      });
+      li.appendChild(deleteBtn);
 
       setsList.appendChild(li);
     });

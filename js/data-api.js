@@ -16,12 +16,29 @@
 
   async function listSets() {
     requireClient();
-    const { data, error } = await client
+    let { data, error } = await client
       .from(TABLE)
       .select('id, name')
+      .eq('archived', false)
       .order('name', { ascending: true });
+    if (error && error.code === '42703') {
+      // supabase/archive_practice_sets.sql hasn't been run yet on this
+      // project — fall back to the unfiltered query rather than breaking
+      // every sign-in until it is.
+      ({ data, error } = await client.from(TABLE).select('id, name').order('name', { ascending: true }));
+    }
     if (error) throw error;
     return data.map(r => ({ name: r.name, path: r.id }));
+  }
+
+  // Soft-delete: hides the list from the owner's own view (listSets above)
+  // without losing it — an admin can bring it back via adminRestoreSet, see
+  // js/admin-ui.js's Restore button.
+  async function archiveSet(id) {
+    requireClient();
+    const { error } = await client.from(TABLE).update({ archived: true }).eq('id', id);
+    if (error) throw error;
+    return true;
   }
 
   async function readCSV(id) {
@@ -63,10 +80,15 @@
   }
 
   async function uniqueName(userId, base) {
-    const { data: existingNames, error } = await client
+    let { data: existingNames, error } = await client
       .from(TABLE)
       .select('name')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .eq('archived', false);
+    if (error && error.code === '42703') {
+      // supabase/archive_practice_sets.sql hasn't been run yet.
+      ({ data: existingNames, error } = await client.from(TABLE).select('name').eq('user_id', userId));
+    }
     if (error) throw error;
     const taken = new Set((existingNames || []).map(r => r.name));
     if (!taken.has(base)) return base;
@@ -139,7 +161,11 @@
     const { error } = await client
       .from(TABLE)
       .insert(templateSets.map(s => ({ user_id: newUserId, name: s.name, rows: remapRows(s.rows) })));
-    if (error) throw error;
+    // A unique-violation here means another concurrent load (e.g. the same
+    // brand-new account opened in two tabs at once) already inserted these
+    // same-named rows first — nothing went wrong, this racer just lost;
+    // report success so the caller reloads and shows what the winner seeded.
+    if (error && error.code !== '23505') throw error;
     return true;
   }
 
@@ -196,7 +222,9 @@
     const { error } = await client
       .from(TABLE)
       .insert(defaultSets.map(s => ({ user_id: userId, name: s.name, rows: resolveRows(s.rows) })));
-    if (error) throw error;
+    // Same race as cloneFromTemplateAccount above: a unique-violation means
+    // another concurrent load already seeded these defaults first.
+    if (error && error.code !== '23505') throw error;
     return true;
   }
 
@@ -452,13 +480,34 @@
 
   async function adminListUserSets(userId) {
     requireClient();
-    const { data, error } = await client
+    let { data, error } = await client
       .from(TABLE)
-      .select('id, name, rows')
+      .select('id, name, rows, updated_at, archived')
       .eq('user_id', userId)
       .order('name', { ascending: true });
+    if (error && error.code === '42703') {
+      // supabase/archive_practice_sets.sql hasn't been run yet — fall back
+      // without the archived column rather than breaking the dashboard.
+      ({ data, error } = await client
+        .from(TABLE).select('id, name, rows, updated_at').eq('user_id', userId).order('name', { ascending: true }));
+    }
     if (error) throw error;
-    return data.map(s => ({ id: s.id, name: s.name, itemCount: (s.rows || []).length }));
+    return data.map(s => ({
+      id: s.id,
+      name: s.name,
+      itemCount: (s.rows || []).length,
+      updatedAt: s.updated_at,
+      archived: !!s.archived
+    }));
+  }
+
+  // Un-archives a list an owner soft-deleted (see archiveSet above), making
+  // it reappear in their own view.
+  async function adminRestoreSet(setId) {
+    requireClient();
+    const { error } = await client.from(TABLE).update({ archived: false }).eq('id', setId);
+    if (error) throw error;
+    return true;
   }
 
   async function adminListUserLog(userId) {
@@ -536,6 +585,17 @@
     return newSet;
   }
 
+  // Permanently removes one practice list — e.g. cleaning up an accidental
+  // duplicate (see the race-condition guards in cloneFromTemplateAccount/
+  // seedDefaultsIfEmpty above). Does not touch any scores its rows reference,
+  // since those may still be used by the account's other lists.
+  async function adminDeleteSet(setId) {
+    requireClient();
+    const { error } = await client.from(TABLE).delete().eq('id', setId);
+    if (error) throw error;
+    return true;
+  }
+
   window.api = {
     listSets, readCSV, saveCSV, renameCSV, duplicateCSV, createSet,
     resizeWindow, getWindowSize, seedDefaultsIfEmpty,
@@ -544,6 +604,7 @@
     listPracticeLog, updatePracticeLogEntry, deletePracticeLogEntry,
     currentUserEmail, isFeedbackAdmin, submitFeedback, listFeedback,
     startUserSession, touchUserSession, trackFunctionUsage, listUserSessions,
-    adminListUsers, adminListUserSets, adminListUserLog, adminCopySet, adminMoveSet
+    adminListUsers, adminListUserSets, adminListUserLog, adminCopySet, adminMoveSet, adminDeleteSet,
+    archiveSet, adminRestoreSet
   };
 })();
