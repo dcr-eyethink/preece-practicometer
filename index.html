@@ -144,12 +144,11 @@
   .insert-menu-item:hover { background: #f0f4ff; }
   .insert-menu-empty { padding: 6px 8px 10px; font-size: 13px; color: #aaa; font-style: italic; }
   th.col-actions { width: 56px; }
-  th#thActions { width: 108px; }
-  td.row-actions { white-space: nowrap; }
   .drag-handle { cursor: grab; color: #bbb; font-size: 16px; padding: 4px 6px; user-select: none; }
   .activity-cell { display: flex; align-items: center; }
   .activity-cell input { width: auto; flex: 1; min-width: 0; }
   .row-kind-icon { width: 22px; height: 22px; border-radius: 5px; margin-right: 8px; flex-shrink: 0; }
+  .row-kind-slot { width: 22px; height: 22px; margin-right: 8px; padding: 0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; }
   .drag-handle:active { cursor: grabbing; }
   tr.dragging { opacity: 0.4; }
   tr.drag-over td { border-top: 2px solid #1a56db; }
@@ -161,7 +160,6 @@
   .row-toolbar { margin-left: auto; margin-bottom: 0; gap: 6px; flex-wrap: nowrap; flex-shrink: 0; }
   .icon-action-btn-sm { padding: 2px; border-radius: 10px; }
   .icon-action-btn-sm img { width: 24px; height: 24px; border-radius: 5px; }
-  .new-row-glyph { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 5px; background: #1a8f8a; color: #fff; font-size: 16px; font-weight: 700; line-height: 1; }
   .scale-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
   .scale-row input[type=range] { flex: 1; }
   .scale-label { font-size: 12px; color: #888; min-width: 28px; }
@@ -926,7 +924,7 @@
         <span class="total-label">Total practice time:</span>
         <span class="total-time-group"><span class="total-value" id="totalValue">0</span><span class="total-unit">min</span></span>
         <div class="toolbar row-toolbar">
-          <button class="icon-action-btn icon-action-btn-sm" id="newRowBtn" data-tip="Add a new item to the bottom of the list."><span class="new-row-glyph">+</span></button>
+          <button class="icon-action-btn icon-action-btn-sm" id="newRowBtn" data-tip="Add a new item to the bottom of the list."><img src="icons/new-item.png" alt="New item"></button>
           <button class="icon-action-btn icon-action-btn-sm" id="deleteRowsBtn" data-tip="Delete the highlighted item(s) — click one or more rows to highlight them first."><img src="icons/trash.png" alt="Delete"></button>
           <button class="icon-action-btn icon-action-btn-sm" id="copyItemsBtn" data-tip="Copy the highlighted item(s) — click one or more rows to highlight them first."><img src="icons/copy-items.png" alt="Copy items"></button>
           <button class="icon-action-btn icon-action-btn-sm" id="pasteItemsBtn" data-tip="Paste the copied items onto the bottom of this list, with their notes and settings."><img src="icons/paste-items.png" alt="Paste items"></button>
@@ -939,7 +937,7 @@
         <span class="scale-label">240</span>
       </div>
       <table>
-        <thead><tr><th class="col-play" id="thPlay" style="display:none"></th><th class="col-drag" id="thDrag"></th><th>Activity</th><th class="col-time">Time</th><th class="col-actions" id="thActions"></th></tr></thead>
+        <thead><tr><th class="col-play" id="thPlay" style="display:none"></th><th class="col-drag" id="thDrag"></th><th>Activity</th><th class="col-time">Time</th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
       <div class="status" id="status"></div>
@@ -2217,7 +2215,6 @@
     const thPlay = document.getElementById('thPlay');
     thPlay.style.display = practiceActive ? '' : 'none';
     document.getElementById('thDrag').style.display = practiceActive ? 'none' : '';
-    document.getElementById('thActions').style.display = practiceActive ? 'none' : '';
     tbody.innerHTML = '';
     rows.forEach((row, i) => {
       const tr = document.createElement('tr');
@@ -2253,14 +2250,23 @@
       const activityWrap = document.createElement('div'); activityWrap.className = 'activity-cell';
       const inA = document.createElement('input'); inA.type = 'text'; inA.value = row.activity; inA.addEventListener('input', () => { rows[i].activity = inA.value; }); inA.addEventListener('focus', () => selectRow(i));
       inA.setAttribute('data-tip', 'Name of this practice activity.');
-      if (row.kind && row.kind !== 'task') {
-        const iconSrc = rowKindIconSrc(row);
-        if (iconSrc) {
-          const badgeIcon = document.createElement('img'); badgeIcon.className = 'row-kind-icon'; badgeIcon.src = iconSrc;
-          badgeIcon.alt = row.kind === 'score' ? 'Score' : (FUNCTION_LABELS[row.functionId] || row.functionId);
-          badgeIcon.setAttribute('data-tip', row.kind === 'score' ? 'This item shows a score when active.' : 'This item opens a learning function when active — the title is yours to edit.');
-          activityWrap.appendChild(badgeIcon);
-        }
+      // Leading slot, same footprint either way so every row's title lines
+      // up: the row's own function/score badge if it has one, otherwise (on
+      // a plain task row, and only outside practice) the button to insert a
+      // learning function or score below this row.
+      let iconSrc = row.kind && row.kind !== 'task' ? rowKindIconSrc(row) : null;
+      if (iconSrc) {
+        const badgeIcon = document.createElement('img'); badgeIcon.className = 'row-kind-icon'; badgeIcon.src = iconSrc;
+        badgeIcon.alt = row.kind === 'score' ? 'Score' : (FUNCTION_LABELS[row.functionId] || row.functionId);
+        badgeIcon.setAttribute('data-tip', row.kind === 'score' ? 'This item shows a score when active.' : 'This item opens a learning function when active — the title is yours to edit.');
+        activityWrap.appendChild(badgeIcon);
+      } else if (!practiceActive) {
+        // Same result as dragging a top-bar function/score icon onto this
+        // row, without needing a drag gesture — the only way to do this on
+        // a touchscreen, where the top bar's native HTML5 drag doesn't work.
+        const addFn = document.createElement('button'); addFn.className = 'add-row-btn row-kind-slot'; addFn.textContent = '⊕'; addFn.setAttribute('data-tip', 'Insert a learning function or score below this one.');
+        addFn.addEventListener('click', () => showInsertMenu(i, addFn));
+        activityWrap.appendChild(addFn);
       }
       activityWrap.appendChild(inA); tdA.appendChild(activityWrap); tr.appendChild(tdA);
 
@@ -2278,16 +2284,6 @@
       dn.setAttribute('data-tip', 'Subtract one minute.');
       dn.addEventListener('click', () => { rows[i].time = Math.max(0, (parseFloat(rows[i].time) || 0) - 1); updateTotal(); snapshotRatios(); renderEditor(); syncPracticeTime(); });
       arrows.appendChild(up); arrows.appendChild(dn); tc.appendChild(inT); tc.appendChild(arrows); tdT.appendChild(tc); tr.appendChild(tdT);
-
-      if (!practiceActive) {
-        const tdActs = document.createElement('td'); tdActs.className = 'row-actions';
-        // Same result as dragging a top-bar function/score icon onto this
-        // row, without needing a drag gesture — the only way to do this on
-        // a touchscreen, where the top bar's native HTML5 drag doesn't work.
-        const addFn = document.createElement('button'); addFn.className = 'add-row-btn'; addFn.textContent = '⊕'; addFn.setAttribute('data-tip', 'Insert a learning function or score below this one.');
-        addFn.addEventListener('click', () => showInsertMenu(i, addFn));
-        tdActs.appendChild(addFn); tr.appendChild(tdActs);
-      }
 
       const tdSkip = document.createElement('td'); tdSkip.className = 'skip-cell';
       const skipBtn = document.createElement('button'); skipBtn.className = 'skip-btn' + (row.disabled ? ' skipped' : ''); skipBtn.textContent = '⊘';
