@@ -16,12 +16,29 @@
 
   async function listSets() {
     requireClient();
-    const { data, error } = await client
+    let { data, error } = await client
       .from(TABLE)
       .select('id, name')
+      .eq('archived', false)
       .order('name', { ascending: true });
+    if (error && error.code === '42703') {
+      // supabase/archive_practice_sets.sql hasn't been run yet on this
+      // project — fall back to the unfiltered query rather than breaking
+      // every sign-in until it is.
+      ({ data, error } = await client.from(TABLE).select('id, name').order('name', { ascending: true }));
+    }
     if (error) throw error;
     return data.map(r => ({ name: r.name, path: r.id }));
+  }
+
+  // Soft-delete: hides the list from the owner's own view (listSets above)
+  // without losing it — an admin can bring it back via adminRestoreSet, see
+  // js/admin-ui.js's Restore button.
+  async function archiveSet(id) {
+    requireClient();
+    const { error } = await client.from(TABLE).update({ archived: true }).eq('id', id);
+    if (error) throw error;
+    return true;
   }
 
   async function readCSV(id) {
@@ -63,10 +80,15 @@
   }
 
   async function uniqueName(userId, base) {
-    const { data: existingNames, error } = await client
+    let { data: existingNames, error } = await client
       .from(TABLE)
       .select('name')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .eq('archived', false);
+    if (error && error.code === '42703') {
+      // supabase/archive_practice_sets.sql hasn't been run yet.
+      ({ data: existingNames, error } = await client.from(TABLE).select('name').eq('user_id', userId));
+    }
     if (error) throw error;
     const taken = new Set((existingNames || []).map(r => r.name));
     if (!taken.has(base)) return base;
@@ -458,18 +480,34 @@
 
   async function adminListUserSets(userId) {
     requireClient();
-    const { data, error } = await client
+    let { data, error } = await client
       .from(TABLE)
-      .select('id, name, rows, updated_at')
+      .select('id, name, rows, updated_at, archived')
       .eq('user_id', userId)
       .order('name', { ascending: true });
+    if (error && error.code === '42703') {
+      // supabase/archive_practice_sets.sql hasn't been run yet — fall back
+      // without the archived column rather than breaking the dashboard.
+      ({ data, error } = await client
+        .from(TABLE).select('id, name, rows, updated_at').eq('user_id', userId).order('name', { ascending: true }));
+    }
     if (error) throw error;
     return data.map(s => ({
       id: s.id,
       name: s.name,
       itemCount: (s.rows || []).length,
-      updatedAt: s.updated_at
+      updatedAt: s.updated_at,
+      archived: !!s.archived
     }));
+  }
+
+  // Un-archives a list an owner soft-deleted (see archiveSet above), making
+  // it reappear in their own view.
+  async function adminRestoreSet(setId) {
+    requireClient();
+    const { error } = await client.from(TABLE).update({ archived: false }).eq('id', setId);
+    if (error) throw error;
+    return true;
   }
 
   async function adminListUserLog(userId) {
@@ -566,6 +604,7 @@
     listPracticeLog, updatePracticeLogEntry, deletePracticeLogEntry,
     currentUserEmail, isFeedbackAdmin, submitFeedback, listFeedback,
     startUserSession, touchUserSession, trackFunctionUsage, listUserSessions,
-    adminListUsers, adminListUserSets, adminListUserLog, adminCopySet, adminMoveSet, adminDeleteSet
+    adminListUsers, adminListUserSets, adminListUserLog, adminCopySet, adminMoveSet, adminDeleteSet,
+    archiveSet, adminRestoreSet
   };
 })();
