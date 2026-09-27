@@ -17,7 +17,7 @@ function createWindow() {
     height: 826,
     resizable: true,
     acceptFirstMouse: true,
-    title: 'Preece Practicometer',
+    title: 'Practicometer',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

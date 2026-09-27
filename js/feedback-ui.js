@@ -78,8 +78,8 @@
           window.api.listFeedback(),
           window.api.listUserSessions()
         ]);
-        downloadCSV('preece-practicometer-feedback.csv', toCSV(feedbackRows));
-        downloadCSV('preece-practicometer-activity.csv', toActivityCSV(sessionRows));
+        downloadCSV('practicometer-feedback.csv', toCSV(feedbackRows));
+        downloadCSV('practicometer-activity.csv', toActivityCSV(sessionRows));
       } else {
         openForm();
       }

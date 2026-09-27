@@ -412,6 +412,130 @@
     return data;
   }
 
+  // ── Admin dashboard (dcr@eyethink.org only; RLS enforces server-side too) ──
+  // Lets the admin browse every account's practice lists and practice log,
+  // and copy or move a practice list (plus any scores its rows reference)
+  // into a different account.
+  const PROFILES_TABLE = 'profiles';
+
+  async function adminListUsers() {
+    requireClient();
+    const { data: profiles, error } = await client
+      .from(PROFILES_TABLE)
+      .select('id, email, created_at')
+      .order('email', { ascending: true });
+    if (error) throw error;
+
+    const { data: sessions, error: sessErr } = await client
+      .from(SESSIONS_TABLE)
+      .select('user_id, last_seen_at');
+    if (sessErr) throw sessErr;
+
+    const statsByUser = {};
+    for (const s of (sessions || [])) {
+      const st = statsByUser[s.user_id] || (statsByUser[s.user_id] = { sessionCount: 0, lastSeen: null });
+      st.sessionCount++;
+      if (!st.lastSeen || s.last_seen_at > st.lastSeen) st.lastSeen = s.last_seen_at;
+    }
+
+    return (profiles || []).map(u => {
+      const stats = statsByUser[u.id];
+      return {
+        id: u.id,
+        email: u.email,
+        createdAt: u.created_at,
+        sessionCount: stats ? stats.sessionCount : 0,
+        lastSeen: stats ? stats.lastSeen : null
+      };
+    });
+  }
+
+  async function adminListUserSets(userId) {
+    requireClient();
+    const { data, error } = await client
+      .from(TABLE)
+      .select('id, name, rows')
+      .eq('user_id', userId)
+      .order('name', { ascending: true });
+    if (error) throw error;
+    return data.map(s => ({ id: s.id, name: s.name, itemCount: (s.rows || []).length }));
+  }
+
+  async function adminListUserLog(userId) {
+    requireClient();
+    const { data, error } = await client
+      .from(LOG_TABLE)
+      .select('id, set_name, started_at, duration_sec, activities, notes')
+      .eq('user_id', userId)
+      .order('started_at', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    return data;
+  }
+
+  // Clones one practice set — and any scores its rows reference — into a
+  // different account, the same technique cloneFromTemplateAccount uses to
+  // seed new sign-ups: score files are physically copied into the target
+  // account's own storage folder (rather than just re-pointing at the
+  // original file) so the target's ordinary per-user storage policy covers
+  // reading them back, with no broader access needed.
+  async function adminCopySet(setId, targetUserId) {
+    requireClient();
+    const { data: set, error: setErr } = await client
+      .from(TABLE).select('name, rows').eq('id', setId).single();
+    if (setErr) throw setErr;
+
+    const rows = set.rows || [];
+    const scoreIds = Array.from(new Set(
+      rows.filter(r => r.kind === 'score' && r.scoreId).map(r => r.scoreId)
+    ));
+
+    const scoreIdMap = {};
+    if (scoreIds.length > 0) {
+      const { data: scores, error: scoresErr } = await client
+        .from(SCORES_TABLE).select('id, name, storage_path, mime_type').in('id', scoreIds);
+      if (scoresErr) throw scoresErr;
+      for (const s of scores) {
+        const cleanName = (s.storage_path.split('/').pop()) || 'score';
+        const newStoragePath = targetUserId + '/' + Date.now() + '-' + cleanName;
+        const { error: copyErr } = await client.storage.from(SCORES_BUCKET).copy(s.storage_path, newStoragePath);
+        if (copyErr) throw copyErr;
+        const { data: inserted, error: insErr } = await client
+          .from(SCORES_TABLE)
+          .insert({ user_id: targetUserId, name: s.name, storage_path: newStoragePath, mime_type: s.mime_type })
+          .select('id')
+          .single();
+        if (insErr) throw insErr;
+        scoreIdMap[s.id] = inserted.id;
+      }
+    }
+
+    const remappedRows = rows.map(r => {
+      if (r.kind === 'score' && r.scoreId && scoreIdMap[r.scoreId]) {
+        return Object.assign({}, r, { scoreId: scoreIdMap[r.scoreId] });
+      }
+      return r;
+    });
+
+    const newName = await uniqueName(targetUserId, set.name);
+    const { data: newSet, error: insertErr } = await client
+      .from(TABLE)
+      .insert({ user_id: targetUserId, name: newName, rows: remappedRows })
+      .select('id, name')
+      .single();
+    if (insertErr) throw insertErr;
+    return newSet;
+  }
+
+  // Copy, then remove the original — the source account's copies of any
+  // cloned scores are left in place (other lists there may still use them).
+  async function adminMoveSet(setId, targetUserId) {
+    const newSet = await adminCopySet(setId, targetUserId);
+    const { error } = await client.from(TABLE).delete().eq('id', setId);
+    if (error) throw error;
+    return newSet;
+  }
+
   window.api = {
     listSets, readCSV, saveCSV, renameCSV, duplicateCSV, createSet,
     resizeWindow, getWindowSize, seedDefaultsIfEmpty,
@@ -419,6 +543,7 @@
     startPracticeLog, updatePracticeLog, finishPracticeLog,
     listPracticeLog, updatePracticeLogEntry, deletePracticeLogEntry,
     currentUserEmail, isFeedbackAdmin, submitFeedback, listFeedback,
-    startUserSession, touchUserSession, trackFunctionUsage, listUserSessions
+    startUserSession, touchUserSession, trackFunctionUsage, listUserSessions,
+    adminListUsers, adminListUserSets, adminListUserLog, adminCopySet, adminMoveSet
   };
 })();

@@ -7,6 +7,12 @@
   const signUpBtn = document.getElementById('authSignUpBtn');
   const signOutBtn = document.getElementById('signOutBtn');
 
+  const bgLogo = document.getElementById('authBgLogo');
+  const mainLogo = document.querySelector('#homePanel .app-logo');
+  if (bgLogo && mainLogo && mainLogo.src) {
+    bgLogo.style.backgroundImage = `url("${mainLogo.src}")`;
+  }
+
   function showError(err) {
     errorEl.textContent = (err && err.message) || 'Something went wrong.';
   }
