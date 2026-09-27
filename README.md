@@ -1,4 +1,4 @@
-# Preece Practicometer
+# Practicometer
 
 A desktop practice companion for piano: metronome, timed practice-set lists with
 notes, a chord-grid/randomiser reference tool, and two ear-training games.
@@ -79,6 +79,13 @@ Level Security, not by hiding the key). To point at a different Supabase
 project instead, copy `js/config.example.js` over `js/config.js` and fill
 in your own project's values.
 
+Signing in as `dcr@eyethink.org` shows an extra "Admin Dashboard" button in
+the top bar: a list of every account, each one's practice log, and buttons to
+copy or move a practice list into a different account. It depends on the
+tables/policies in `supabase/admin_dashboard.sql`, which — like
+`supabase/feedback_and_template.sql` — has to be pasted into the Supabase
+SQL Editor by hand once.
+
 ## Development
 
 The app is a static site (`index.html` + `js/*.js`), deployed via GitHub
@@ -93,7 +100,7 @@ PRACTICOMETER_URL=http://localhost:3000 npm start   # open a local copy in Elect
 ```
 
 ```bash
-npm run build:mac  # produce dist/mac-arm64/Preece Practicometer.app
+npm run build:mac  # produce dist/mac-arm64/Practicometer.app
 ```
 
 The packaged app is unsigned (no Apple Developer certificate configured), so

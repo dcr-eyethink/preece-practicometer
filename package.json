@@ -11,7 +11,7 @@
   },
   "build": {
     "appId": "org.eyethink.preece-practicometer",
-    "productName": "Preece Practicometer",
+    "productName": "Practicometer",
     "files": [
       "main.js",
       "preload.js"
@@ -21,7 +21,7 @@
       "category": "public.app-category.music",
       "icon": "build/icon.icns",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Preece Practicometer uses the microphone for the Ear Training pitch-matching feature."
+        "NSMicrophoneUsageDescription": "Practicometer uses the microphone for the Ear Training pitch-matching feature."
       }
     },
     "win": {
