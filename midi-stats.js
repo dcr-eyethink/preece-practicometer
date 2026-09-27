@@ -6,16 +6,17 @@
 // values, a mean-±-SD diamond in blue (widest at the mean, tapering to
 // points at mean±SD — SD rather than standard error, so the width reflects
 // actual note-to-note spread rather than shrinking as more samples land),
-// plus a thin vertical tick for the most recent value, which switches
-// colour on the Blur/Gap row.
+// plus a thin vertical tick for every value recorded within the last
+// RECENT_WINDOW_MS — not just the single latest one, so playing two-handed
+// (which produces two duration values, and two gap values, at essentially
+// the same moment) shows a tick for each hand, not just whichever happened
+// to be processed last.
 //
-// The axis zooms to fit the last 16 notes, in and out, rather than resting
-// at some fixed default range — but it eases toward that target in fixed
-// 100ms steps per note (not an instant jump), so it settles down instead of
-// jumping around on every note. Endpoints are always rounded to a "nice"
-// step (multiples of 50ms for Duration, 10ms for Blur/Gap) and the axis
-// always includes 0. The current endpoints are printed in small text under
-// the axis.
+// The axis zooms to fit the last 16 notes, but only between a small fixed
+// set of sizes (50/100/200/400/800/1600ms) rather than continuously, so it
+// settles on one of a few recognisable "zoom levels" instead of drifting
+// to an arbitrary value. It always includes 0. The current endpoints are
+// printed in small text under the axis.
 //
 // Duration is one-sided. Blur/Gap is signed: for each adjacent pair of
 // notes there's a single gap, releaseOfPrevious -> onsetOfNext. Negative
@@ -43,27 +44,29 @@
   const toggleBtn = document.getElementById('midiStatsBtn');
   if (!M || !wrap || !circle || !toggleBtn) return;
 
-  const DOT_WINDOW = 8;           // notes shown as dots, and folded into the mean/SD
-  const ZOOM_WINDOW = 16;         // notes considered when choosing the axis range
-  const SCALE_STEP_MS = 100;      // max the displayed axis is allowed to move per note
-  const MAX_INTERVAL_MS = 1000;   // gaps longer than this are a rest, not counted
-  const MAX_BLUR_MS = 500;        // overlaps longer than this are intentional, not counted
+  const DOT_WINDOW = 8;             // notes shown as dots, and folded into the mean/SD
+  const ZOOM_WINDOW = 16;           // notes considered when choosing the axis range
+  const RECENT_WINDOW_MS = 100;     // values this fresh all get their own current-value tick
+  const SCALE_LEVELS = [50, 100, 200, 400, 800, 1600]; // the only axis sizes it zooms between
+  const MAX_INTERVAL_MS = 1000;     // gaps longer than this are a rest, not counted
+  const MAX_BLUR_MS = 500;          // overlaps longer than this are intentional, not counted
 
   // Always starts off — it's a diagnostic add-on, not something to leave
   // running by default, even if it was switched on in an earlier session.
   let shown = false;
 
   const ROWS = [
-    { key: 'duration', label: 'Duration', bipolar: false, step: 50, fmt: v => Math.round(v) + 'ms' },
-    { key: 'timing', label: 'Blur/Gap', bipolar: true, step: 10, fmt: v => (v >= 0 ? '+' : '−') + Math.round(Math.abs(v)) + 'ms' }
+    { key: 'duration', label: 'Duration', bipolar: false, fmt: v => Math.round(v) + 'ms' },
+    { key: 'timing', label: 'Blur/Gap', bipolar: true, fmt: v => (v >= 0 ? '+' : '−') + Math.round(Math.abs(v)) + 'ms' }
   ];
   const stats = {};
-  ROWS.forEach(r => { stats[r.key] = { values: [], curScale: null }; });
+  ROWS.forEach(r => { stats[r.key] = { values: [], times: [] }; });
 
   function push(key, v) {
     const s = stats[key];
     s.values.push(v);
-    if (s.values.length > ZOOM_WINDOW) s.values.shift();
+    s.times.push(performance.now());
+    if (s.values.length > ZOOM_WINDOW) { s.values.shift(); s.times.shift(); }
   }
 
   function meanSD(arr) {
@@ -74,25 +77,27 @@
     return { mean, sd: Math.sqrt(variance) };
   }
 
-  // The scale the axis "wants" to be at: rounded up to the row's nice step
-  // (multiples of 50ms / 10ms), from the last 16 notes rather than just the
-  // 8 that get dots — a wider net for deciding how zoomed-in it's safe to be.
-  function targetScale(r, allValues) {
+  // The smallest of a fixed set of "zoom levels" that still fits everything
+  // in the last 16 notes — so the axis only ever sits at one of a handful
+  // of recognisable sizes, rather than drifting to an arbitrary value.
+  function scaleFor(allValues) {
     const zoomSlice = allValues.slice(-ZOOM_WINDOW);
     const maxAbs = zoomSlice.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
-    return Math.max(r.step, Math.ceil(maxAbs / r.step) * r.step);
+    for (const level of SCALE_LEVELS) if (level >= maxAbs) return level;
+    return Math.ceil(maxAbs / 200) * 200; // an escape valve for a genuinely huge outlier
   }
 
-  // Eases the displayed scale toward the target by at most SCALE_STEP_MS
-  // per note, instead of snapping straight to it — so the axis settles
-  // rather than jumping around on every single note.
-  function scaleFor(key, r, allValues) {
-    const target = targetScale(r, allValues);
-    const s = stats[key];
-    if (s.curScale == null) { s.curScale = target; return target; }
-    if (s.curScale < target) s.curScale = Math.min(target, s.curScale + SCALE_STEP_MS);
-    else if (s.curScale > target) s.curScale = Math.max(target, s.curScale - SCALE_STEP_MS);
-    return s.curScale;
+  // Every value recorded within the last RECENT_WINDOW_MS of the newest one
+  // — so two-handed playing (which produces two duration/gap values within
+  // a few ms of each other) gets a tick for each, not just whichever was
+  // processed last.
+  function recentValues(s) {
+    const n = s.values.length;
+    if (!n) return [];
+    const cutoff = s.times[n - 1] - RECENT_WINDOW_MS;
+    let i = n - 1;
+    while (i > 0 && s.times[i - 1] >= cutoff) i--;
+    return s.values.slice(i);
   }
 
   // Notes struck within this long of each other are one "cluster" — e.g.
@@ -135,8 +140,8 @@
     const row = document.createElement('div');
     row.className = 'midi-stat-row';
     row.setAttribute('data-tip', r.key === 'duration'
-      ? 'How long each note is held down. Each dot is one of the last 8 notes; the blue diamond is their mean ± standard deviation (widest at the mean); the thin vertical line is the most recent one. The axis zooms to fit the last 16 notes, in steps of 50ms, and always includes 0 — the small numbers underneath are its current endpoints.'
-      : 'Time from one note releasing to the next starting — negative (left of the notch) means the notes overlapped (blurring), positive (right) means there was a gap. Each dot is one of the last 8; the blue diamond is their mean ± standard deviation. The thin vertical line is the most recent one, red for a blur and blue for a gap. The axis zooms to fit the last 16, in steps of 10ms. Long rests and deliberately held/overlapping notes are ignored.');
+      ? 'How long each note is held down. Each dot is one of the last 8 notes; the blue diamond is their mean ± standard deviation (widest at the mean); the thin vertical line(s) show whatever was just played — one per hand if you played more than one note at once. The axis zooms to fit the last 16 notes, snapping between a few fixed sizes (50/100/200/400/800/1600ms) and always includes 0 — the small numbers underneath are its current endpoints.'
+      : 'Time from one note releasing to the next starting — negative (left of the notch) means the notes overlapped (blurring), positive (right) means there was a gap. Each dot is one of the last 8; the blue diamond is their mean ± standard deviation. The thin vertical line(s) are whatever was just played (red for a blur, blue for a gap) — one per hand if more than one happened at once. The axis snaps between a few fixed sizes, same as Duration. Long rests and deliberately held/overlapping notes are ignored.');
     row.innerHTML =
       '<div class="midi-stat-label">' + r.label + '</div>' +
       '<canvas class="midi-stat-plot" width="140" height="25"></canvas>' +
@@ -189,10 +194,11 @@
     const labelY = h - 1;
     ctx.clearRect(0, 0, w, h);
 
-    const full = stats[key].values;
+    const s = stats[key];
+    const full = s.values;
     const dotSlice = full.slice(-DOT_WINDOW);
-    const last = dotSlice[dotSlice.length - 1];
-    const scale = scaleFor(key, r, full);
+    const recent = recentValues(s);
+    const scale = scaleFor(full);
 
     ctx.font = '7px sans-serif';
     ctx.fillStyle = '#9aa4c0';
@@ -211,15 +217,15 @@
       const stat = meanSD(dotSlice);
       if (stat) drawDiamond(ctx, xForVal(stat.mean), xForVal(stat.mean - stat.sd), xForVal(stat.mean + stat.sd), midY, halfH, 'rgba(58, 111, 224, 0.75)');
 
-      if (last != null) {
-        const x = xForVal(last);
-        ctx.strokeStyle = last < 0 ? '#c0392b' : '#1a56db';
+      recent.forEach(v => {
+        const x = xForVal(v);
+        ctx.strokeStyle = v < 0 ? '#c0392b' : '#1a56db';
         ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.moveTo(x, 1);
         ctx.lineTo(x, plotH - 1);
         ctx.stroke();
-      }
+      });
 
       // Zero notch drawn last, full plot height, so it stays visible cutting
       // through the diamond/dots rather than being buried under them.
@@ -248,15 +254,15 @@
       const stat = meanSD(dotSlice);
       if (stat) drawDiamond(ctx, xForVal(stat.mean), xForVal(Math.max(0, stat.mean - stat.sd)), xForVal(stat.mean + stat.sd), midY, halfH, 'rgba(58, 111, 224, 0.75)');
 
-      if (last != null) {
-        const x = xForVal(last);
+      recent.forEach(v => {
+        const x = xForVal(v);
         ctx.strokeStyle = '#1a56db';
         ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.moveTo(x, 1);
         ctx.lineTo(x, plotH - 1);
         ctx.stroke();
-      }
+      });
 
       ctx.textAlign = 'left';
       ctx.fillText('0', pad, labelY);
