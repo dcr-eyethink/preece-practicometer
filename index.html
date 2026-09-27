@@ -2040,9 +2040,17 @@
   let pickedRows = new Set();
   const ITEM_CLIPBOARD_KEY = 'practicometerItemClipboard';
 
-  function togglePicked(i) {
+  function togglePicked(i, additive) {
     const row = rows[i];
-    if (pickedRows.has(row)) pickedRows.delete(row); else pickedRows.add(row);
+    if (additive) {
+      if (pickedRows.has(row)) pickedRows.delete(row); else pickedRows.add(row);
+    } else {
+      // Plain click replaces the highlight with just this row, like the
+      // sets list's selection — shift-click is the only way to build up a
+      // multi-row highlight.
+      pickedRows.clear();
+      pickedRows.add(row);
+    }
     renderEditor();
   }
 
@@ -2359,7 +2367,7 @@
       tr.addEventListener('click', (e) => {
         const tag = e.target.tagName;
         if (tag === 'BUTTON' || tag === 'INPUT') return;
-        togglePicked(i);
+        togglePicked(i, e.shiftKey);
       });
 
       tbody.appendChild(tr);
