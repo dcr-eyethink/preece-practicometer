@@ -74,13 +74,9 @@
   .sets-title-row h2 { margin: 0; flex: 1; min-width: 0; }
   .sets-title-row .toolbar { margin-bottom: 0; flex-wrap: nowrap; flex-shrink: 0; }
   .set-list { list-style: none; padding: 0; margin: 0 0 1rem; }
-  .set-list li { padding: 10px 14px; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 6px; cursor: pointer; font-size: 15px; transition: background 0.1s; display: flex; align-items: center; gap: 8px; }
+  .set-list li { padding: 10px 14px; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 6px; cursor: pointer; font-size: 15px; transition: background 0.1s; }
   .set-list li:hover { background: #f5f5f5; }
   .set-list li.selected { background: #e8f0fe; border-color: #a0b4f0; color: #1a56db; font-weight: 500; }
-  .set-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .set-item-archive-btn { background: none; border: none; cursor: pointer; padding: 2px; border-radius: 6px; opacity: 0.3; flex-shrink: 0; display: flex; }
-  .set-item-archive-btn:hover { opacity: 1; background: #fdf0f0; }
-  .set-item-archive-btn img { width: 20px; height: 20px; display: block; border-radius: 5px; }
   .sets-empty { color: #888; font-size: 14px; padding: 2rem 0; text-align: center; }
   .welcome-text { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #eee; font-size: 13px; line-height: 1.5; color: #555; }
   .welcome-text h3 { margin: 0 0 0.6rem; font-size: 14px; font-weight: 600; color: #333; }
@@ -109,9 +105,6 @@
   .icon-action-btn-lg img { width: 60px; height: 60px; border-radius: 13px; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
   th { text-align: left; padding: 8px 10px; background: #f5f5f5; border-bottom: 2px solid #ddd; font-size: 13px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
-  th.col-select { width: 22px; }
-  td.select-cell { text-align: center; }
-  td.select-cell input { cursor: pointer; }
   th.col-play { width: 32px; }
   th.col-drag { width: 28px; }
   th.col-time { width: 110px; }
@@ -141,6 +134,8 @@
   tr.row-disabled td { opacity: 0.35; }
   tr.row-disabled td.skip-cell { opacity: 1; }
   tr.row-selected td { background: #eef3ff; }
+  tr.row-picked td { background: #e8f0fe; }
+  tr.row-picked.row-selected td { background: #dbe6fb; }
   .del-btn:hover { color: #c0392b; background: #fdf0f0; }
   .add-row-btn:hover { color: #27ae60; background: #f0fdf4; }
   .insert-menu { position: fixed; z-index: 1000; background: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); padding: 6px; min-width: 180px; max-height: 60vh; overflow-y: auto; }
@@ -158,10 +153,15 @@
   .drag-handle:active { cursor: grabbing; }
   tr.dragging { opacity: 0.4; }
   tr.drag-over td { border-top: 2px solid #1a56db; }
-  .total-row { display: flex; align-items: center; gap: 12px; margin-bottom: 0.75rem; }
+  .total-row { display: flex; align-items: center; gap: 10px; margin-bottom: 0.75rem; }
   .total-label { font-size: 14px; color: #555; font-weight: 500; }
-  .total-value { font-size: 22px; font-weight: 700; min-width: 50px; }
+  .total-time-group { display: flex; align-items: baseline; gap: 3px; }
+  .total-value { font-size: 22px; font-weight: 700; min-width: 24px; }
   .total-unit { font-size: 13px; color: #888; }
+  .row-toolbar { margin-left: auto; margin-bottom: 0; gap: 6px; flex-wrap: nowrap; flex-shrink: 0; }
+  .icon-action-btn-sm { padding: 2px; border-radius: 10px; }
+  .icon-action-btn-sm img { width: 24px; height: 24px; border-radius: 5px; }
+  .new-row-glyph { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 5px; background: #1a8f8a; color: #fff; font-size: 16px; font-weight: 700; line-height: 1; }
   .scale-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
   .scale-row input[type=range] { flex: 1; }
   .scale-label { font-size: 12px; color: #888; min-width: 28px; }
@@ -734,6 +734,8 @@
       <h2>Practice Sets</h2>
       <div class="toolbar">
         <button class="icon-action-btn" id="newSetBtn" data-tip="Create a new, empty practice set."><img src="icons/new-set.png" alt="New Set"></button>
+        <button class="icon-action-btn" id="setsDeleteBtn" disabled data-tip="Archive the selected practice set — removes it from your list. Ask an admin if you need it back."><img src="icons/trash.png" alt="Archive"></button>
+        <button class="icon-action-btn" id="setsDupBtn" disabled data-tip="Duplicate the selected practice set under a new name."><img src="icons/duplicate.png" alt="Duplicate"></button>
         <button class="icon-action-btn icon-action-btn-lg" id="openSetBtn" disabled data-tip="Open the selected practice set. You can also just double-click a set in the list."><img src="icons/open.png" alt="Open"></button>
       </div>
     </div>
@@ -917,17 +919,19 @@
         <button class="practice-close" id="backBtn" data-tip="Back to the practice sets list."><img src="icons/back.png" alt="Back"></button>
         <input class="editor-title" id="editorTitle" type="text" value="Practice Set" spellcheck="false" data-tip="Practice set name — click to rename. Saved automatically when you click away.">
         <div class="toolbar">
-          <button class="icon-action-btn" id="saveBtn" data-tip="Save changes to this practice set."><img src="icons/save.png" alt="Save"></button>
-          <button class="icon-action-btn" id="dupBtn" data-tip="Duplicate this practice set under a new name."><img src="icons/duplicate.png" alt="Duplicate"></button>
-          <button class="icon-action-btn" id="copyItemsBtn" data-tip="Copy the checked items — tick one or more items' checkboxes first."><img src="icons/copy-items.png" alt="Copy items"></button>
-          <button class="icon-action-btn" id="pasteItemsBtn" data-tip="Paste the copied items onto the bottom of this list, with their notes and settings."><img src="icons/paste-items.png" alt="Paste items"></button>
           <button class="icon-action-btn icon-action-btn-lg" id="practiceBtn" data-tip="Start a timed practice session, working through the list from the top."><img src="icons/start-practice-list.png" alt="Start Practice"></button>
         </div>
       </div>
       <div class="total-row">
         <span class="total-label">Total practice time:</span>
-        <span class="total-value" id="totalValue">0</span>
-        <span class="total-unit">min</span>
+        <span class="total-time-group"><span class="total-value" id="totalValue">0</span><span class="total-unit">min</span></span>
+        <div class="toolbar row-toolbar">
+          <button class="icon-action-btn icon-action-btn-sm" id="newRowBtn" data-tip="Add a new item to the bottom of the list."><span class="new-row-glyph">+</span></button>
+          <button class="icon-action-btn icon-action-btn-sm" id="deleteRowsBtn" data-tip="Delete the highlighted item(s) — click one or more rows to highlight them first."><img src="icons/trash.png" alt="Delete"></button>
+          <button class="icon-action-btn icon-action-btn-sm" id="copyItemsBtn" data-tip="Copy the highlighted item(s) — click one or more rows to highlight them first."><img src="icons/copy-items.png" alt="Copy items"></button>
+          <button class="icon-action-btn icon-action-btn-sm" id="pasteItemsBtn" data-tip="Paste the copied items onto the bottom of this list, with their notes and settings."><img src="icons/paste-items.png" alt="Paste items"></button>
+          <button class="icon-action-btn icon-action-btn-sm" id="saveBtn" data-tip="Save changes to this practice set."><img src="icons/save.png" alt="Save"></button>
+        </div>
       </div>
       <div class="scale-row">
         <span class="scale-label">1</span>
@@ -935,7 +939,7 @@
         <span class="scale-label">240</span>
       </div>
       <table>
-        <thead><tr><th class="col-select" id="thSelect"></th><th class="col-play" id="thPlay" style="display:none"></th><th class="col-drag" id="thDrag"></th><th>Activity</th><th class="col-time">Time</th><th class="col-actions" id="thActions"></th></tr></thead>
+        <thead><tr><th class="col-play" id="thPlay" style="display:none"></th><th class="col-drag" id="thDrag"></th><th>Activity</th><th class="col-time">Time</th><th class="col-actions" id="thActions"></th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
       <div class="status" id="status"></div>
@@ -1759,51 +1763,59 @@
   const editorWrap = document.getElementById('editorWrap');
   let selectedSetPath = null;
 
+  function setSetsSelectionEnabled(enabled) {
+    document.getElementById('openSetBtn').disabled = !enabled;
+    document.getElementById('setsDeleteBtn').disabled = !enabled;
+    document.getElementById('setsDupBtn').disabled = !enabled;
+  }
+
   async function loadSetsList() {
     const sets = await window.api.listSets();
     const list = document.getElementById('setList');
     const empty = document.getElementById('setsEmpty');
-    const openBtn = document.getElementById('openSetBtn');
-    list.innerHTML = ''; selectedSetPath = null; openBtn.disabled = true;
+    list.innerHTML = ''; selectedSetPath = null; setSetsSelectionEnabled(false);
     if (sets.length === 0) { empty.style.display = 'block'; return; }
     empty.style.display = 'none';
     const lastPath = localStorage.getItem('lastOpenedSet');
     for (const s of sets) {
-      const li = document.createElement('li'); li.dataset.path = s.path;
+      const li = document.createElement('li'); li.textContent = s.name; li.dataset.path = s.path;
       li.setAttribute('data-tip', 'Click to select, double-click to open.');
       li.addEventListener('click', () => {
         document.querySelectorAll('.set-list li').forEach(el => el.classList.remove('selected'));
-        li.classList.add('selected'); selectedSetPath = s.path; openBtn.disabled = false;
+        li.classList.add('selected'); selectedSetPath = s.path; setSetsSelectionEnabled(true);
       });
       li.addEventListener('dblclick', () => openSet(s.path));
-
-      const nameEl = document.createElement('span'); nameEl.className = 'set-item-name'; nameEl.textContent = s.name;
-      li.appendChild(nameEl);
-
-      const archiveBtn = document.createElement('button');
-      archiveBtn.className = 'set-item-archive-btn';
-      archiveBtn.setAttribute('data-tip', 'Archive this practice set — removes it from your list. Ask an admin if you need it back.');
-      archiveBtn.innerHTML = '<img src="icons/trash.png" alt="Archive">';
-      archiveBtn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        if (!window.confirm('Archive "' + s.name + '"? It will be removed from your list — an admin can restore it if you need it back.')) return;
-        try {
-          await window.api.archiveSet(s.path);
-          loadSetsList();
-        } catch (err) {
-          console.error('archiveSet failed:', err);
-        }
-      });
-      li.appendChild(archiveBtn);
-
       list.appendChild(li);
       if (s.path === lastPath) {
-        li.classList.add('selected'); selectedSetPath = s.path; openBtn.disabled = false;
+        li.classList.add('selected'); selectedSetPath = s.path; setSetsSelectionEnabled(true);
       }
     }
   }
 
   document.getElementById('openSetBtn').addEventListener('click', () => { if (selectedSetPath) openSet(selectedSetPath); });
+
+  document.getElementById('setsDeleteBtn').addEventListener('click', async () => {
+    if (!selectedSetPath) return;
+    const name = document.querySelector('.set-list li.selected')?.textContent || 'this set';
+    if (!window.confirm('Archive "' + name + '"? It will be removed from your list — an admin can restore it if you need it back.')) return;
+    try {
+      await window.api.archiveSet(selectedSetPath);
+      loadSetsList();
+    } catch (err) {
+      console.error('archiveSet failed:', err);
+    }
+  });
+
+  document.getElementById('setsDupBtn').addEventListener('click', async () => {
+    if (!selectedSetPath) return;
+    try {
+      const data = await window.api.readCSV(selectedSetPath);
+      const created = await window.api.duplicateCSV(selectedSetPath, data.rows, data.name);
+      await openSet(created.path);
+    } catch (err) {
+      console.error('duplicateCSV failed:', err);
+    }
+  });
 
   document.getElementById('newSetBtn').addEventListener('click', async () => {
     const created = await window.api.createSet('New Set');
@@ -1817,7 +1829,7 @@
     localStorage.setItem('lastOpenedSet', fp);
     filePath = fp;
     selectedRowIdx = -1;
-    selectedForCopy = new Set();
+    pickedRows = new Set();
     const data = await window.api.readCSV(fp);
     currentSetName = data.name;
     document.getElementById('editorTitle').value = data.name;
@@ -1958,20 +1970,46 @@
 
   let selectedRowIdx = -1;
 
-  // ── Copy/paste items between practice lists ──
-  // selectedForCopy holds row OBJECT references (not indices), so it stays
+  // ── Highlighting items for Copy/Delete, and copy/paste between lists ──
+  // pickedRows holds row OBJECT references (not indices), so it stays
   // correct across reordering/inserting/deleting; it's reset whenever a
   // (possibly different) set is opened, since those rows are unrelated.
   // The clipboard itself is plain data (JSON-cloned in and out, never the
   // same object twice) and — via localStorage — survives switching sets or
   // an accidental reload, so "copy here, paste there" works either way.
-  let selectedForCopy = new Set();
+  let pickedRows = new Set();
   const ITEM_CLIPBOARD_KEY = 'practicometerItemClipboard';
 
-  function copySelectedItems() {
-    const selected = rows.filter(r => selectedForCopy.has(r));
+  function togglePicked(i) {
+    const row = rows[i];
+    if (pickedRows.has(row)) pickedRows.delete(row); else pickedRows.add(row);
+    renderEditor();
+  }
+
+  function addRowAtBottom() {
+    rows.push({ activity: '', time: '' });
+    renderEditor(); updateTotal(); snapshotRatios();
+    const trs = document.querySelectorAll('#tbody tr');
+    const inp = trs[trs.length - 1]?.querySelector('input[type="text"]');
+    if (inp) inp.focus();
+  }
+
+  function deletePickedItems() {
+    const toDelete = new Set(pickedRows);
+    if (toDelete.size === 0) {
+      document.getElementById('status').textContent = 'Click one or more rows to highlight them first.';
+      return;
+    }
+    rows = rows.filter(r => !toDelete.has(r));
+    pickedRows.clear();
+    renderEditor(); updateTotal(); snapshotRatios();
+    document.getElementById('status').textContent = 'Deleted ' + toDelete.size + (toDelete.size === 1 ? ' item.' : ' items.');
+  }
+
+  function copyPickedItems() {
+    const selected = rows.filter(r => pickedRows.has(r));
     if (selected.length === 0) {
-      document.getElementById('status').textContent = 'Tick one or more items first.';
+      document.getElementById('status').textContent = 'Click one or more rows to highlight them first.';
       return;
     }
     const cloned = JSON.parse(JSON.stringify(selected));
@@ -1983,7 +2021,7 @@
     let clipboard;
     try { clipboard = JSON.parse(localStorage.getItem(ITEM_CLIPBOARD_KEY) || '[]'); } catch (e) { clipboard = []; }
     if (!Array.isArray(clipboard) || clipboard.length === 0) {
-      document.getElementById('status').textContent = 'Nothing copied yet — tick items in a list and click Copy first.';
+      document.getElementById('status').textContent = 'Nothing copied yet — highlight items in a list and click Copy first.';
       return;
     }
     rows.push(...JSON.parse(JSON.stringify(clipboard)));
@@ -1991,7 +2029,9 @@
     document.getElementById('status').textContent = 'Pasted ' + clipboard.length + (clipboard.length === 1 ? ' item.' : ' items.') + ' Click Save to keep it.';
   }
 
-  document.getElementById('copyItemsBtn').addEventListener('click', copySelectedItems);
+  document.getElementById('newRowBtn').addEventListener('click', addRowAtBottom);
+  document.getElementById('deleteRowsBtn').addEventListener('click', deletePickedItems);
+  document.getElementById('copyItemsBtn').addEventListener('click', copyPickedItems);
   document.getElementById('pasteItemsBtn').addEventListener('click', pasteCopiedItems);
 
   // ── Learning functions as draggable practice-list items ──
@@ -2178,7 +2218,6 @@
     thPlay.style.display = practiceActive ? '' : 'none';
     document.getElementById('thDrag').style.display = practiceActive ? 'none' : '';
     document.getElementById('thActions').style.display = practiceActive ? 'none' : '';
-    document.getElementById('thSelect').style.display = practiceActive ? 'none' : '';
     tbody.innerHTML = '';
     rows.forEach((row, i) => {
       const tr = document.createElement('tr');
@@ -2196,18 +2235,6 @@
         e.preventDefault(); tr.classList.remove('drag-over');
         handleExternalDrop(e, i);
       });
-
-      if (!practiceActive) {
-        const tdSel = document.createElement('td'); tdSel.className = 'select-cell';
-        const cb = document.createElement('input'); cb.type = 'checkbox';
-        cb.checked = selectedForCopy.has(row);
-        cb.setAttribute('data-tip', 'Tick to include this item in Copy.');
-        cb.addEventListener('click', e => e.stopPropagation());
-        cb.addEventListener('change', () => {
-          if (cb.checked) selectedForCopy.add(row); else selectedForCopy.delete(row);
-        });
-        tdSel.appendChild(cb); tr.appendChild(tdSel);
-      }
 
       if (practiceActive) {
         const tdP = document.createElement('td'); tdP.className = 'playhead-cell';
@@ -2254,16 +2281,12 @@
 
       if (!practiceActive) {
         const tdActs = document.createElement('td'); tdActs.className = 'row-actions';
-        const addR = document.createElement('button'); addR.className = 'add-row-btn'; addR.textContent = '+'; addR.setAttribute('data-tip', 'Insert a new item below this one.');
-        addR.addEventListener('click', () => { rows.splice(i + 1, 0, { activity: '', time: '' }); renderEditor(); updateTotal(); snapshotRatios(); const inp = document.querySelectorAll('#tbody tr')[i + 1]?.querySelector('input'); if (inp) inp.focus(); });
         // Same result as dragging a top-bar function/score icon onto this
         // row, without needing a drag gesture — the only way to do this on
         // a touchscreen, where the top bar's native HTML5 drag doesn't work.
         const addFn = document.createElement('button'); addFn.className = 'add-row-btn'; addFn.textContent = '⊕'; addFn.setAttribute('data-tip', 'Insert a learning function or score below this one.');
         addFn.addEventListener('click', () => showInsertMenu(i, addFn));
-        const del = document.createElement('button'); del.className = 'del-btn'; del.textContent = '×'; del.setAttribute('data-tip', 'Delete this item.');
-        del.addEventListener('click', () => { rows.splice(i, 1); renderEditor(); updateTotal(); snapshotRatios(); });
-        tdActs.appendChild(addR); tdActs.appendChild(addFn); tdActs.appendChild(del); tr.appendChild(tdActs);
+        tdActs.appendChild(addFn); tr.appendChild(tdActs);
       }
 
       const tdSkip = document.createElement('td'); tdSkip.className = 'skip-cell';
@@ -2273,10 +2296,12 @@
       tdSkip.appendChild(skipBtn); tr.appendChild(tdSkip);
       if (row.disabled) tr.classList.add('row-disabled');
       if (i === selectedRowIdx) tr.classList.add('row-selected');
+      if (pickedRows.has(row)) tr.classList.add('row-picked');
 
       tr.addEventListener('click', (e) => {
-        if (e.target.tagName === 'BUTTON') return;
-        selectRow(i);
+        const tag = e.target.tagName;
+        if (tag === 'BUTTON' || tag === 'INPUT') return;
+        togglePicked(i);
       });
 
       tbody.appendChild(tr);
@@ -2305,14 +2330,6 @@
   titleInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); titleInput.blur(); } if (e.key === 'Escape') { titleInput.value = currentSetName; titleInput.blur(); } });
 
   document.getElementById('saveBtn').addEventListener('click', async () => { await window.api.saveCSV(filePath, rows); document.getElementById('status').textContent = 'Saved.'; setTimeout(() => { document.getElementById('status').textContent = ''; }, 2000); });
-  document.getElementById('dupBtn').addEventListener('click', async () => {
-    const created = await window.api.duplicateCSV(filePath, rows, currentSetName);
-    filePath = created.path;
-    currentSetName = created.name;
-    document.getElementById('editorTitle').value = created.name;
-    document.getElementById('status').textContent = 'Duplicated as ' + created.name;
-    setTimeout(() => { document.getElementById('status').textContent = ''; }, 2000);
-  });
 
   // ===================== PRACTICE =====================
   const CIRC = 2 * Math.PI * 43;
