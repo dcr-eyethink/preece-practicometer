@@ -108,6 +108,7 @@
   th.col-play { width: 32px; }
   th.col-drag { width: 28px; }
   th.col-time { width: 110px; }
+  #editorTableHead { display: none; }
   th.col-del { width: 36px; }
   .time-cell { display: flex; align-items: center; gap: 2px; }
   .time-arrows { display: flex; flex-direction: column; }
@@ -514,7 +515,22 @@
   .feedback-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
   .feedback-status { font-size: 13px; text-align: center; min-height: 16px; color: #2a8f4a; }
   .feedback-status.error { color: #c0392b; }
+  .unsaved-overlay { position: fixed; inset: 0; background: rgba(20,24,34,0.4); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+  .unsaved-box { width: 380px; max-width: 90vw; padding: 22px; background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,0.2); }
+  .unsaved-message { margin: 0 0 18px; font-size: 14px; color: #333; line-height: 1.5; }
+  .unsaved-actions { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
+
+<div id="unsavedChangesOverlay" class="unsaved-overlay" style="display:none">
+  <div class="unsaved-box">
+    <p class="unsaved-message">You have unsaved changes to this practice list. Save them before going back?</p>
+    <div class="unsaved-actions">
+      <button class="btn" id="unsavedCancelBtn">Cancel</button>
+      <button class="btn" id="unsavedDiscardBtn">Discard changes</button>
+      <button class="btn btn-save" id="unsavedSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
 
 <div id="adminOverlay" class="admin-overlay" style="display:none">
   <div class="admin-box">
@@ -937,7 +953,8 @@
         <span class="scale-label">240</span>
       </div>
       <table>
-        <thead><tr><th class="col-play" id="thPlay" style="display:none"></th><th class="col-drag" id="thDrag"></th><th>Activity</th><th class="col-time">Time</th></tr></thead>
+        <colgroup><col style="width:32px"><col style="width:28px"><col><col style="width:110px"></colgroup>
+        <thead id="editorTableHead"><tr><th class="col-play" id="thPlay" style="display:none"></th><th class="col-drag" id="thDrag"></th><th>Activity</th><th class="col-time">Time</th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
       <div class="status" id="status"></div>
@@ -1835,6 +1852,7 @@
     renderEditor();
     updateTotal();
     snapshotRatios();
+    markSaved();
   }
 
   // Switches which "middle slot" panel is showing (sets list, editor,
@@ -1886,16 +1904,18 @@
     setMobileView('list');
   }
 
-  document.getElementById('backBtn').addEventListener('click', showSetsList);
+  document.getElementById('backBtn').addEventListener('click', () => confirmDiscardIfDirty(showSetsList));
 
   window.hideAllCentralPanels = function() {
     if (practiceActive) {
       showCentralPanel('editor');
     } else {
-      showCentralPanel('sets');
-      resizeToPane('sets');
-      loadSetsList();
-      if (window.setActiveTopBarIcon) window.setActiveTopBarIcon('practiceListBtn');
+      confirmDiscardIfDirty(() => {
+        showCentralPanel('sets');
+        resizeToPane('sets');
+        loadSetsList();
+        if (window.setActiveTopBarIcon) window.setActiveTopBarIcon('practiceListBtn');
+      });
     }
   };
 
@@ -1903,6 +1923,48 @@
 
   // ===================== EDITOR =====================
   let filePath = null, currentSetName = '', rows = [], practiceActive = false, baseRatios = [];
+
+  // ── Unsaved-changes tracking ──
+  // savedRowsSnapshot is a JSON snapshot of `rows` as of the last load or
+  // save; hasUnsavedChanges() compares the live `rows` against it so Back
+  // (and other ways of leaving the editor) can warn before silently
+  // discarding in-memory edits that were never sent to saveCSV.
+  let savedRowsSnapshot = null;
+  function markSaved() { savedRowsSnapshot = JSON.stringify(rows); }
+  function hasUnsavedChanges() {
+    return !!filePath && savedRowsSnapshot !== null && JSON.stringify(rows) !== savedRowsSnapshot;
+  }
+  function confirmDiscardIfDirty(proceed) {
+    if (editorWrap.classList.contains('active') && !practiceActive && hasUnsavedChanges()) {
+      showUnsavedChangesPrompt(proceed);
+    } else {
+      proceed();
+    }
+  }
+  function showUnsavedChangesPrompt(proceed) {
+    const overlay = document.getElementById('unsavedChangesOverlay');
+    const saveBtnEl = document.getElementById('unsavedSaveBtn');
+    const discardBtnEl = document.getElementById('unsavedDiscardBtn');
+    const cancelBtnEl = document.getElementById('unsavedCancelBtn');
+    overlay.style.display = 'flex';
+    function cleanup() {
+      overlay.style.display = 'none';
+      saveBtnEl.removeEventListener('click', onSave);
+      discardBtnEl.removeEventListener('click', onDiscard);
+      cancelBtnEl.removeEventListener('click', onCancel);
+    }
+    async function onSave() {
+      await window.api.saveCSV(filePath, rows);
+      markSaved();
+      cleanup();
+      proceed();
+    }
+    function onDiscard() { cleanup(); proceed(); }
+    function onCancel() { cleanup(); }
+    saveBtnEl.addEventListener('click', onSave);
+    discardBtnEl.addEventListener('click', onDiscard);
+    cancelBtnEl.addEventListener('click', onCancel);
+  }
   const totalValueEl = document.getElementById('totalValue');
   const scaleSlider = document.getElementById('scaleSlider');
 
@@ -2325,7 +2387,7 @@
   titleInput.addEventListener('blur', commitRename);
   titleInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); titleInput.blur(); } if (e.key === 'Escape') { titleInput.value = currentSetName; titleInput.blur(); } });
 
-  document.getElementById('saveBtn').addEventListener('click', async () => { await window.api.saveCSV(filePath, rows); document.getElementById('status').textContent = 'Saved.'; setTimeout(() => { document.getElementById('status').textContent = ''; }, 2000); });
+  document.getElementById('saveBtn').addEventListener('click', async () => { await window.api.saveCSV(filePath, rows); markSaved(); document.getElementById('status').textContent = 'Saved.'; setTimeout(() => { document.getElementById('status').textContent = ''; }, 2000); });
 
   // ===================== PRACTICE =====================
   const CIRC = 2 * Math.PI * 43;
@@ -2424,7 +2486,7 @@
     }
     if (!settings) return;
     row.settings = settings;
-    if (filePath) window.api.saveCSV(filePath, rows).catch(err => console.error('Failed to save row settings:', err));
+    if (filePath) window.api.saveCSV(filePath, rows).then(markSaved).catch(err => console.error('Failed to save row settings:', err));
   }
   window.captureActiveRowSettings = captureActiveRowSettings;
 
