@@ -1526,7 +1526,7 @@
       r.setAttribute('width', 42); r.setAttribute('height', 78);
       r.setAttribute('rx', 3); r.setAttribute('stroke', '#aaa'); r.setAttribute('stroke-width', 1.5);
       r.style.cursor = 'pointer';
-      r.addEventListener('mousedown', e => { e.preventDefault(); showChordGrid(key); });
+      r.addEventListener('mousedown', e => { e.preventDefault(); showChordGrid(key); if (typeof persistActiveRowSettings === 'function') persistActiveRowSettings(settingsTargetRowIdx); });
       svg.appendChild(r); pianoRects[key] = r;
     });
 
@@ -1536,7 +1536,7 @@
       r.setAttribute('width', 26); r.setAttribute('height', 50);
       r.setAttribute('rx', 2); r.setAttribute('stroke', '#000'); r.setAttribute('stroke-width', 1);
       r.style.cursor = 'pointer';
-      r.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); showChordGrid(key); });
+      r.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); showChordGrid(key); if (typeof persistActiveRowSettings === 'function') persistActiveRowSettings(settingsTargetRowIdx); });
       svg.appendChild(r); pianoRects[key] = r;
     });
 
@@ -1769,6 +1769,12 @@
         generateRndGrid(mode);
       }
       rndCurrentMode = mode;
+      // Remember this mode on the practice-list item straight away — a
+      // user who just closes the app after picking a mode shouldn't need
+      // to have also clicked away from the function first for it to stick.
+      // (persistActiveRowSettings, not captureActiveRowSettings: the
+      // function is still open, so don't clear settingsTargetRowIdx.)
+      if (typeof persistActiveRowSettings === 'function') persistActiveRowSettings(settingsTargetRowIdx);
     });
   });
 
@@ -1896,6 +1902,11 @@
     // Fully leaves the currently open set / practice session and returns
     // to the top-level list of sets. Only ever triggered by an explicit
     // "back" action, not by opening a learning function.
+    // Capture first: if a function row (e.g. the randomiser) is active,
+    // its live settings — otherwise only saved on "next item" / the
+    // practice X button / a function's own back button (see
+    // captureActiveRowSettings' callers) — would otherwise be lost.
+    captureActiveRowSettings();
     stopPracticeTimer();
     stopSessionTimer();
     finishPracticeLogSession();
@@ -2489,11 +2500,6 @@
     updateCircle();
   }
 
-  // Reads back whatever settings the function currently open for
-  // settingsTargetRowIdx is left at, and saves them onto that row — called
-  // whenever practice moves off that row/function (loadPracticeItem,
-  // deactivateAll, a function's own back button, ending practice). Never
-  // touches the row's actual randomised content, just the knobs a user set.
   // Computes the settings blob for a row's current activity: the
   // function-specific knobs as before, plus — once the row has difficulty
   // levels (<L…> tags in its notes) — the metronome tempo too, so tempo
@@ -2515,10 +2521,17 @@
     return settings;
   }
 
-  function captureActiveRowSettings() {
-    if (settingsTargetRowIdx < 0 || settingsTargetRowIdx >= rows.length) return;
-    const row = rows[settingsTargetRowIdx];
-    settingsTargetRowIdx = -1;
+  // Reads back whatever settings the function/level open for rowIdx is
+  // left at, and saves them onto that row. Never touches the row's actual
+  // randomised content, just the knobs a user set. Doesn't touch
+  // settingsTargetRowIdx — persistActiveRowSettings can be called
+  // repeatedly while a function stays open (see the randomiser mode
+  // buttons / chord-grid key picker below), each time saving in the
+  // background so a mode change sticks even if the user just quits
+  // without ever navigating away from the function.
+  function persistActiveRowSettings(rowIdx) {
+    if (rowIdx < 0 || rowIdx >= rows.length) return;
+    const row = rows[rowIdx];
     if (!row) return;
     const levels = parseLevels(row.notes);
     if (!levels && row.kind !== 'function') return;
@@ -2533,6 +2546,18 @@
       row.settings = settings;
     }
     if (filePath) window.api.saveCSV(filePath, rows).then(markSaved).catch(err => console.error('Failed to save row settings:', err));
+  }
+
+  // Called whenever practice moves off a row/function for good
+  // (loadPracticeItem, deactivateAll, a function's own back button,
+  // ending practice, going back to the sets list) — persists once more
+  // (covering any change made since the last persistActiveRowSettings)
+  // and then clears settingsTargetRowIdx, since the function is no longer
+  // the "active" one any live setting change should be attributed to.
+  function captureActiveRowSettings() {
+    const rowIdx = settingsTargetRowIdx;
+    settingsTargetRowIdx = -1;
+    persistActiveRowSettings(rowIdx);
   }
   window.captureActiveRowSettings = captureActiveRowSettings;
 
