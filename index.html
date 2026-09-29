@@ -201,7 +201,8 @@
   .level-heading { font-weight: 700; font-size: 14px; padding: 6px 8px; margin: 0.4em -8px 0.2em; border-radius: 6px; cursor: pointer; color: #889; }
   .level-heading:hover { background: #f0f2fa; }
   .level-heading.active { color: #d64545; background: #fdf0ef; }
-  .level-body { margin-bottom: 0.4em; }
+  .level-body { margin: 0 0 0.9em; padding-left: 8px; border-left: 3px solid transparent; opacity: 0.55; }
+  .level-body.active { opacity: 1; border-left-color: #d64545; }
   .practice-panel.active { display: flex; }
   .practice-close { background: none; border: 2px solid transparent; border-radius: 12px; padding: 2px; cursor: pointer; flex-shrink: 0; line-height: 0; transition: border-color 0.15s; }
   .practice-close:hover { border-color: #c0ccee; }
@@ -2712,7 +2713,7 @@
     let html = preamble ? renderMarkdown(preamble) : '';
     levels.forEach((lvl, i) => {
       html += '<div class="level-heading' + (i === active ? ' active' : '') + '" data-level-idx="' + i + '">' + lvl.title.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
-      if (i === active) html += '<div class="level-body">' + renderMarkdown(lvl.body) + '</div>';
+      html += '<div class="level-body' + (i === active ? ' active' : '') + '">' + renderMarkdown(lvl.body) + '</div>';
     });
     preview.innerHTML = html;
   }
