@@ -132,6 +132,8 @@
   .skip-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: #ccc; padding: 4px 6px; border-radius: 4px; line-height: 1; }
   .skip-btn:hover { color: #e67e22; }
   .skip-btn.skipped { color: #e67e22; }
+  .level-btn { background: #fdf0ef; border: none; cursor: pointer; font-size: 11px; font-weight: 700; color: #d64545; padding: 2px 8px; border-radius: 10px; margin-left: 6px; flex-shrink: 0; }
+  .level-btn:hover { background: #fbe1df; }
   tr.row-disabled td { opacity: 0.35; }
   tr.row-disabled td.skip-cell { opacity: 1; }
   tr.row-selected td { background: #eef3ff; }
@@ -196,6 +198,10 @@
   .notes-preview li { margin-bottom: 0.3em; }
   .notes-preview p { margin: 0.4em 0; }
   .notes-icon { width: 18px; height: 18px; border-radius: 4px; vertical-align: -4px; margin-right: 2px; }
+  .level-heading { font-weight: 700; font-size: 14px; padding: 6px 8px; margin: 0.4em -8px 0.2em; border-radius: 6px; cursor: pointer; color: #889; }
+  .level-heading:hover { background: #f0f2fa; }
+  .level-heading.active { color: #d64545; background: #fdf0ef; }
+  .level-body { margin-bottom: 0.4em; }
   .practice-panel.active { display: flex; }
   .practice-close { background: none; border: 2px solid transparent; border-radius: 12px; padding: 2px; cursor: pointer; flex-shrink: 0; line-height: 0; transition: border-color 0.15s; }
   .practice-close:hover { border-color: #c0ccee; }
@@ -2338,7 +2344,18 @@
         addFn.addEventListener('click', () => showInsertMenu(i, addFn));
         activityWrap.appendChild(addFn);
       }
-      activityWrap.appendChild(inA); tdA.appendChild(activityWrap); tr.appendChild(tdA);
+      activityWrap.appendChild(inA);
+      const rowLevels = parseLevels(row.notes);
+      if (rowLevels) {
+        let activeLvl = row.activeLevel || 0;
+        if (activeLvl >= rowLevels.length || activeLvl < 0) activeLvl = 0;
+        const lvlBtn = document.createElement('button'); lvlBtn.type = 'button'; lvlBtn.className = 'level-btn';
+        lvlBtn.textContent = rowLevels[activeLvl].title;
+        lvlBtn.setAttribute('data-tip', 'Click to move this item to its next level.');
+        lvlBtn.addEventListener('click', (e) => { e.stopPropagation(); applyLevelChange(i, (activeLvl + 1) % rowLevels.length); });
+        activityWrap.appendChild(lvlBtn);
+      }
+      tdA.appendChild(activityWrap); tr.appendChild(tdA);
 
       const tdT = document.createElement('td');
       const tc = document.createElement('div'); tc.className = 'time-cell';
@@ -2368,6 +2385,7 @@
         const tag = e.target.tagName;
         if (tag === 'BUTTON' || tag === 'INPUT') return;
         togglePicked(i, e.shiftKey);
+        if (!e.shiftKey) selectRow(i);
       });
 
       tbody.appendChild(tr);
@@ -2476,11 +2494,12 @@
   // whenever practice moves off that row/function (loadPracticeItem,
   // deactivateAll, a function's own back button, ending practice). Never
   // touches the row's actual randomised content, just the knobs a user set.
-  function captureActiveRowSettings() {
-    if (settingsTargetRowIdx < 0 || settingsTargetRowIdx >= rows.length) return;
-    const row = rows[settingsTargetRowIdx];
-    settingsTargetRowIdx = -1;
-    if (!row || row.kind !== 'function') return;
+  // Computes the settings blob for a row's current activity: the
+  // function-specific knobs as before, plus — once the row has difficulty
+  // levels (<L…> tags in its notes) — the metronome tempo too, so tempo
+  // tweaks made on a plain task-row level are remembered just like a
+  // learning function's own settings.
+  function computeActiveRowSettings(row, hasLevels) {
     let settings = null;
     switch (row.functionId) {
       case 'chordgrid': settings = currentChordKey ? { key: currentChordKey, bpm } : null; break;
@@ -2492,8 +2511,27 @@
         settings = window.ChordSeq && window.ChordSeq.getSettings ? window.ChordSeq.getSettings() : null;
         break;
     }
+    if (hasLevels) settings = Object.assign({}, settings || {}, { bpm });
+    return settings;
+  }
+
+  function captureActiveRowSettings() {
+    if (settingsTargetRowIdx < 0 || settingsTargetRowIdx >= rows.length) return;
+    const row = rows[settingsTargetRowIdx];
+    settingsTargetRowIdx = -1;
+    if (!row) return;
+    const levels = parseLevels(row.notes);
+    if (!levels && row.kind !== 'function') return;
+    const settings = computeActiveRowSettings(row, !!levels);
     if (!settings) return;
-    row.settings = settings;
+    if (levels) {
+      let lvlIdx = row.activeLevel || 0;
+      if (lvlIdx >= levels.length || lvlIdx < 0) lvlIdx = 0;
+      row.levelSettings = row.levelSettings || {};
+      row.levelSettings[lvlIdx] = settings;
+    } else {
+      row.settings = settings;
+    }
     if (filePath) window.api.saveCSV(filePath, rows).then(markSaved).catch(err => console.error('Failed to save row settings:', err));
   }
   window.captureActiveRowSettings = captureActiveRowSettings;
@@ -2503,12 +2541,19 @@
   // or once a function/score's own back button is used) the row table.
   function dispatchActiveRow(row) {
     const kind = row.kind || 'task';
+    const levels = parseLevels(row.notes);
+    let activeLvl = row.activeLevel || 0;
+    if (levels && (activeLvl >= levels.length || activeLvl < 0)) activeLvl = 0;
+    const settings = levels ? ((row.levelSettings && row.levelSettings[activeLvl]) || null) : (row.settings || null);
+    // A leveled row's tempo (and, for a function row, its other settings)
+    // should be capturable when we next move away from it, whatever kind
+    // of row it is — a plain task row can still have the metronome running.
+    if (levels) settingsTargetRowIdx = practiceIdx;
     if (kind === 'function') {
       if (window.api && window.api.trackFunctionUsage) {
         window.api.trackFunctionUsage(FUNCTION_LABELS[row.functionId] || row.functionId);
       }
       settingsTargetRowIdx = practiceIdx;
-      const settings = row.settings || null;
       switch (row.functionId) {
         case 'chordgrid': openFeature('chordgrid', settings); return;
         case 'c5': openFeature('c5', settings); return;
@@ -2522,6 +2567,7 @@
       if (window.ScoresUI) window.ScoresUI.showActive(row.scoreId);
       return;
     }
+    if (levels && settings && typeof settings.bpm === 'number') updateBpm(settings.bpm);
     showCentralPanel('editor');
   }
 
@@ -2539,7 +2585,13 @@
     }
     activityEl.style.display = ''; indexEl.style.display = ''; timerWrap.style.display = ''; controlsEl.style.display = 'flex'; doneEl.style.display = 'none';
     const row = rows[idx]; activityEl.textContent = row.activity; indexEl.textContent = (idx + 1) + ' of ' + rows.length;
-    if (practiceActive) sessionActivities.push({ activity: row.activity, minutes: parseFloat(row.time) || 0 });
+    if (practiceActive) {
+      const lvls = parseLevels(row.notes);
+      let lvlIdx = row.activeLevel || 0;
+      if (lvls && (lvlIdx >= lvls.length || lvlIdx < 0)) lvlIdx = 0;
+      const level = lvls ? lvls[lvlIdx].title : null;
+      sessionActivities.push({ activity: row.activity, minutes: parseFloat(row.time) || 0, level });
+    }
     dispatchActiveRow(row);
     // During practice, an item's notes show under the timer automatically; if the user has the
     // notes button on, they stay open for every item (empty ones included).
@@ -2552,6 +2604,46 @@
   }
   // ── Notes panel ──
   let notesOpen = false, notesRowIdx = -1, notesAuto = false; // notesAuto: opened by practice itself, not the notes button
+
+  // ── Difficulty levels (<L1>, <L Beginner>, … <end> tags in notes) ──
+  // Splits a row's notes into { title, body } levels when it contains at
+  // least one <L…> tag; returns null otherwise so untagged notes behave
+  // exactly as before. Text before the first tag is a shared preamble
+  // (see renderNotesPreviewContent) shown regardless of the active level.
+  function parseLevels(notes) {
+    if (!notes) return null;
+    const tagRe = /<L\s*([^>]*)>/gi;
+    const matches = [];
+    let m;
+    while ((m = tagRe.exec(notes))) matches.push({ index: m.index, end: m.index + m[0].length, label: m[1].trim() });
+    if (matches.length === 0) return null;
+    return matches.map((tag, i) => {
+      const start = tag.end;
+      const stop = i + 1 < matches.length ? matches[i + 1].index : notes.length;
+      let body = notes.slice(start, stop);
+      const endMatch = /<end>/i.exec(body);
+      if (endMatch) body = body.slice(0, endMatch.index);
+      const title = /^\d+$/.test(tag.label) ? ('Level ' + tag.label) : (tag.label || ('Level ' + (i + 1)));
+      return { title, body: body.replace(/^\s+/, '').replace(/\s+$/, '') };
+    });
+  }
+
+  // Moves a row to a given level index: captures any in-progress settings
+  // (learning-function state, metronome tempo) into the level it's leaving
+  // if that row is the one currently active in practice, then switches and
+  // — if it's the active practice row — restores that level's own settings.
+  function applyLevelChange(rowIdx, newLevelIdx) {
+    const row = rows[rowIdx];
+    if (!row) return;
+    if (rowIdx === practiceIdx && practiceActive) {
+      settingsTargetRowIdx = rowIdx;
+      captureActiveRowSettings();
+    }
+    row.activeLevel = newLevelIdx;
+    if (rowIdx === practiceIdx && practiceActive) dispatchActiveRow(row);
+    if (rowIdx === notesRowIdx) showNotesPreview();
+    renderEditor();
+  }
 
   function renderMarkdown(md) {
     if (!md) return '';
@@ -2583,8 +2675,21 @@
     const md = ta.value;
     ta.style.display = 'none';
     preview.style.display = '';
-    if (md.trim()) { preview.innerHTML = renderMarkdown(md); preview.classList.remove('empty'); }
-    else { preview.innerHTML = 'Click to add notes…'; preview.classList.add('empty'); }
+    if (!md.trim()) { preview.innerHTML = 'Click to add notes…'; preview.classList.add('empty'); return; }
+    preview.classList.remove('empty');
+    const levels = parseLevels(md);
+    if (!levels) { preview.innerHTML = renderMarkdown(md); return; }
+    const row = notesRowIdx >= 0 ? rows[notesRowIdx] : null;
+    let active = row ? (row.activeLevel || 0) : 0;
+    if (active >= levels.length || active < 0) active = 0;
+    const firstTagIdx = md.search(/<L\s*[^>]*>/i);
+    const preamble = firstTagIdx > 0 ? md.slice(0, firstTagIdx).trim() : '';
+    let html = preamble ? renderMarkdown(preamble) : '';
+    levels.forEach((lvl, i) => {
+      html += '<div class="level-heading' + (i === active ? ' active' : '') + '" data-level-idx="' + i + '">' + lvl.title.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+      if (i === active) html += '<div class="level-body">' + renderMarkdown(lvl.body) + '</div>';
+    });
+    preview.innerHTML = html;
   }
 
   function showNotesEdit() {
@@ -2679,7 +2784,12 @@
     if (!wasInline) resizeForNotes(false);
   }
 
-  document.getElementById('notesPreview').addEventListener('click', () => {
+  document.getElementById('notesPreview').addEventListener('click', (e) => {
+    const heading = e.target.closest('.level-heading');
+    if (heading) {
+      if (notesRowIdx >= 0) applyLevelChange(notesRowIdx, parseInt(heading.dataset.levelIdx, 10));
+      return;
+    }
     if (notesRowIdx >= 0) showNotesEdit();
   });
 

@@ -12,7 +12,7 @@
 
   function summarizeActivities(list) {
     if (!Array.isArray(list) || list.length === 0) return '—';
-    return list.map(a => a.activity + (a.minutes ? ' (' + a.minutes + 'm)' : '')).join(', ');
+    return list.map(a => a.activity + (a.level ? ' [' + a.level + ']' : '') + (a.minutes ? ' (' + a.minutes + 'm)' : '')).join(', ');
   }
 
   async function save(id, fields) {
