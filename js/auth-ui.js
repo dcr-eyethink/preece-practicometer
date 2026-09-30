@@ -26,8 +26,11 @@
 
   signInBtn.addEventListener('click', async () => {
     errorEl.textContent = '';
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
     try {
-      await window.Auth.signIn(emailInput.value.trim(), passwordInput.value);
+      await window.Auth.signIn(email, password);
+      if (window.electronAPI) window.electronAPI.saveCredentials(email, password);
       location.reload();
     } catch (err) {
       showError(err);
@@ -57,6 +60,7 @@
   signOutBtn.addEventListener('click', () => {
     const doSignOut = async () => {
       await window.Auth.signOut();
+      if (window.electronAPI) window.electronAPI.clearCredentials();
       location.reload();
     };
     if (window.FeedbackUI) {
@@ -66,14 +70,31 @@
     }
   });
 
-  window.Auth.getSession().then(async session => {
-    if (!session) return;
+  async function afterSignedIn() {
     overlay.style.display = 'none';
     try {
       const seeded = await window.api.seedDefaultsIfEmpty();
       if (seeded) location.reload();
     } catch (err) {
       console.error('Seeding starter sets failed:', err);
+    }
+  }
+
+  window.Auth.getSession().then(async session => {
+    if (session) {
+      afterSignedIn();
+      return;
+    }
+    // Desktop build only: try the Keychain-backed saved credentials before
+    // falling back to asking the user to sign in by hand.
+    if (!window.electronAPI) return;
+    const saved = await window.electronAPI.loadCredentials();
+    if (!saved) return;
+    try {
+      await window.Auth.signIn(saved.email, saved.password);
+      afterSignedIn();
+    } catch (err) {
+      window.electronAPI.clearCredentials();
     }
   });
 })();

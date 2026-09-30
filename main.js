@@ -1,6 +1,34 @@
-const { app, BrowserWindow, session, ipcMain, systemPreferences } = require('electron');
+const { app, BrowserWindow, session, ipcMain, systemPreferences, shell, safeStorage } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { execFile } = require('child_process');
+
+// Remembers the signed-in email/password across launches so the user isn't
+// re-prompted every time. Encrypted at rest with Electron's safeStorage,
+// which on macOS is backed by the login Keychain (Keychain Access shows the
+// key as "Electron Safe Storage" / the app's own entry).
+const CREDENTIALS_PATH = () => path.join(app.getPath('userData'), 'saved-credentials.bin');
+
+function saveCredentials(email, password) {
+  if (!safeStorage.isEncryptionAvailable()) return false;
+  const payload = JSON.stringify({ email, password });
+  fs.writeFileSync(CREDENTIALS_PATH(), safeStorage.encryptString(payload));
+  return true;
+}
+
+function loadCredentials() {
+  try {
+    const encrypted = fs.readFileSync(CREDENTIALS_PATH());
+    if (!safeStorage.isEncryptionAvailable()) return null;
+    return JSON.parse(safeStorage.decryptString(encrypted));
+  } catch (err) {
+    return null;
+  }
+}
+
+function clearCredentials() {
+  try { fs.unlinkSync(CREDENTIALS_PATH()); } catch (err) { /* nothing to remove */ }
+}
 
 // Where the app's UI actually lives — defaults to the deployed site, or
 // override with PRACTICOMETER_URL (e.g. a local static server) for dev work.
@@ -24,6 +52,13 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js')
     }
   });
+  // Links like target="_blank" (e.g. the welcome video) should open in the
+  // user's real browser, not spawn another in-app window.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
   win.loadURL(APP_URL);
 }
 
@@ -48,6 +83,9 @@ app.whenReady().then(async () => {
     if (!LAUNCHABLE_APPS.includes(appName)) return;
     execFile('open', ['-a', appName]);
   });
+  ipcMain.handle('save-credentials', (e, email, password) => saveCredentials(email, password));
+  ipcMain.handle('load-credentials', () => loadCredentials());
+  ipcMain.handle('clear-credentials', () => clearCredentials());
   createWindow();
 });
 
