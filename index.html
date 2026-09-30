@@ -2682,12 +2682,16 @@
   }
 
   // Grades a level's colour by its position among the row's levels: green
-  // for the first level, shading through to gold for the last — so harder
-  // levels read as a visually "higher" tier at a glance. text/bg are used
-  // for the level-heading / level-btn text+background, and border for the
-  // active level-body's emphasis border.
+  // for the first level, sweeping forward through blue then red before
+  // landing on gold for the last — a longer trip around the hue wheel than
+  // a straight green→gold fade, so adjacent levels stay visually distinct
+  // even with several of them. text/bg are used for the level-heading /
+  // level-btn text+background, and border for the active level-body's
+  // emphasis border.
+  const LEVEL_HUE_START = 140; // green
+  const LEVEL_HUE_END = 45 + 360; // gold, past a full lap through blue (~210) and red (~355)
   function levelColor(i, total) {
-    const hue = total <= 1 ? 140 : 140 - (140 - 45) * (i / (total - 1));
+    const hue = (total <= 1 ? LEVEL_HUE_START : LEVEL_HUE_START + (LEVEL_HUE_END - LEVEL_HUE_START) * (i / (total - 1))) % 360;
     return { text: `hsl(${hue}, 62%, 32%)`, bg: `hsl(${hue}, 70%, 92%)`, border: `hsl(${hue}, 62%, 45%)` };
   }
 
