@@ -127,7 +127,7 @@
   .table-scroll { overflow-x: auto; }
   .table-scroll table { min-width: 640px; }
   td input:focus { border-color: #a0b4f0; outline: none; background: #f8faff; }
-  td input.time-input { width: 60px; text-align: center; }
+  td input.time-input { width: 2ch; padding: 7px 2px; text-align: center; box-sizing: content-box; }
   .del-btn, .add-row-btn { background: none; border: none; cursor: pointer; font-size: 16px; color: #ccc; padding: 4px 8px; border-radius: 4px; }
   .skip-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: #ccc; padding: 4px 6px; border-radius: 4px; line-height: 1; }
   .skip-btn:hover { color: #e67e22; }
@@ -969,7 +969,7 @@
         <span class="scale-label">240</span>
       </div>
       <table>
-        <colgroup><col style="width:32px"><col style="width:28px"><col><col style="width:110px"></colgroup>
+        <colgroup><col style="width:32px"><col><col style="width:58px"><col style="width:34px"></colgroup>
         <thead id="editorTableHead"><tr><th class="col-play" id="thPlay" style="display:none"></th><th class="col-drag" id="thDrag"></th><th>Activity</th><th class="col-time">Time</th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
