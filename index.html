@@ -190,7 +190,11 @@
   .notes-toolbar.visible { display: flex; }
   .make-level-btn { background: #eef3ff; border: none; cursor: pointer; font-size: 12px; font-weight: 600; color: #35c; padding: 4px 10px; border-radius: 6px; }
   .make-level-btn:hover { background: #dfe8ff; }
-  .make-level-name { width: 64px; font-size: 12px; padding: 4px 6px; border: 1px solid #dde; border-radius: 6px; }
+  .make-level-name { width: 64px; font-size: 12px; padding: 4px 18px 4px 6px; border: 1px solid #dde; border-radius: 6px; }
+  .level-name-wrap { position: relative; display: inline-flex; }
+  .level-name-stepper { position: absolute; right: 2px; top: 2px; bottom: 2px; display: flex; flex-direction: column; }
+  .level-name-stepper button { border: none; background: none; cursor: pointer; color: #99a; font-size: 8px; line-height: 1; padding: 0 3px; flex: 1; display: flex; align-items: center; }
+  .level-name-stepper button:hover { color: #35c; }
   .notes-textarea { display: none; flex: 1; border: none; outline: none; resize: none; padding: 14px; font-size: 14px; line-height: 1.6; font-family: inherit; background: transparent; color: #223; }
   .notes-preview { flex: 1; padding: 14px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #223; cursor: text; }
   .notes-preview.empty { font-style: italic; color: #bbb; cursor: text; }
@@ -980,7 +984,13 @@
       <div class="notes-preview" id="notesPreview" data-tip="Click to edit. Markdown supported: **bold**, *italic*, # heading, - list item."></div>
       <div class="notes-toolbar" id="notesToolbar">
         <button type="button" class="make-level-btn" id="makeLevelBtn" data-tip="Insert a new difficulty level at the cursor (or around any selected text).">Make Level</button>
-        <input type="text" class="make-level-name" id="makeLevelName" value="1" data-tip="Name or number for the new level.">
+        <span class="level-name-wrap">
+          <input type="text" class="make-level-name" id="makeLevelName" value="1" data-tip="Name or number for the new level.">
+          <span class="level-name-stepper">
+            <button type="button" id="levelNameUp" tabindex="-1" data-tip="Increment (only if the name is a number).">▲</button>
+            <button type="button" id="levelNameDown" tabindex="-1" data-tip="Decrement (only if the name is a number).">▼</button>
+          </span>
+        </span>
         <button type="button" class="make-level-btn clear-level-btn" id="clearLevelBtn" data-tip="Remove level tags from the selected text, or from all notes if nothing's selected.">Clear Level</button>
       </div>
       <textarea class="notes-textarea" id="notesTextarea" placeholder="Click to add notes… (markdown supported)" data-tip="Click away (or press outside this box) to save and preview your notes."></textarea>
@@ -2752,6 +2762,7 @@
     document.getElementById('notesPreview').style.display = 'none';
     document.getElementById('notesToolbar').classList.add('visible');
     document.getElementById('notesTextarea').focus();
+    refreshLevelNameSuggestion();
   }
 
   // Shared by openNotesForRow and openNotesForFunction — positions the
@@ -2885,6 +2896,33 @@
     ta.value = ta.value.slice(0, start) + insertion + ta.value.slice(end);
     saveCurrentNotes();
     showNotesPreview();
+  });
+
+  // Sets the level-name field to one past the highest numbered level
+  // already present in the notes (or "1" if there are none/only named
+  // levels) — rechecked whenever edit mode is (re)entered, i.e. right
+  // after a level was made or cleared and the user comes back to add
+  // another.
+  function refreshLevelNameSuggestion() {
+    const notes = document.getElementById('notesTextarea').value;
+    const tagRe = /<L\s*([^>]*)>/gi;
+    let highest = 0, m;
+    while ((m = tagRe.exec(notes))) {
+      const label = m[1].trim();
+      if (/^\d+$/.test(label)) highest = Math.max(highest, parseInt(label, 10));
+    }
+    document.getElementById('makeLevelName').value = String(highest + 1);
+  }
+
+  document.getElementById('levelNameUp').addEventListener('mousedown', (e) => e.preventDefault());
+  document.getElementById('levelNameDown').addEventListener('mousedown', (e) => e.preventDefault());
+  document.getElementById('levelNameUp').addEventListener('click', () => {
+    const field = document.getElementById('makeLevelName');
+    if (/^\d+$/.test(field.value.trim())) field.value = String(parseInt(field.value.trim(), 10) + 1);
+  });
+  document.getElementById('levelNameDown').addEventListener('click', () => {
+    const field = document.getElementById('makeLevelName');
+    if (/^\d+$/.test(field.value.trim())) field.value = String(Math.max(1, parseInt(field.value.trim(), 10) - 1));
   });
 
   // "Clear Level" toolbar: strips <L …>/<end> tags — from the selected text
