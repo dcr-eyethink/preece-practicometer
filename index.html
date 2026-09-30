@@ -132,8 +132,8 @@
   .skip-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: #ccc; padding: 4px 6px; border-radius: 4px; line-height: 1; }
   .skip-btn:hover { color: #e67e22; }
   .skip-btn.skipped { color: #e67e22; }
-  .level-btn { background: #fdf0ef; border: none; cursor: pointer; font-size: 11px; font-weight: 700; color: #d64545; padding: 2px 8px; border-radius: 10px; margin-left: 6px; flex-shrink: 0; }
-  .level-btn:hover { background: #fbe1df; }
+  .level-btn { border: none; cursor: pointer; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 6px; flex-shrink: 0; filter: brightness(1); }
+  .level-btn:hover { filter: brightness(0.93); }
   tr.row-disabled td { opacity: 0.35; }
   tr.row-disabled td.skip-cell { opacity: 1; }
   tr.row-selected td { background: #eef3ff; }
@@ -198,11 +198,11 @@
   .notes-preview li { margin-bottom: 0.3em; }
   .notes-preview p { margin: 0.4em 0; }
   .notes-icon { width: 18px; height: 18px; border-radius: 4px; vertical-align: -4px; margin-right: 2px; }
-  .level-heading { font-weight: 700; font-size: 14px; padding: 6px 8px; margin: 0.4em -8px 0.2em; border-radius: 6px; cursor: pointer; color: #889; }
-  .level-heading:hover { background: #f0f2fa; }
-  .level-heading.active { color: #d64545; background: #fdf0ef; }
+  .level-heading { font-weight: 700; font-size: 14px; padding: 6px 8px; margin: 0.4em -8px 0.2em; border-radius: 6px; cursor: pointer; opacity: 0.6; }
+  .level-heading:hover { filter: brightness(0.96); }
+  .level-heading.active { opacity: 1; }
   .level-body { margin: 0 0 0.9em; padding-left: 8px; border-left: 3px solid transparent; opacity: 0.55; }
-  .level-body.active { opacity: 1; border-left-color: #d64545; }
+  .level-body.active { opacity: 1; }
   .practice-panel.active { display: flex; }
   .practice-close { background: none; border: 2px solid transparent; border-radius: 12px; padding: 2px; cursor: pointer; flex-shrink: 0; line-height: 0; transition: border-color 0.15s; }
   .practice-close:hover { border-color: #c0ccee; }
@@ -2363,6 +2363,8 @@
         if (activeLvl >= rowLevels.length || activeLvl < 0) activeLvl = 0;
         const lvlBtn = document.createElement('button'); lvlBtn.type = 'button'; lvlBtn.className = 'level-btn';
         lvlBtn.textContent = rowLevels[activeLvl].title;
+        const lvlColor = levelColor(activeLvl, rowLevels.length);
+        lvlBtn.style.color = lvlColor.text; lvlBtn.style.background = lvlColor.bg;
         lvlBtn.setAttribute('data-tip', 'Click to move this item to its next level.');
         lvlBtn.addEventListener('click', (e) => { e.stopPropagation(); applyLevelChange(i, (activeLvl + 1) % rowLevels.length); });
         activityWrap.appendChild(lvlBtn);
@@ -2398,6 +2400,11 @@
         if (tag === 'BUTTON' || tag === 'INPUT') return;
         togglePicked(i, e.shiftKey);
         if (!e.shiftKey) selectRow(i);
+      });
+      tr.addEventListener('dblclick', (e) => {
+        const tag = e.target.tagName;
+        if (tag === 'BUTTON' || tag === 'INPUT' || practiceActive) return;
+        openPracticeAt(i);
       });
 
       tbody.appendChild(tr);
@@ -2654,6 +2661,16 @@
     });
   }
 
+  // Grades a level's colour by its position among the row's levels: green
+  // for the first level, shading through to gold for the last — so harder
+  // levels read as a visually "higher" tier at a glance. text/bg are used
+  // for the level-heading / level-btn text+background, and border for the
+  // active level-body's emphasis border.
+  function levelColor(i, total) {
+    const hue = total <= 1 ? 140 : 140 - (140 - 45) * (i / (total - 1));
+    return { text: `hsl(${hue}, 62%, 32%)`, bg: `hsl(${hue}, 70%, 92%)`, border: `hsl(${hue}, 62%, 45%)` };
+  }
+
   // Moves a row to a given level index: captures any in-progress settings
   // (learning-function state, metronome tempo) into the level it's leaving
   // if that row is the one currently active in practice, then switches and
@@ -2712,8 +2729,9 @@
     const preamble = firstTagIdx > 0 ? md.slice(0, firstTagIdx).trim() : '';
     let html = preamble ? renderMarkdown(preamble) : '';
     levels.forEach((lvl, i) => {
-      html += '<div class="level-heading' + (i === active ? ' active' : '') + '" data-level-idx="' + i + '">' + lvl.title.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
-      html += '<div class="level-body' + (i === active ? ' active' : '') + '">' + renderMarkdown(lvl.body) + '</div>';
+      const c = levelColor(i, levels.length);
+      html += '<div class="level-heading' + (i === active ? ' active' : '') + '" data-level-idx="' + i + '" style="color:' + c.text + ';background:' + (i === active ? c.bg : 'transparent') + '">' + lvl.title.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+      html += '<div class="level-body' + (i === active ? ' active' : '') + '" style="border-left-color:' + c.border + '">' + renderMarkdown(lvl.body) + '</div>';
     });
     preview.innerHTML = html;
   }
@@ -2855,7 +2873,12 @@
   restartBtn.addEventListener('click', () => loadPracticeItem(practiceIdx, true));
   nextBtn.addEventListener('click', () => loadPracticeItem(practiceIdx + 1, true));
 
-  document.getElementById('practiceBtn').addEventListener('click', () => {
+  // Enters practice view at a given row — used by the main practice button
+  // (always row 0) and by double-clicking a specific row in the list, which
+  // jumps straight to that item's timer/notes/function instead. The timer
+  // itself is never auto-started here; the user still presses the timer's
+  // own Start button once they're happy with the settings.
+  function openPracticeAt(startIdx) {
     if (rows.length === 0) return;
     practiceActive = true; practicePanel.classList.add('active');
     const scoresPanelEl = document.getElementById('scoresPanel');
@@ -2867,10 +2890,11 @@
     sessionStarted = false;
     sessionElapsed = 0; sessionTimeEl.textContent = '0:00';
     startPracticeLogSession();
-    loadPracticeItem(0);
+    loadPracticeItem(startIdx);
     updateMobileNavForPracticeState();
     setMobileView('practice');
-  });
+  }
+  document.getElementById('practiceBtn').addEventListener('click', () => openPracticeAt(0));
   document.getElementById('practiceClose').addEventListener('click', () => {
     captureActiveRowSettings();
     stopPracticeTimer(); stopSessionTimer();
