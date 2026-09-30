@@ -2873,11 +2873,34 @@
     showNotesPreview();
   });
 
+  // Just enough of a blank line to separate a tag block from whatever's
+  // already next to it — '' if there's already a blank line there, one
+  // newline if there's already a line break (just needs to become a full
+  // blank line), or a full blank line if the text runs straight in. Keeps
+  // repeated inserts/clears from stacking up extra blank lines over time.
+  function sepBefore(text, pos) {
+    if (pos === 0) return '';
+    const n = (text.slice(0, pos).match(/\n*$/)[0]).length;
+    return n >= 2 ? '' : n === 1 ? '\n' : '\n\n';
+  }
+  function sepAfter(text, pos) {
+    if (pos === text.length) return '';
+    const n = (text.slice(pos).match(/^\n*/)[0]).length;
+    return n >= 2 ? '' : n === 1 ? '\n' : '\n\n';
+  }
+  // Collapses any run of 3+ newlines left behind by an edit down to a
+  // single blank line, and drops leading/trailing blank lines.
+  function collapseBlankRuns(text) {
+    return text.replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '').replace(/\n+$/, '');
+  }
+
   // "Make Level" toolbar: inserts <L name> / <end> tags without the user
   // needing to know the syntax. Wraps the current selection if there is
-  // one, otherwise inserts an empty level at the cursor — or at the bottom
-  // of the notes if the textarea isn't the focused element (e.g. the level
-  // name field was just being edited). Switches back to the preview
+  // one, otherwise inserts an empty level (with a blank line to type the
+  // body into) at the cursor — or at the bottom of the notes if the
+  // textarea isn't the focused element (e.g. the level name field was
+  // just being edited). Only adds as much blank-line separation from the
+  // surrounding text as isn't already there. Switches back to the preview
   // afterward so the raw tags are never left showing — same as Clear Level.
   document.getElementById('makeLevelBtn').addEventListener('mousedown', (e) => e.preventDefault()); // keep textarea focus/selection intact
   document.getElementById('makeLevelBtn').addEventListener('click', () => {
@@ -2889,15 +2912,10 @@
     const start = focused ? ta.selectionStart : ta.value.length;
     const end = focused ? ta.selectionEnd : ta.value.length;
     const selectedText = ta.value.slice(start, end);
-    let insertion, cursorPos;
-    if (selectedText) {
-      insertion = '\n\n' + openTag + '\n\n' + selectedText + '\n\n' + closeTag + '\n\n';
-      cursorPos = start + insertion.length;
-    } else {
-      insertion = '\n\n' + openTag + '\n\n' + closeTag + '\n\n';
-      cursorPos = start + ('\n\n' + openTag + '\n\n').length;
-    }
-    ta.value = ta.value.slice(0, start) + insertion + ta.value.slice(end);
+    const prefix = sepBefore(ta.value, start);
+    const suffix = sepAfter(ta.value, end);
+    const core = selectedText ? (openTag + '\n' + selectedText + '\n' + closeTag) : (openTag + '\n\n' + closeTag);
+    ta.value = ta.value.slice(0, start) + prefix + core + suffix + ta.value.slice(end);
     saveCurrentNotes();
     showNotesPreview();
   });
@@ -2941,9 +2959,9 @@
     const end = focused ? ta.selectionEnd : 0;
     if (end > start) {
       const cleared = ta.value.slice(start, end).replace(LEVEL_TAG_RE, '');
-      ta.value = ta.value.slice(0, start) + cleared + ta.value.slice(end);
+      ta.value = collapseBlankRuns(ta.value.slice(0, start) + cleared + ta.value.slice(end));
     } else {
-      ta.value = ta.value.replace(LEVEL_TAG_RE, '');
+      ta.value = collapseBlankRuns(ta.value.replace(LEVEL_TAG_RE, ''));
     }
     saveCurrentNotes();
     showNotesPreview();
