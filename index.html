@@ -981,6 +981,7 @@
       <div class="notes-toolbar" id="notesToolbar">
         <button type="button" class="make-level-btn" id="makeLevelBtn" data-tip="Insert a new difficulty level at the cursor (or around any selected text).">Make Level</button>
         <input type="text" class="make-level-name" id="makeLevelName" value="1" data-tip="Name or number for the new level.">
+        <button type="button" class="make-level-btn clear-level-btn" id="clearLevelBtn" data-tip="Remove level tags from the selected text, or from all notes if nothing's selected.">Clear Level</button>
       </div>
       <textarea class="notes-textarea" id="notesTextarea" placeholder="Click to add notes… (markdown supported)" data-tip="Click away (or press outside this box) to save and preview your notes."></textarea>
     </div>
@@ -2861,7 +2862,8 @@
   // needing to know the syntax. Wraps the current selection if there is
   // one, otherwise inserts an empty level at the cursor — or at the bottom
   // of the notes if the textarea isn't the focused element (e.g. the level
-  // name field was just being edited).
+  // name field was just being edited). Switches back to the preview
+  // afterward so the raw tags are never left showing — same as Clear Level.
   document.getElementById('makeLevelBtn').addEventListener('mousedown', (e) => e.preventDefault()); // keep textarea focus/selection intact
   document.getElementById('makeLevelBtn').addEventListener('click', () => {
     const ta = document.getElementById('notesTextarea');
@@ -2881,9 +2883,28 @@
       cursorPos = start + ('\n\n' + openTag + '\n\n').length;
     }
     ta.value = ta.value.slice(0, start) + insertion + ta.value.slice(end);
-    ta.focus();
-    ta.setSelectionRange(cursorPos, cursorPos);
     saveCurrentNotes();
+    showNotesPreview();
+  });
+
+  // "Clear Level" toolbar: strips <L …>/<end> tags — from the selected text
+  // only if there is one, otherwise from the whole notes — so the user
+  // never has to hand-edit the tag syntax to remove a level either.
+  const LEVEL_TAG_RE = /<L\s*[^>]*>|<end>/gi;
+  document.getElementById('clearLevelBtn').addEventListener('mousedown', (e) => e.preventDefault());
+  document.getElementById('clearLevelBtn').addEventListener('click', () => {
+    const ta = document.getElementById('notesTextarea');
+    const focused = document.activeElement === ta;
+    const start = focused ? ta.selectionStart : 0;
+    const end = focused ? ta.selectionEnd : 0;
+    if (end > start) {
+      const cleared = ta.value.slice(start, end).replace(LEVEL_TAG_RE, '');
+      ta.value = ta.value.slice(0, start) + cleared + ta.value.slice(end);
+    } else {
+      ta.value = ta.value.replace(LEVEL_TAG_RE, '');
+    }
+    saveCurrentNotes();
+    showNotesPreview();
   });
 
   document.getElementById('notesCloseBtn').addEventListener('click', closeNotes);
