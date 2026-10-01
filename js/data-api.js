@@ -121,6 +121,157 @@
     return { path: data.id, name: data.name };
   }
 
+  // ── Set browser (folders) ──
+  const FOLDERS_TABLE = 'set_folders';
+
+  async function listFolders() {
+    requireClient();
+    const { data, error } = await client
+      .from(FOLDERS_TABLE)
+      .select('id, name, parent_folder_id, position, trashed')
+      .eq('trashed', false)
+      .order('position', { ascending: true });
+    if (error) throw error;
+    return data.map(f => ({ id: f.id, name: f.name, parentFolderId: f.parent_folder_id, position: f.position }));
+  }
+
+  // Everything, including trashed folders and archived sets — used to build
+  // the Trash view and to walk a folder's descendants before trashing it.
+  // Falls back to a flat (folderless) list if supabase/set_browser.sql
+  // hasn't been run yet on this project — 42P01 ("relation does not
+  // exist") for the brand-new set_folders table, 42703 ("column does not
+  // exist") for practice_sets' new folder_id/position columns — rather
+  // than breaking the whole set browser until someone runs it.
+  async function listAllFoldersAndSets() {
+    requireClient();
+    let foldersRes = await client.from(FOLDERS_TABLE).select('id, name, parent_folder_id, position, trashed');
+    if (foldersRes.error && foldersRes.error.code === '42P01') foldersRes = { data: [] };
+    else if (foldersRes.error) throw foldersRes.error;
+
+    let setsRes = await client.from(TABLE).select('id, name, folder_id, position, archived');
+    if (setsRes.error && setsRes.error.code === '42703') {
+      setsRes = await client.from(TABLE).select('id, name, archived');
+    }
+    if (setsRes.error) throw setsRes.error;
+
+    return {
+      folders: (foldersRes.data || []).map(f => ({ id: f.id, name: f.name, parentFolderId: f.parent_folder_id, position: f.position, trashed: !!f.trashed })),
+      sets: (setsRes.data || []).map(s => ({ id: s.id, name: s.name, folderId: s.folder_id || null, position: s.position || 0, archived: !!s.archived }))
+    };
+  }
+
+  async function createFolder(name, parentFolderId) {
+    const userId = await currentUserId();
+    const { data, error } = await client
+      .from(FOLDERS_TABLE)
+      .insert({ user_id: userId, name, parent_folder_id: parentFolderId || null })
+      .select('id, name')
+      .single();
+    if (error) throw error;
+    return { id: data.id, name: data.name };
+  }
+
+  async function renameFolder(id, name) {
+    requireClient();
+    const { error } = await client.from(FOLDERS_TABLE).update({ name }).eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+
+  async function moveFolder(id, parentFolderId, position) {
+    requireClient();
+    const { error } = await client
+      .from(FOLDERS_TABLE)
+      .update({ parent_folder_id: parentFolderId || null, position: position || 0 })
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+
+  async function moveSet(id, folderId, position) {
+    requireClient();
+    const { error } = await client
+      .from(TABLE)
+      .update({ folder_id: folderId || null, position: position || 0 })
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  }
+
+  // ids: ordered array of {id, kind: 'folder'|'set'} siblings in the same
+  // container — writes position 0..n-1 so the new order sticks.
+  async function reorderSiblings(items) {
+    requireClient();
+    await Promise.all(items.map((item, i) => {
+      const table = item.kind === 'folder' ? FOLDERS_TABLE : TABLE;
+      return client.from(table).update({ position: i }).eq('id', item.id);
+    }));
+    return true;
+  }
+
+  // Trashes a folder and everything nested inside it. `tree` is the
+  // {folders, sets} result of a recent listAllFoldersAndSets() call — small
+  // per-user datasets, so the descendant walk happens client-side rather
+  // than with a recursive SQL query.
+  async function trashFolder(id, tree) {
+    requireClient();
+    const descendantFolderIds = [id];
+    let frontier = [id];
+    while (frontier.length) {
+      const next = tree.folders.filter(f => frontier.includes(f.parentFolderId)).map(f => f.id);
+      descendantFolderIds.push(...next);
+      frontier = next;
+    }
+    const descendantSetIds = tree.sets.filter(s => descendantFolderIds.includes(s.folderId)).map(s => s.id);
+    await Promise.all([
+      client.from(FOLDERS_TABLE).update({ trashed: true }).in('id', descendantFolderIds),
+      descendantSetIds.length ? client.from(TABLE).update({ archived: true }).in('id', descendantSetIds) : Promise.resolve()
+    ]);
+    return true;
+  }
+
+  // Restoring a folder/set also un-trashes any trashed ancestor folders —
+  // otherwise it would reappear nested inside a folder that's still hidden
+  // in the Trash. `tree` is a recent listAllFoldersAndSets() result.
+  async function restoreAncestorChain(parentFolderId, tree) {
+    const trashedAncestorIds = [];
+    let cur = parentFolderId;
+    while (cur) {
+      const folder = tree.folders.find(f => f.id === cur);
+      if (!folder) break;
+      if (folder.trashed) trashedAncestorIds.push(folder.id);
+      cur = folder.parentFolderId;
+    }
+    if (trashedAncestorIds.length) {
+      await client.from(FOLDERS_TABLE).update({ trashed: false }).in('id', trashedAncestorIds);
+    }
+  }
+
+  async function restoreFolder(id, tree) {
+    requireClient();
+    const folder = tree.folders.find(f => f.id === id);
+    await client.from(FOLDERS_TABLE).update({ trashed: false }).eq('id', id);
+    if (folder) await restoreAncestorChain(folder.parentFolderId, tree);
+    return true;
+  }
+
+  async function restoreSet(id, tree) {
+    requireClient();
+    const set = tree.sets.find(s => s.id === id);
+    await client.from(TABLE).update({ archived: false }).eq('id', id);
+    if (set) await restoreAncestorChain(set.folderId, tree);
+    return true;
+  }
+
+  const setItemNamesCache = new Map();
+  async function listSetItemNames(id) {
+    if (setItemNamesCache.has(id)) return setItemNamesCache.get(id);
+    const data = await readCSV(id);
+    const names = (data.rows || []).map(r => r.activity || '(untitled)');
+    setItemNamesCache.set(id, names);
+    return names;
+  }
+
   function resizeWindow() { /* no-op on the web */ }
   async function getWindowSize() { return [window.innerWidth, window.innerHeight]; }
 
@@ -605,6 +756,8 @@
     currentUserEmail, isFeedbackAdmin, submitFeedback, listFeedback,
     startUserSession, touchUserSession, trackFunctionUsage, listUserSessions,
     adminListUsers, adminListUserSets, adminListUserLog, adminCopySet, adminMoveSet, adminDeleteSet,
+    listFolders, listAllFoldersAndSets, createFolder, renameFolder, moveFolder, moveSet,
+    reorderSiblings, trashFolder, restoreFolder, restoreSet, listSetItemNames,
     archiveSet, adminRestoreSet
   };
 })();

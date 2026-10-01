@@ -78,6 +78,34 @@
   .set-list li:hover { background: #f5f5f5; }
   .set-list li.selected { background: #e8f0fe; border-color: #a0b4f0; color: #1a56db; font-weight: 500; }
   .sets-empty { color: #888; font-size: 14px; padding: 2rem 0; text-align: center; }
+
+  /* Set browser (folder tree) */
+  .set-tree { list-style: none; padding: 0; margin: 0 0 1rem; }
+  .set-tree ul { list-style: none; padding-left: 20px; margin: 0; }
+  .tree-row { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; }
+  .tree-row:hover { background: #f5f5f5; }
+  .tree-row.selected { background: #e8f0fe; color: #1a56db; font-weight: 500; }
+  .tree-row.drag-over-into { outline: 2px solid #1a56db; background: #eef3ff; }
+  .tree-row.drag-over-above { box-shadow: 0 -2px 0 #1a56db; }
+  .tree-row.drag-over-below { box-shadow: 0 2px 0 #1a56db; }
+  .tree-row.dragging { opacity: 0.4; }
+  .tree-disclosure { width: 14px; flex-shrink: 0; text-align: center; color: #888; font-size: 11px; }
+  .tree-disclosure.empty { visibility: hidden; }
+  .tree-icon { width: 16px; flex-shrink: 0; opacity: 0.7; }
+  .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tree-name[contenteditable="true"] { outline: 1px solid #a0b4f0; border-radius: 4px; padding: 0 2px; white-space: normal; }
+  .tree-row-actions { display: none; gap: 4px; flex-shrink: 0; }
+  .tree-row:hover .tree-row-actions { display: flex; }
+  .tree-row-actions button { border: none; background: none; cursor: pointer; color: #999; font-size: 13px; padding: 2px 4px; border-radius: 4px; }
+  .tree-row-actions button:hover { background: #e5e5e5; color: #333; }
+  .tree-item-names { padding-left: 38px; }
+  .tree-item-names li { padding: 3px 0; color: #777; font-size: 13px; cursor: default; }
+  .tree-item-names li[draggable="true"] { cursor: grab; }
+  .tree-item-names li:hover { color: #333; }
+  .set-tree-trash { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e0e0; }
+  .set-tree-trash .tree-row { color: #888; }
+  .tree-restore-btn { border: none; background: #e8f0fe; color: #1a56db; font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 10px; cursor: pointer; margin-left: 8px; }
+  .tree-restore-btn:hover { background: #d8e6fd; }
   .welcome-text { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #eee; font-size: 13px; line-height: 1.5; color: #555; }
   .welcome-text h3 { margin: 0 0 0.6rem; font-size: 14px; font-weight: 600; color: #333; }
   .welcome-text p { margin: 0 0 0.75rem; }
@@ -181,6 +209,12 @@
   .practice-panel.notes-inline-active { justify-content: flex-start; }
 .notes-panel { width: 360px; border-left: 1px solid #e0e0e0; display: none; flex-direction: column; background: #fafbff; }
   .notes-panel.open { display: flex; }
+  .import-panel { width: 340px; border-left: 1px solid #e0e0e0; display: none; flex-direction: column; background: #fafbff; padding: 1.25rem; overflow-y: auto; }
+  .import-panel.open { display: flex; }
+  .import-panel h2 { margin: 0 0 1rem; font-size: 18px; font-weight: 600; }
+  .import-panel .panel-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+  .import-panel .panel-title-row h2 { margin: 0; flex: 1; min-width: 0; }
+  .import-hint { color: #888; font-size: 12px; margin: 0 0 0.75rem; }
   .notes-panel.inline { width: 100%; max-width: 420px; border-left: none; border-top: 1px solid #e0e0e0; background: transparent; margin-top: 1.25rem; flex: 1; min-height: 160px; }
   .notes-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px 8px; border-bottom: 1px solid #e8e8e8; }
   .notes-header-title { font-size: 13px; font-weight: 600; color: #556; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -764,12 +798,13 @@
       <h2>Practice Sets</h2>
       <div class="toolbar">
         <button class="icon-action-btn" id="newSetBtn" data-tip="Create a new, empty practice set."><img src="icons/new-set.png" alt="New Set"></button>
+        <button class="icon-action-btn" id="newFolderBtn" data-tip="Create a new folder to organize your practice sets.">📁</button>
         <button class="icon-action-btn" id="setsDeleteBtn" disabled data-tip="Archive the selected practice set — removes it from your list. Ask an admin if you need it back."><img src="icons/trash.png" alt="Archive"></button>
         <button class="icon-action-btn" id="setsDupBtn" disabled data-tip="Duplicate the selected practice set under a new name."><img src="icons/duplicate.png" alt="Duplicate"></button>
         <button class="icon-action-btn icon-action-btn-lg" id="openSetBtn" disabled data-tip="Open the selected practice set. You can also just double-click a set in the list."><img src="icons/open.png" alt="Open"></button>
       </div>
     </div>
-    <ul class="set-list" id="setList"></ul>
+    <div class="set-tree" id="setTree"></div>
     <div id="setsEmpty" class="sets-empty" style="display:none">No practice sets yet — create one to get started.</div>
 
     <div class="welcome-text">
@@ -961,6 +996,7 @@
           <button class="icon-action-btn icon-action-btn-sm" id="deleteRowsBtn" data-tip="Delete the highlighted item(s) — click one or more rows to highlight them first."><img src="icons/trash.png" alt="Delete"></button>
           <button class="icon-action-btn icon-action-btn-sm" id="copyItemsBtn" data-tip="Copy the highlighted item(s) — click one or more rows to highlight them first."><img src="icons/copy-items.png" alt="Copy items"></button>
           <button class="icon-action-btn icon-action-btn-sm" id="pasteItemsBtn" data-tip="Paste the copied items onto the bottom of this list, with their notes and settings."><img src="icons/paste-items.png" alt="Paste items"></button>
+          <button class="icon-action-btn icon-action-btn-sm" id="importBtn" data-tip="Import sets or individual items from your other practice sets — drag them in from the panel that opens."><img src="icons/open.png" alt="Import"></button>
           <button class="icon-action-btn icon-action-btn-sm" id="saveBtn" data-tip="Save changes to this practice set."><img src="icons/save.png" alt="Save"></button>
         </div>
       </div>
@@ -995,6 +1031,15 @@
         <button type="button" class="make-level-btn clear-level-btn" id="clearLevelBtn" data-tip="Remove level tags from the selected text, or from all notes if nothing's selected.">Clear Level</button>
       </div>
       <textarea class="notes-textarea" id="notesTextarea" placeholder="Click to add notes… (markdown supported)" data-tip="Click away (or press outside this box) to save and preview your notes."></textarea>
+    </div>
+
+    <div class="import-panel" id="importPanel">
+      <div class="panel-title-row">
+        <h2>Import from…</h2>
+        <button class="notes-close-btn" id="importCloseBtn" data-tip="Close the import panel.">×</button>
+      </div>
+      <p class="import-hint">Drag a whole set, or an individual item from inside an expanded set, onto your practice list to copy it in.</p>
+      <div class="set-tree" id="importTree"></div>
     </div>
   </div>
 
@@ -1807,10 +1852,26 @@
     if (metroRunning) { clearInterval(metroInterval); metroInterval = setInterval(metroTick, 60000 / bpm); }
   });
 
-  // ===================== SETS LIST =====================
+  // ===================== SETS LIST (set browser) =====================
   const setsPanel = document.getElementById('setsPanel');
   const editorWrap = document.getElementById('editorWrap');
   let selectedSetPath = null;
+  let selectedSetName = '';
+
+  // Cross-pane import drag payload types (a whole set, or one item inside
+  // an expanded set in the import panel) — distinct from the in-tree
+  // move/reorder payload (TREE_MOVE_TYPE), and from the existing
+  // FUNCTION_DROP_TYPE/SCORE_DROP_TYPE used for top-bar drags, defined
+  // further down this script.
+  const TREE_MOVE_TYPE = 'application/x-practicometer-tree-move';
+  const IMPORT_SET_DROP_TYPE = 'application/x-practicometer-import-set';
+  const IMPORT_ITEM_DROP_TYPE = 'application/x-practicometer-import-item';
+
+  // Expand/collapse state persists across re-renders within one app
+  // session (not saved anywhere) — keyed by folder/set id.
+  const treeOpenFolders = new Set();
+  const treeOpenSets = new Set();
+  let manageTree = null; // last tree fetched for the manage-mode browser, used by drag/drop + trash
 
   function setSetsSelectionEnabled(enabled) {
     document.getElementById('openSetBtn').disabled = !enabled;
@@ -1818,34 +1879,345 @@
     document.getElementById('setsDupBtn').disabled = !enabled;
   }
 
-  async function loadSetsList() {
-    const sets = await window.api.listSets();
-    const list = document.getElementById('setList');
-    const empty = document.getElementById('setsEmpty');
-    list.innerHTML = ''; selectedSetPath = null; setSetsSelectionEnabled(false);
-    if (sets.length === 0) { empty.style.display = 'block'; return; }
-    empty.style.display = 'none';
-    const lastPath = localStorage.getItem('lastOpenedSet');
-    for (const s of sets) {
-      const li = document.createElement('li'); li.textContent = s.name; li.dataset.path = s.path;
-      li.setAttribute('data-tip', 'Click to select, double-click to open.');
-      li.addEventListener('click', () => {
-        document.querySelectorAll('.set-list li').forEach(el => el.classList.remove('selected'));
-        li.classList.add('selected'); selectedSetPath = s.path; setSetsSelectionEnabled(true);
-      });
-      li.addEventListener('dblclick', () => openSet(s.path));
-      list.appendChild(li);
-      if (s.path === lastPath) {
-        li.classList.add('selected'); selectedSetPath = s.path; setSetsSelectionEnabled(true);
+  function childrenOf(tree, parentId, opts) {
+    const folders = tree.folders
+      .filter(f => !f.trashed && (f.parentFolderId || '') === (parentId || ''))
+      .sort((a, b) => a.position - b.position);
+    const sets = tree.sets
+      .filter(s => !s.archived && (s.folderId || '') === (parentId || '') && (!opts || s.id !== opts.excludeSetId))
+      .sort((a, b) => a.position - b.position);
+    return { folders, sets };
+  }
+
+  function dragZoneForEvent(e, rowEl) {
+    const r = rowEl.getBoundingClientRect();
+    const frac = (e.clientY - r.top) / r.height;
+    if (frac < 0.25) return 'above';
+    if (frac > 0.75) return 'below';
+    return 'into';
+  }
+
+  async function handleTreeDrop(e, targetKind, targetId, zone, containerFolderId) {
+    const payload = e.dataTransfer.getData(TREE_MOVE_TYPE);
+    if (!payload || !manageTree) return;
+    const { kind, id } = JSON.parse(payload);
+    if (kind === targetKind && id === targetId) return;
+
+    const destParentId = (targetKind === 'folder' && zone === 'into') ? targetId : (containerFolderId || '');
+
+    if (kind === 'folder') {
+      let cur = manageTree.folders.find(f => f.id === destParentId);
+      while (cur) {
+        if (cur.id === id) return; // can't drop a folder into its own descendant
+        cur = manageTree.folders.find(f => f.id === cur.parentFolderId);
       }
     }
+
+    const { folders, sets } = childrenOf(manageTree, destParentId);
+    let siblings = [
+      ...folders.filter(f => f.id !== id).map(f => ({ kind: 'folder', id: f.id })),
+      ...sets.filter(s => s.id !== id).map(s => ({ kind: 'set', id: s.id }))
+    ];
+    let insertAt = siblings.length;
+    if (targetKind === kind && (zone === 'above' || zone === 'below')) {
+      const idx = siblings.findIndex(s => s.kind === targetKind && s.id === targetId);
+      if (idx !== -1) insertAt = zone === 'above' ? idx : idx + 1;
+    }
+    siblings.splice(insertAt, 0, { kind, id });
+
+    try {
+      if (kind === 'folder') await window.api.moveFolder(id, destParentId || null, 0);
+      else await window.api.moveSet(id, destParentId || null, 0);
+      await window.api.reorderSiblings(siblings);
+      loadSetsList();
+    } catch (err) {
+      console.error('Set-browser move failed:', err);
+    }
+  }
+
+  function wireTreeRowDnD(row, kind, id, mode, containerFolderId) {
+    if (mode !== 'manage') return;
+    row.draggable = true;
+    row.addEventListener('dragstart', e => {
+      e.stopPropagation();
+      e.dataTransfer.setData(TREE_MOVE_TYPE, JSON.stringify({ kind, id }));
+      e.dataTransfer.effectAllowed = 'move';
+      row.classList.add('dragging');
+    });
+    row.addEventListener('dragend', () => row.classList.remove('dragging'));
+    row.addEventListener('dragover', e => {
+      if (!e.dataTransfer.types.includes(TREE_MOVE_TYPE)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const zone = kind === 'folder' ? dragZoneForEvent(e, row) : (dragZoneForEvent(e, row) === 'below' ? 'below' : 'above');
+      row.classList.remove('drag-over-above', 'drag-over-below', 'drag-over-into');
+      row.classList.add('drag-over-' + zone);
+      row.dataset.dropZone = zone;
+    });
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drag-over-above', 'drag-over-below', 'drag-over-into');
+    });
+    row.addEventListener('drop', e => {
+      if (!e.dataTransfer.types.includes(TREE_MOVE_TYPE)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const zone = row.dataset.dropZone || 'into';
+      row.classList.remove('drag-over-above', 'drag-over-below', 'drag-over-into');
+      handleTreeDrop(e, kind, id, zone, containerFolderId);
+    });
+  }
+
+  function renderSetNode(set, mode, opts, containerFolderId) {
+    const li = document.createElement('li');
+    const row = document.createElement('div');
+    row.className = 'tree-row';
+    row.setAttribute('data-tip', mode === 'manage' ? 'Click to select, double-click to open.' : 'Drag onto your practice list to import it.');
+
+    const disclosure = document.createElement('span');
+    disclosure.className = 'tree-disclosure';
+    disclosure.textContent = treeOpenSets.has(set.id) ? '▾' : '▸';
+
+    const icon = document.createElement('span'); icon.className = 'tree-icon'; icon.textContent = '🎵';
+    const nameEl = document.createElement('span'); nameEl.className = 'tree-name'; nameEl.textContent = set.name;
+    row.append(disclosure, icon, nameEl);
+
+    const itemsUl = document.createElement('ul');
+    itemsUl.className = 'tree-item-names';
+    itemsUl.style.display = treeOpenSets.has(set.id) ? '' : 'none';
+
+    async function populateItems() {
+      itemsUl.innerHTML = '<li>Loading…</li>';
+      try {
+        const names = await window.api.listSetItemNames(set.id);
+        itemsUl.innerHTML = '';
+        if (names.length === 0) {
+          const empty = document.createElement('li'); empty.textContent = '(empty)'; itemsUl.appendChild(empty);
+        }
+        names.forEach((name, rowIndex) => {
+          const itemLi = document.createElement('li');
+          itemLi.textContent = name;
+          if (mode === 'import-source') {
+            itemLi.draggable = true;
+            itemLi.addEventListener('dragstart', e => {
+              e.stopPropagation();
+              e.dataTransfer.setData(IMPORT_ITEM_DROP_TYPE, JSON.stringify({ setId: set.id, rowIndex }));
+              e.dataTransfer.setData('text/plain', name);
+              e.dataTransfer.effectAllowed = 'copy';
+            });
+          }
+          itemsUl.appendChild(itemLi);
+        });
+      } catch (err) {
+        itemsUl.innerHTML = ''; console.error('listSetItemNames failed:', err);
+      }
+    }
+    disclosure.addEventListener('click', e => {
+      e.stopPropagation();
+      const open = treeOpenSets.has(set.id);
+      if (open) { treeOpenSets.delete(set.id); itemsUl.style.display = 'none'; disclosure.textContent = '▸'; }
+      else { treeOpenSets.add(set.id); itemsUl.style.display = ''; disclosure.textContent = '▾'; populateItems(); }
+    });
+    if (treeOpenSets.has(set.id)) populateItems();
+
+    if (mode === 'manage') {
+      row.addEventListener('click', () => {
+        document.querySelectorAll('#setTree .tree-row').forEach(el => el.classList.remove('selected'));
+        row.classList.add('selected');
+        selectedSetPath = set.id; selectedSetName = set.name;
+        setSetsSelectionEnabled(true);
+      });
+      row.addEventListener('dblclick', () => openSet(set.id));
+      if (set.id === localStorage.getItem('lastOpenedSet')) {
+        row.classList.add('selected'); selectedSetPath = set.id; selectedSetName = set.name; setSetsSelectionEnabled(true);
+      }
+      wireTreeRowDnD(row, 'set', set.id, mode, containerFolderId);
+    } else {
+      row.draggable = true;
+      row.addEventListener('dragstart', e => {
+        e.dataTransfer.setData(IMPORT_SET_DROP_TYPE, set.id);
+        e.dataTransfer.setData('text/plain', set.name);
+        e.dataTransfer.effectAllowed = 'copy';
+      });
+    }
+
+    li.append(row, itemsUl);
+    return li;
+  }
+
+  function renderFolderNode(folder, mode, opts, tree) {
+    const li = document.createElement('li');
+    const row = document.createElement('div');
+    row.className = 'tree-row';
+
+    const disclosure = document.createElement('span');
+    disclosure.className = 'tree-disclosure';
+    disclosure.textContent = treeOpenFolders.has(folder.id) ? '▾' : '▸';
+
+    const icon = document.createElement('span'); icon.className = 'tree-icon'; icon.textContent = '📁';
+    const nameEl = document.createElement('span'); nameEl.className = 'tree-name'; nameEl.textContent = folder.name;
+    row.append(disclosure, icon, nameEl);
+
+    const childUl = document.createElement('ul');
+    childUl.style.display = treeOpenFolders.has(folder.id) ? '' : 'none';
+    renderLevel(childUl, folder.id, mode, opts, tree);
+
+    function toggle() {
+      const open = treeOpenFolders.has(folder.id);
+      if (open) { treeOpenFolders.delete(folder.id); childUl.style.display = 'none'; disclosure.textContent = '▸'; }
+      else { treeOpenFolders.add(folder.id); childUl.style.display = ''; disclosure.textContent = '▾'; }
+    }
+    disclosure.addEventListener('click', e => { e.stopPropagation(); toggle(); });
+
+    if (mode === 'manage') {
+      row.addEventListener('click', () => {
+        document.querySelectorAll('#setTree .tree-row').forEach(el => el.classList.remove('selected'));
+        row.classList.add('selected');
+        selectedSetPath = null; setSetsSelectionEnabled(false);
+      });
+      row.addEventListener('dblclick', toggle);
+
+      const actions = document.createElement('span'); actions.className = 'tree-row-actions';
+      const renameBtn = document.createElement('button'); renameBtn.textContent = '✎'; renameBtn.title = 'Rename folder';
+      renameBtn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const next = window.prompt('Rename folder', folder.name);
+        if (!next || next === folder.name) return;
+        try { await window.api.renameFolder(folder.id, next); loadSetsList(); }
+        catch (err) { console.error('renameFolder failed:', err); }
+      });
+      const delBtn = document.createElement('button'); delBtn.textContent = '🗑'; delBtn.title = 'Move folder to Trash';
+      delBtn.addEventListener('click', async e => {
+        e.stopPropagation();
+        if (!window.confirm('Move "' + folder.name + '" (and everything inside it) to Trash? You can restore it later.')) return;
+        try { await window.api.trashFolder(folder.id, manageTree); loadSetsList(); }
+        catch (err) { console.error('trashFolder failed:', err); }
+      });
+      actions.append(renameBtn, delBtn);
+      row.appendChild(actions);
+
+      wireTreeRowDnD(row, 'folder', folder.id, mode, folder.parentFolderId);
+    }
+
+    li.append(row, childUl);
+    return li;
+  }
+
+  function renderLevel(ul, parentId, mode, opts, tree) {
+    const { folders, sets } = childrenOf(tree, parentId, opts);
+    folders.forEach(f => ul.appendChild(renderFolderNode(f, mode, opts, tree)));
+    sets.forEach(s => ul.appendChild(renderSetNode(s, mode, opts, parentId)));
+  }
+
+  async function renderTrashSection(container, tree) {
+    const trashedFolders = tree.folders.filter(f => f.trashed);
+    const archivedSets = tree.sets.filter(s => s.archived);
+    if (trashedFolders.length === 0 && archivedSets.length === 0) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'set-tree-trash';
+    const row = document.createElement('div');
+    row.className = 'tree-row';
+    const disclosure = document.createElement('span'); disclosure.className = 'tree-disclosure'; disclosure.textContent = treeOpenFolders.has('__trash__') ? '▾' : '▸';
+    const icon = document.createElement('span'); icon.className = 'tree-icon'; icon.textContent = '🗑';
+    const nameEl = document.createElement('span'); nameEl.className = 'tree-name'; nameEl.textContent = 'Trash (' + (trashedFolders.length + archivedSets.length) + ')';
+    row.append(disclosure, icon, nameEl);
+
+    const listUl = document.createElement('ul');
+    listUl.style.display = treeOpenFolders.has('__trash__') ? '' : 'none';
+    function fillTrashList() {
+      listUl.innerHTML = '';
+      trashedFolders.forEach(f => {
+        const li = document.createElement('li');
+        const r = document.createElement('div'); r.className = 'tree-row';
+        const ic = document.createElement('span'); ic.className = 'tree-icon'; ic.textContent = '📁';
+        const nm = document.createElement('span'); nm.className = 'tree-name'; nm.textContent = f.name;
+        const restoreBtn = document.createElement('button'); restoreBtn.className = 'tree-restore-btn'; restoreBtn.textContent = 'Restore';
+        restoreBtn.addEventListener('click', async e => {
+          e.stopPropagation();
+          try { await window.api.restoreFolder(f.id, manageTree); loadSetsList(); }
+          catch (err) { console.error('restoreFolder failed:', err); }
+        });
+        r.append(ic, nm, restoreBtn); li.appendChild(r); listUl.appendChild(li);
+      });
+      archivedSets.forEach(s => {
+        const li = document.createElement('li');
+        const r = document.createElement('div'); r.className = 'tree-row';
+        const ic = document.createElement('span'); ic.className = 'tree-icon'; ic.textContent = '🎵';
+        const nm = document.createElement('span'); nm.className = 'tree-name'; nm.textContent = s.name;
+        const restoreBtn = document.createElement('button'); restoreBtn.className = 'tree-restore-btn'; restoreBtn.textContent = 'Restore';
+        restoreBtn.addEventListener('click', async e => {
+          e.stopPropagation();
+          try { await window.api.restoreSet(s.id, manageTree); loadSetsList(); }
+          catch (err) { console.error('restoreSet failed:', err); }
+        });
+        r.append(ic, nm, restoreBtn); li.appendChild(r); listUl.appendChild(li);
+      });
+    }
+    disclosure.addEventListener('click', () => {
+      const open = treeOpenFolders.has('__trash__');
+      if (open) { treeOpenFolders.delete('__trash__'); listUl.style.display = 'none'; disclosure.textContent = '▸'; }
+      else { treeOpenFolders.add('__trash__'); listUl.style.display = ''; disclosure.textContent = '▾'; fillTrashList(); }
+    });
+    if (treeOpenFolders.has('__trash__')) fillTrashList();
+    row.addEventListener('click', () => disclosure.click());
+    wrap.append(row, listUl);
+    container.appendChild(wrap);
+  }
+
+  // mode: 'manage' (the main #setTree, full editing) or 'import-source'
+  // (the right-hand #importPanel's tree, browse + drag-out only).
+  async function renderSetBrowser(container, opts) {
+    opts = opts || {};
+    const mode = opts.mode || 'manage';
+    let tree;
+    try {
+      tree = await window.api.listAllFoldersAndSets();
+    } catch (err) {
+      console.error('listAllFoldersAndSets failed:', err);
+      return;
+    }
+    if (mode === 'manage') { manageTree = tree; selectedSetPath = null; setSetsSelectionEnabled(false); }
+
+    container.innerHTML = '';
+    const rootUl = document.createElement('ul');
+    rootUl.style.listStyle = 'none'; rootUl.style.padding = '0'; rootUl.style.margin = '0';
+    renderLevel(rootUl, '', mode, opts, tree);
+    container.appendChild(rootUl);
+
+    if (mode === 'manage') {
+      const empty = document.getElementById('setsEmpty');
+      const { folders, sets } = childrenOf(tree, '');
+      const hasAnyNonRoot = tree.folders.some(f => !f.trashed) || tree.sets.some(s => !s.archived);
+      empty.style.display = hasAnyNonRoot ? 'none' : 'block';
+      await renderTrashSection(container, tree);
+
+      // Root-level drop target (dropping onto empty tree background files
+      // the dragged item back at the top level).
+      rootUl.addEventListener('dragover', e => {
+        if (!e.dataTransfer.types.includes(TREE_MOVE_TYPE)) return;
+        if (e.target !== rootUl) return;
+        e.preventDefault();
+      });
+      rootUl.addEventListener('drop', e => {
+        if (!e.dataTransfer.types.includes(TREE_MOVE_TYPE) || e.target !== rootUl) return;
+        e.preventDefault();
+        const payload = e.dataTransfer.getData(TREE_MOVE_TYPE);
+        if (!payload) return;
+        const { kind, id } = JSON.parse(payload);
+        handleTreeDrop(e, kind, id, 'into', '');
+      });
+    }
+  }
+
+  async function loadSetsList() {
+    await renderSetBrowser(document.getElementById('setTree'), { mode: 'manage' });
   }
 
   document.getElementById('openSetBtn').addEventListener('click', () => { if (selectedSetPath) openSet(selectedSetPath); });
 
   document.getElementById('setsDeleteBtn').addEventListener('click', async () => {
     if (!selectedSetPath) return;
-    const name = document.querySelector('.set-list li.selected')?.textContent || 'this set';
+    const name = selectedSetName || 'this set';
     if (!window.confirm('Archive "' + name + '"? It will be removed from your list — an admin can restore it if you need it back.')) return;
     try {
       await window.api.archiveSet(selectedSetPath);
@@ -1870,6 +2242,57 @@
     const created = await window.api.createSet('New Set');
     await openSet(created.path);
   });
+
+  document.getElementById('newFolderBtn').addEventListener('click', async () => {
+    const name = window.prompt('New folder name', 'New Folder');
+    if (!name) return;
+    try { await window.api.createFolder(name, null); loadSetsList(); }
+    catch (err) { console.error('createFolder failed:', err); }
+  });
+
+  // ===================== IMPORT PANEL =====================
+  const importPanel = document.getElementById('importPanel');
+
+  async function openImportPanel() {
+    importPanel.classList.add('open');
+    await renderSetBrowser(document.getElementById('importTree'), { mode: 'import-source', excludeSetId: filePath });
+  }
+  function closeImportPanel() { importPanel.classList.remove('open'); }
+  window.closeImportPanel = closeImportPanel;
+
+  document.getElementById('importBtn').addEventListener('click', () => {
+    if (importPanel.classList.contains('open')) closeImportPanel(); else openImportPanel();
+  });
+  document.getElementById('importCloseBtn').addEventListener('click', closeImportPanel);
+
+  // Appends a whole imported set's rows, or a single imported item, at
+  // `insertAt`. Shares the same "copy" semantics as the import panel's own
+  // drag source: nothing is removed from the set it came from. Called from
+  // handleExternalDrop's callers below once that function reports it didn't
+  // already handle the drop (a function/score icon drag).
+  async function handleImportDrop(e, insertAt) {
+    if (practiceActive) return false;
+    const setId = e.dataTransfer.getData(IMPORT_SET_DROP_TYPE);
+    const itemPayload = e.dataTransfer.getData(IMPORT_ITEM_DROP_TYPE);
+    if (!setId && !itemPayload) return false;
+    try {
+      if (setId) {
+        const data = await window.api.readCSV(setId);
+        rows.splice(insertAt, 0, ...(data.rows || []));
+      } else {
+        const { setId: srcSetId, rowIndex } = JSON.parse(itemPayload);
+        const data = await window.api.readCSV(srcSetId);
+        const item = data.rows && data.rows[rowIndex];
+        if (item) rows.splice(insertAt, 0, item);
+      }
+      renderEditor(); updateTotal(); snapshotRatios();
+    } catch (err) {
+      console.error('Import drop failed:', err);
+    }
+    return true;
+  }
+  window.handleImportDrop = handleImportDrop;
+  window.IMPORT_DROP_TYPES = [IMPORT_SET_DROP_TYPE, IMPORT_ITEM_DROP_TYPE];
 
   async function openSet(fp) {
     setsPanel.style.display = 'none';
@@ -1908,6 +2331,7 @@
     if (scorePanelEl) scorePanelEl.style.display = name === 'score' ? 'flex' : 'none';
     const logPanelEl = document.getElementById('logPanel');
     if (logPanelEl) logPanelEl.style.display = name === 'log' ? 'flex' : 'none';
+    if (name !== 'editor' && window.closeImportPanel) window.closeImportPanel();
     // Every central-panel view lives inside .right-panel, so on mobile
     // (where only one top-level view shows at a time) opening any of them
     // — from the Metronome or Timer view too, not just already being on
@@ -2307,7 +2731,7 @@
   editorTbody.addEventListener('drop', e => {
     if (practiceActive || e.target !== editorTbody) return; // a <tr>'s own handler covers drops on rows
     e.preventDefault();
-    handleExternalDrop(e, rows.length);
+    if (!handleExternalDrop(e, rows.length)) handleImportDrop(e, rows.length);
   });
 
   function selectRow(idx) {
@@ -2340,7 +2764,7 @@
       tr.addEventListener('dragleave', () => tr.classList.remove('drag-over'));
       tr.addEventListener('drop', e => {
         e.preventDefault(); tr.classList.remove('drag-over');
-        handleExternalDrop(e, i);
+        if (!handleExternalDrop(e, i)) handleImportDrop(e, i);
       });
 
       if (practiceActive) {
