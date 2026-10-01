@@ -271,6 +271,11 @@
     setItemNamesCache.set(id, names);
     return names;
   }
+  // Called after anything writes to a set's rows outside the normal
+  // open-set editor (e.g. copying an imported item straight into it from
+  // the set browser) so a stale item-name list isn't served next time it's
+  // expanded.
+  function invalidateSetItemNamesCache(id) { setItemNamesCache.delete(id); }
 
   function resizeWindow() { /* no-op on the web */ }
   async function getWindowSize() { return [window.innerWidth, window.innerHeight]; }
@@ -809,7 +814,7 @@
     startUserSession, touchUserSession, trackFunctionUsage, listUserSessions,
     adminListUsers, adminListUserSets, adminListUserLog, adminCopySet, adminMoveSet, adminDeleteSet,
     listFolders, listAllFoldersAndSets, createFolder, renameFolder, moveFolder, moveSet,
-    reorderSiblings, trashFolder, restoreFolder, restoreSet, listSetItemNames,
+    reorderSiblings, trashFolder, restoreFolder, restoreSet, listSetItemNames, invalidateSetItemNamesCache,
     archiveSet, adminRestoreSet
   };
 })();
