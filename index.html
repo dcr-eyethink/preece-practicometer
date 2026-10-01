@@ -1928,6 +1928,7 @@
     // its live settings — otherwise only saved on "next item" / the
     // practice X button / a function's own back button (see
     // captureActiveRowSettings' callers) — would otherwise be lost.
+    finalizeFreeplayElapsed();
     captureActiveRowSettings();
     stopPracticeTimer();
     stopSessionTimer();
@@ -2496,6 +2497,7 @@
       practiceLogId = id;
       if (logHeartbeatId) clearInterval(logHeartbeatId);
       logHeartbeatId = setInterval(() => {
+        finalizeFreeplayElapsed();
         if (practiceLogId) window.api.updatePracticeLog(practiceLogId, { durationSec: sessionElapsed, activities: sessionActivities }).catch(() => {});
       }, LOG_HEARTBEAT_MS);
     }).catch(err => console.error('Failed to start practice log:', err));
@@ -2511,13 +2513,28 @@
 
   function fmtTime(s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
   function updateCircle() {
+    // A 0 in the time box means "freeplay": the item has no target length,
+    // so remainSec just counts up from 0 (as a negative number, reusing the
+    // countdown's own decrement) for as long as the user stays on it — shown
+    // as a plain running clock, not the red "overtime" state a real timer
+    // shows once it runs past its target.
+    const freeplay = totalSec === 0;
     const frac = totalSec > 0 ? Math.max(0, remainSec) / totalSec : 0;
     timerFg.setAttribute('stroke-dashoffset', CIRC * (1 - frac));
     if (remainSec <= 0 && totalSec > 0) { timerFg.classList.add('done'); timerWrap.classList.add('throb'); }
     else { timerFg.classList.remove('done'); timerWrap.classList.remove('throb'); }
-    const over = remainSec < 0;
+    const over = !freeplay && remainSec < 0;
     timerWrap.classList.toggle('overtime', over);
-    timerText.textContent = over ? '+' + fmtTime(-remainSec) : fmtTime(remainSec);
+    timerText.textContent = freeplay ? fmtTime(-remainSec) : (over ? '+' + fmtTime(-remainSec) : fmtTime(remainSec));
+  }
+  // Freeplay items are logged with their actual elapsed time rather than the
+  // planned 0 — call this right before switching away from (or ending
+  // practice on) whichever item is currently showing, while remainSec still
+  // holds that item's elapsed time.
+  function finalizeFreeplayElapsed() {
+    if (totalSec !== 0 || !sessionActivities.length) return;
+    const elapsedMin = Math.max(0, -remainSec) / 60;
+    sessionActivities[sessionActivities.length - 1].minutes = Math.round(elapsedMin * 10) / 10;
   }
   function syncPracticeTime() {
     if (!practiceActive || practiceIdx >= rows.length) return;
@@ -2626,6 +2643,7 @@
   }
 
   function loadPracticeItem(idx, autoStart) {
+    finalizeFreeplayElapsed();
     captureActiveRowSettings();
     stopPracticeTimer();
     // skip disabled rows
@@ -3022,6 +3040,7 @@
   }
   document.getElementById('practiceBtn').addEventListener('click', () => openPracticeAt(0));
   document.getElementById('practiceClose').addEventListener('click', () => {
+    finalizeFreeplayElapsed();
     captureActiveRowSettings();
     stopPracticeTimer(); stopSessionTimer();
     finishPracticeLogSession();
