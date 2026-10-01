@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   launchApp: (appName) => ipcRenderer.invoke('launch-app', appName),
   saveCredentials: (email, password) => ipcRenderer.invoke('save-credentials', email, password),
   loadCredentials: () => ipcRenderer.invoke('load-credentials'),
-  clearCredentials: () => ipcRenderer.invoke('clear-credentials')
+  clearCredentials: () => ipcRenderer.invoke('clear-credentials'),
+  toggleDevSite: () => ipcRenderer.invoke('toggle-dev-site')
 });

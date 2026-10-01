@@ -297,6 +297,23 @@
       const email = await window.api.currentUserEmail();
       if (window.api.isFeedbackAdmin(email)) {
         dashboardBtn.style.display = '';
+        // Desktop build only — switching the window's URL is meaningless on
+        // the web build, where index.html just *is* whatever's deployed.
+        const devBtn = document.getElementById('devSiteBtn');
+        if (devBtn && window.electronAPI) {
+          devBtn.style.display = '';
+          devBtn.addEventListener('click', async () => {
+            try {
+              const onDev = await window.electronAPI.toggleDevSite();
+              devBtn.classList.toggle('active', onDev);
+              devBtn.setAttribute('data-tip', onDev
+                ? 'On your local dev server. Click to switch back to the live site.'
+                : 'Switch this window to your local dev server, to test a branch before merging it live. Click again to switch back.');
+            } catch (err) {
+              console.error('toggleDevSite failed:', err);
+            }
+          });
+        }
       }
     } catch (err) {
       console.error('Admin check failed:', err);

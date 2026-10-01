@@ -33,11 +33,22 @@ function clearCredentials() {
 // Where the app's UI actually lives — defaults to the deployed site, or
 // override with PRACTICOMETER_URL (e.g. a local static server) for dev work.
 const APP_URL = process.env.PRACTICOMETER_URL || 'https://dcr-eyethink.github.io/preece-practicometer/';
+// What the admin-only "dev" toggle in the top bar (index.html's devSiteBtn)
+// switches to and from — a local static server serving an in-progress
+// branch, so the live site can be left alone while testing. Override with
+// PRACTICOMETER_DEV_URL if that server runs somewhere other than the
+// default .claude/launch.json port.
+const DEV_URL = process.env.PRACTICOMETER_DEV_URL || 'http://localhost:4173';
 
 // Desktop-only "open other apps" buttons in the top bar. Fixed allowlist,
 // launched via execFile (no shell) so the renderer can never inject an
 // arbitrary command even though the window loads a remote page.
 const LAUNCHABLE_APPS = ['GarageBand', 'iReal Pro', 'forScore'];
+
+// The most recently created window and whether it's currently pointed at
+// DEV_URL instead of APP_URL — toggled by the admin-only dev button.
+let mainWindow = null;
+let onDevSite = false;
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -59,7 +70,21 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  mainWindow = win;
+  onDevSite = false;
+  win.on('closed', () => { if (mainWindow === win) mainWindow = null; });
   win.loadURL(APP_URL);
+}
+
+// Flips the focused window between the live site and DEV_URL. Always
+// re-clears the cache first (same reasoning as the startup clearCache
+// below) so switching never serves a stale cached copy of either side.
+async function toggleDevSite() {
+  if (!mainWindow) return onDevSite;
+  onDevSite = !onDevSite;
+  await session.defaultSession.clearCache();
+  mainWindow.loadURL(onDevSite ? DEV_URL : APP_URL);
+  return onDevSite;
 }
 
 app.whenReady().then(async () => {
@@ -86,6 +111,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('save-credentials', (e, email, password) => saveCredentials(email, password));
   ipcMain.handle('load-credentials', () => loadCredentials());
   ipcMain.handle('clear-credentials', () => clearCredentials());
+  ipcMain.handle('toggle-dev-site', () => toggleDevSite());
   createWindow();
 });
 
