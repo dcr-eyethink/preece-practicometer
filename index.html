@@ -2398,7 +2398,7 @@
       const inT = document.createElement('input'); inT.type = 'text'; inT.className = 'time-input'; inT.value = row.time;
       inT.addEventListener('input', () => { rows[i].time = inT.value; updateTotal(); snapshotRatios(); syncPracticeTime(); });
       inT.addEventListener('focus', () => selectRow(i));
-      inT.setAttribute('data-tip', 'Minutes to spend on this item.');
+      inT.setAttribute('data-tip', 'Minutes to spend on this item. Set to 0 for freeplay — the timer counts up instead of down, for as long as you stay on it, and that actual time is logged.');
       const arrows = document.createElement('div'); arrows.className = 'time-arrows';
       const up = document.createElement('button'); up.className = 'time-arrow'; up.textContent = '▲';
       up.setAttribute('data-tip', 'Add one minute.');
