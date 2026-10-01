@@ -426,6 +426,58 @@
     return true;
   }
 
+  // Which of the current user's own practice sets have an item referencing
+  // this score — used to warn before deleteScore orphans those items (they'd
+  // otherwise silently start showing "Could not load this score." the next
+  // time someone opens them, with nothing pointing back at why).
+  async function findScoreUsage(scoreId) {
+    requireClient();
+    const userId = await currentUserId();
+    const { data, error } = await client
+      .from(TABLE).select('name, rows').eq('user_id', userId).eq('archived', false);
+    if (error) throw error;
+    const usage = [];
+    for (const s of (data || [])) {
+      for (const r of (s.rows || [])) {
+        if (r.kind === 'score' && r.scoreId === scoreId) {
+          usage.push({ setName: s.name, activity: r.activity });
+        }
+      }
+    }
+    return usage;
+  }
+
+  // Makes sure the signed-in user owns a usable copy of a score referenced
+  // by an imported item — reusing it unchanged if they already own it (the
+  // only case today, since importing only pulls from your own sets), or
+  // cloning the file + row into their own library otherwise. That second
+  // path only matters once items/sets can be imported from someone else's
+  // account or a shared library, but importing goes through this either way
+  // so imported items are always self-contained rather than relying on a
+  // scoreId the importer may one day not have read access to. Same cloning
+  // technique as adminCopySet below. Returns the scoreId the imported row
+  // should use.
+  async function ensureOwnScoreCopy(scoreId) {
+    requireClient();
+    const userId = await currentUserId();
+    const { data: score, error } = await client
+      .from(SCORES_TABLE).select('id, user_id, name, storage_path, mime_type').eq('id', scoreId).single();
+    if (error) throw error;
+    if (score.user_id === userId) return scoreId;
+
+    const cleanName = (score.storage_path.split('/').pop()) || 'score';
+    const newStoragePath = userId + '/' + Date.now() + '-' + cleanName;
+    const { error: copyErr } = await client.storage.from(SCORES_BUCKET).copy(score.storage_path, newStoragePath);
+    if (copyErr) throw copyErr;
+    const { data: inserted, error: insErr } = await client
+      .from(SCORES_TABLE)
+      .insert({ user_id: userId, name: score.name, storage_path: newStoragePath, mime_type: score.mime_type })
+      .select('id')
+      .single();
+    if (insErr) throw insErr;
+    return inserted.id;
+  }
+
   // Signed URL, regenerated on every call rather than cached — scores are
   // shown only while their practice-list item is active.
   async function getScoreUrl(id) {
@@ -750,7 +802,7 @@
   window.api = {
     listSets, readCSV, saveCSV, renameCSV, duplicateCSV, createSet,
     resizeWindow, getWindowSize, seedDefaultsIfEmpty,
-    listScores, uploadScore, renameScore, deleteScore, getScoreUrl,
+    listScores, uploadScore, renameScore, deleteScore, getScoreUrl, findScoreUsage, ensureOwnScoreCopy,
     startPracticeLog, updatePracticeLog, finishPracticeLog,
     listPracticeLog, updatePracticeLogEntry, deletePracticeLogEntry,
     currentUserEmail, isFeedbackAdmin, submitFeedback, listFeedback,

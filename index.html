@@ -2280,6 +2280,29 @@
   // drag source: nothing is removed from the set it came from. Called from
   // handleExternalDrop's callers below once that function reports it didn't
   // already handle the drop (a function/score icon drag).
+  // Imported rows of kind:'score' get re-pointed at a copy of that score the
+  // importer actually owns (ensureOwnScoreCopy is a no-op today, since
+  // import only pulls from your own sets, but this is what keeps an
+  // imported item from silently breaking once sets/items can come from
+  // someone else's account or a shared library — see ensureOwnScoreCopy's
+  // comment in js/data-api.js).
+  async function resolveImportedScores(importedRows) {
+    const resolved = [];
+    for (const r of importedRows) {
+      if (r.kind === 'score' && r.scoreId) {
+        try {
+          resolved.push(Object.assign({}, r, { scoreId: await window.api.ensureOwnScoreCopy(r.scoreId) }));
+        } catch (err) {
+          console.error('ensureOwnScoreCopy failed, importing item as-is:', err);
+          resolved.push(r);
+        }
+      } else {
+        resolved.push(r);
+      }
+    }
+    return resolved;
+  }
+
   async function handleImportDrop(e, insertAt) {
     if (practiceActive) return false;
     const setId = e.dataTransfer.getData(IMPORT_SET_DROP_TYPE);
@@ -2288,12 +2311,16 @@
     try {
       if (setId) {
         const data = await window.api.readCSV(setId);
-        rows.splice(insertAt, 0, ...(data.rows || []));
+        const imported = await resolveImportedScores(data.rows || []);
+        rows.splice(insertAt, 0, ...imported);
       } else {
         const { setId: srcSetId, rowIndex } = JSON.parse(itemPayload);
         const data = await window.api.readCSV(srcSetId);
         const item = data.rows && data.rows[rowIndex];
-        if (item) rows.splice(insertAt, 0, item);
+        if (item) {
+          const [imported] = await resolveImportedScores([item]);
+          rows.splice(insertAt, 0, imported);
+        }
       }
       renderEditor(); updateTotal(); snapshotRatios();
     } catch (err) {

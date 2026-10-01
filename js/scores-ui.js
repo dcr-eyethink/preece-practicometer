@@ -54,7 +54,15 @@
     del.dataset.tip = 'Delete this score.';
     del.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!confirm('Delete "' + score.name + '"? This can\'t be undone.')) return;
+      let usage = [];
+      try { usage = await window.api.findScoreUsage(score.id); } catch (err) { console.error('findScoreUsage failed:', err); }
+      let msg = 'Delete "' + score.name + '"? This can\'t be undone.';
+      if (usage.length > 0) {
+        const list = usage.map(u => u.setName + ' → ' + u.activity).join('\n');
+        msg = 'Delete "' + score.name + '"? It\'s still used by:\n' + list
+          + '\n\nThose items will fail to load until you remove or replace them. This can\'t be undone.';
+      }
+      if (!confirm(msg)) return;
       await window.api.deleteScore(score.id);
       renderScoresGrid();
     });
