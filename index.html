@@ -104,8 +104,9 @@
   .tree-item-names li:hover { color: #333; }
   .set-tree-trash { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e0e0; }
   .set-tree-trash .tree-row { color: #888; }
-  .tree-restore-btn { border: none; background: #e8f0fe; color: #1a56db; font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 10px; cursor: pointer; margin-left: 8px; }
+  .tree-restore-btn { display: flex; align-items: center; gap: 4px; border: none; background: #e8f0fe; color: #1a56db; font-size: 12px; font-weight: 500; padding: 3px 10px 3px 6px; border-radius: 10px; cursor: pointer; margin-left: 8px; }
   .tree-restore-btn:hover { background: #d8e6fd; }
+  .tree-restore-btn img { width: 15px; height: 15px; }
   .welcome-text { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #eee; font-size: 13px; line-height: 1.5; color: #555; }
   .welcome-text h3 { margin: 0 0 0.6rem; font-size: 14px; font-weight: 600; color: #333; }
   .welcome-text p { margin: 0 0 0.75rem; }
@@ -798,7 +799,7 @@
       <h2>Practice Sets</h2>
       <div class="toolbar">
         <button class="icon-action-btn" id="newSetBtn" data-tip="Create a new, empty practice set."><img src="icons/new-set.png" alt="New Set"></button>
-        <button class="icon-action-btn" id="newFolderBtn" data-tip="Create a new folder to organize your practice sets.">📁</button>
+        <button class="icon-action-btn" id="newFolderBtn" data-tip="Create a new folder to organize your practice sets."><img src="icons/new-folder.png" alt="New Folder"></button>
         <button class="icon-action-btn" id="setsDeleteBtn" disabled data-tip="Archive the selected practice set — removes it from your list. Ask an admin if you need it back."><img src="icons/trash.png" alt="Archive"></button>
         <button class="icon-action-btn" id="setsDupBtn" disabled data-tip="Duplicate the selected practice set under a new name."><img src="icons/duplicate.png" alt="Duplicate"></button>
         <button class="icon-action-btn icon-action-btn-lg" id="openSetBtn" disabled data-tip="Open the selected practice set. You can also just double-click a set in the list."><img src="icons/open.png" alt="Open"></button>
@@ -996,7 +997,7 @@
           <button class="icon-action-btn icon-action-btn-sm" id="deleteRowsBtn" data-tip="Delete the highlighted item(s) — click one or more rows to highlight them first."><img src="icons/trash.png" alt="Delete"></button>
           <button class="icon-action-btn icon-action-btn-sm" id="copyItemsBtn" data-tip="Copy the highlighted item(s) — click one or more rows to highlight them first."><img src="icons/copy-items.png" alt="Copy items"></button>
           <button class="icon-action-btn icon-action-btn-sm" id="pasteItemsBtn" data-tip="Paste the copied items onto the bottom of this list, with their notes and settings."><img src="icons/paste-items.png" alt="Paste items"></button>
-          <button class="icon-action-btn icon-action-btn-sm" id="importBtn" data-tip="Import sets or individual items from your other practice sets — drag them in from the panel that opens."><img src="icons/open.png" alt="Import"></button>
+          <button class="icon-action-btn icon-action-btn-sm" id="importBtn" data-tip="Import sets or individual items from your other practice sets — drag them in from the panel that opens."><img src="icons/import.png" alt="Import"></button>
           <button class="icon-action-btn icon-action-btn-sm" id="saveBtn" data-tip="Save changes to this practice set."><img src="icons/save.png" alt="Save"></button>
         </div>
       </div>
@@ -2085,7 +2086,9 @@
         try { await window.api.renameFolder(folder.id, next); loadSetsList(); }
         catch (err) { console.error('renameFolder failed:', err); }
       });
-      const delBtn = document.createElement('button'); delBtn.textContent = '🗑'; delBtn.title = 'Move folder to Trash';
+      const delBtn = document.createElement('button'); delBtn.title = 'Move folder to Trash';
+      const delIcon = document.createElement('img'); delIcon.src = 'icons/delete-set.png'; delIcon.alt = ''; delIcon.style.width = '14px'; delIcon.style.height = '14px'; delIcon.style.display = 'block';
+      delBtn.appendChild(delIcon);
       delBtn.addEventListener('click', async e => {
         e.stopPropagation();
         if (!window.confirm('Move "' + folder.name + '" (and everything inside it) to Trash? You can restore it later.')) return;
@@ -2122,6 +2125,13 @@
     const nameEl = document.createElement('span'); nameEl.className = 'tree-name'; nameEl.textContent = 'Trash (' + (trashedFolders.length + archivedSets.length) + ')';
     row.append(disclosure, icon, nameEl);
 
+    function makeRestoreBtn() {
+      const btn = document.createElement('button');
+      btn.className = 'tree-restore-btn';
+      const img = document.createElement('img'); img.src = 'icons/restore.png'; img.alt = '';
+      btn.append(img, document.createTextNode('Restore'));
+      return btn;
+    }
     const listUl = document.createElement('ul');
     listUl.style.display = treeOpenFolders.has('__trash__') ? '' : 'none';
     function fillTrashList() {
@@ -2131,7 +2141,7 @@
         const r = document.createElement('div'); r.className = 'tree-row';
         const ic = document.createElement('span'); ic.className = 'tree-icon'; ic.textContent = '📁';
         const nm = document.createElement('span'); nm.className = 'tree-name'; nm.textContent = f.name;
-        const restoreBtn = document.createElement('button'); restoreBtn.className = 'tree-restore-btn'; restoreBtn.textContent = 'Restore';
+        const restoreBtn = makeRestoreBtn();
         restoreBtn.addEventListener('click', async e => {
           e.stopPropagation();
           try { await window.api.restoreFolder(f.id, manageTree); loadSetsList(); }
@@ -2144,7 +2154,7 @@
         const r = document.createElement('div'); r.className = 'tree-row';
         const ic = document.createElement('span'); ic.className = 'tree-icon'; ic.textContent = '🎵';
         const nm = document.createElement('span'); nm.className = 'tree-name'; nm.textContent = s.name;
-        const restoreBtn = document.createElement('button'); restoreBtn.className = 'tree-restore-btn'; restoreBtn.textContent = 'Restore';
+        const restoreBtn = makeRestoreBtn();
         restoreBtn.addEventListener('click', async e => {
           e.stopPropagation();
           try { await window.api.restoreSet(s.id, manageTree); loadSetsList(); }
