@@ -16,6 +16,39 @@
 
   function isImage(mimeType) { return (mimeType || '').startsWith('image/'); }
 
+  // Electron doesn't implement window.prompt() (unlike alert/confirm) — it
+  // returns null immediately with no dialog shown, so anything built on it
+  // silently does nothing in the desktop app. Used in place of prompt() for
+  // renaming: turns `el` into an editable text field pre-filled with
+  // `currentValue`, committing on Enter/blur (Escape or an empty result
+  // reverts instead).
+  function startInlineRename(el, currentValue, onCommit) {
+    el.contentEditable = 'true';
+    el.textContent = currentValue;
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(range);
+
+    function finish(commit) {
+      el.contentEditable = 'false';
+      el.removeEventListener('blur', onBlur);
+      el.removeEventListener('keydown', onKeydown);
+      const newVal = el.textContent.trim();
+      if (commit && newVal && newVal !== currentValue) onCommit(newVal);
+      else el.textContent = currentValue;
+    }
+    function onBlur() { finish(true); }
+    function onKeydown(e) {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    }
+    el.addEventListener('blur', onBlur);
+    el.addEventListener('keydown', onKeydown);
+  }
+
   function renderScoreCard(score) {
     const card = document.createElement('div');
     card.className = 'score-card';
@@ -39,12 +72,12 @@
     name.className = 'score-name';
     name.textContent = score.name;
     name.dataset.tip = 'Click to rename.';
-    name.addEventListener('click', async (e) => {
+    name.addEventListener('click', (e) => {
       e.stopPropagation();
-      const newName = prompt('Rename this score:', score.name);
-      if (newName === null || !newName.trim() || newName.trim() === score.name) return;
-      await window.api.renameScore(score.id, newName.trim());
-      renderScoresGrid();
+      startInlineRename(name, score.name, async newName => {
+        await window.api.renameScore(score.id, newName);
+        renderScoresGrid();
+      });
     });
     card.appendChild(name);
 
@@ -113,12 +146,10 @@
       const file = uploadInput.files[0];
       if (!file) return;
       const defaultName = file.name.replace(/\.[^./]+$/, '');
-      const displayName = prompt('Name this score:', defaultName);
       uploadInput.value = '';
-      if (displayName === null) return; // cancelled
       scoresUploadStatus.textContent = 'Uploading …';
       try {
-        await window.api.uploadScore(file, displayName.trim() || defaultName);
+        await window.api.uploadScore(file, defaultName);
         scoresUploadStatus.textContent = '';
         renderScoresGrid();
       } catch (err) {

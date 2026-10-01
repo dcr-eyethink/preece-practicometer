@@ -89,7 +89,7 @@
   .tree-row.drag-over-above { box-shadow: 0 -2px 0 #1a56db; }
   .tree-row.drag-over-below { box-shadow: 0 2px 0 #1a56db; }
   .tree-row.dragging { opacity: 0.4; }
-  .tree-disclosure { width: 14px; flex-shrink: 0; text-align: center; color: #888; font-size: 11px; }
+  .tree-disclosure { width: 18px; flex-shrink: 0; text-align: center; color: #666; font-size: 16px; line-height: 1; cursor: pointer; }
   .tree-disclosure.empty { visibility: hidden; }
   .tree-icon { width: 16px; flex-shrink: 0; opacity: 0.7; }
   .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -212,9 +212,12 @@
   .notes-panel.open { display: flex; }
   .import-panel { width: 340px; border-left: 1px solid #e0e0e0; display: none; flex-direction: column; background: #fafbff; padding: 1.25rem; overflow-y: auto; }
   .import-panel.open { display: flex; }
+  .import-panel.in-home { width: 100%; border-left: none; }
   .import-panel h2 { margin: 0 0 1rem; font-size: 18px; font-weight: 600; }
   .import-panel .panel-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
   .import-panel .panel-title-row h2 { margin: 0; flex: 1; min-width: 0; }
+  .home-panel.importing { padding: 1.5rem; align-items: stretch; justify-content: flex-start; }
+  .home-panel.importing .app-logo { display: none; }
   .import-hint { color: #888; font-size: 12px; margin: 0 0 0.75rem; }
   .notes-panel.inline { width: 100%; max-width: 420px; border-left: none; border-top: 1px solid #e0e0e0; background: transparent; margin-top: 1.25rem; flex: 1; min-height: 160px; }
   .notes-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px 8px; border-bottom: 1px solid #e8e8e8; }
@@ -324,6 +327,7 @@
   .score-thumb-icon { width: 100%; height: 90px; border-radius: 6px; background: #f2f4fa; display: flex; align-items: center; justify-content: center; font-size: 32px; color: #99a; margin-bottom: 6px; }
   .score-name { font-size: 12px; color: #445; word-break: break-word; cursor: pointer; }
   .score-name:hover { text-decoration: underline; }
+  .score-name[contenteditable="true"] { outline: 1px solid #a0b4f0; border-radius: 4px; padding: 0 2px; cursor: text; text-decoration: none; }
   .score-delete-btn { position: absolute; top: 4px; right: 4px; background: #fff; border: 1px solid #e0e0e0; border-radius: 50%; width: 22px; height: 22px; line-height: 20px; cursor: pointer; color: #a55; font-size: 14px; }
   .score-delete-btn:hover { background: #ffe8e8; border-color: #e0a0a0; }
   .score-viewer { flex: 1; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; overflow-x: hidden; }
@@ -800,7 +804,7 @@
       <div class="toolbar">
         <button class="icon-action-btn" id="newSetBtn" data-tip="Create a new, empty practice set."><img src="icons/new-set.png" alt="New Set"></button>
         <button class="icon-action-btn" id="newFolderBtn" data-tip="Create a new folder to organize your practice sets."><img src="icons/new-folder.png" alt="New Folder"></button>
-        <button class="icon-action-btn" id="setsDeleteBtn" disabled data-tip="Archive the selected practice set — removes it from your list. Ask an admin if you need it back."><img src="icons/trash.png" alt="Archive"></button>
+        <button class="icon-action-btn" id="setsDeleteBtn" disabled data-tip="Move the selected practice set to Trash — you can restore it from there."><img src="icons/trash.png" alt="Archive"></button>
         <button class="icon-action-btn" id="setsDupBtn" disabled data-tip="Duplicate the selected practice set under a new name."><img src="icons/duplicate.png" alt="Duplicate"></button>
         <button class="icon-action-btn icon-action-btn-lg" id="openSetBtn" disabled data-tip="Open the selected practice set. You can also just double-click a set in the list."><img src="icons/open.png" alt="Open"></button>
       </div>
@@ -1859,6 +1863,40 @@
   let selectedSetPath = null;
   let selectedSetName = '';
 
+  // Electron doesn't implement window.prompt() (unlike alert/confirm, which
+  // it does) — it returns null immediately with no dialog shown at all, so
+  // anything built on prompt() silently does nothing in the desktop app.
+  // Used for renaming a folder/score and naming a new folder in place of a
+  // prompt() dialog: turns `el` into an editable text field, pre-filled
+  // with `currentValue`, and calls onCommit(newValue) on Enter/blur if it
+  // actually changed (Escape or an empty result reverts instead).
+  function startInlineRename(el, currentValue, onCommit) {
+    el.contentEditable = 'true';
+    el.textContent = currentValue;
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(range);
+
+    function finish(commit) {
+      el.contentEditable = 'false';
+      el.removeEventListener('blur', onBlur);
+      el.removeEventListener('keydown', onKeydown);
+      const newVal = el.textContent.trim();
+      if (commit && newVal && newVal !== currentValue) onCommit(newVal);
+      else el.textContent = currentValue;
+    }
+    function onBlur() { finish(true); }
+    function onKeydown(e) {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    }
+    el.addEventListener('blur', onBlur);
+    el.addEventListener('keydown', onKeydown);
+  }
+
   // Cross-pane import drag payload types (a whole set, or one item inside
   // an expanded set in the import panel) — distinct from the in-tree
   // move/reorder payload (TREE_MOVE_TYPE), and from the existing
@@ -1978,9 +2016,8 @@
     disclosure.className = 'tree-disclosure';
     disclosure.textContent = treeOpenSets.has(set.id) ? '▾' : '▸';
 
-    const icon = document.createElement('span'); icon.className = 'tree-icon'; icon.textContent = '🎵';
     const nameEl = document.createElement('span'); nameEl.className = 'tree-name'; nameEl.textContent = set.name;
-    row.append(disclosure, icon, nameEl);
+    row.append(disclosure, nameEl);
 
     const itemsUl = document.createElement('ul');
     itemsUl.className = 'tree-item-names';
@@ -2049,6 +2086,7 @@
     const li = document.createElement('li');
     const row = document.createElement('div');
     row.className = 'tree-row';
+    row.dataset.folderId = folder.id;
 
     const disclosure = document.createElement('span');
     disclosure.className = 'tree-disclosure';
@@ -2079,12 +2117,12 @@
 
       const actions = document.createElement('span'); actions.className = 'tree-row-actions';
       const renameBtn = document.createElement('button'); renameBtn.textContent = '✎'; renameBtn.title = 'Rename folder';
-      renameBtn.addEventListener('click', async e => {
+      renameBtn.addEventListener('click', e => {
         e.stopPropagation();
-        const next = window.prompt('Rename folder', folder.name);
-        if (!next || next === folder.name) return;
-        try { await window.api.renameFolder(folder.id, next); loadSetsList(); }
-        catch (err) { console.error('renameFolder failed:', err); }
+        startInlineRename(nameEl, folder.name, async next => {
+          try { await window.api.renameFolder(folder.id, next); loadSetsList(); }
+          catch (err) { console.error('renameFolder failed:', err); }
+        });
       });
       const delBtn = document.createElement('button'); delBtn.title = 'Move folder to Trash';
       const delIcon = document.createElement('img'); delIcon.src = 'icons/delete-set.png'; delIcon.alt = ''; delIcon.style.width = '14px'; delIcon.style.height = '14px'; delIcon.style.display = 'block';
@@ -2152,7 +2190,6 @@
       archivedSets.forEach(s => {
         const li = document.createElement('li');
         const r = document.createElement('div'); r.className = 'tree-row';
-        const ic = document.createElement('span'); ic.className = 'tree-icon'; ic.textContent = '🎵';
         const nm = document.createElement('span'); nm.className = 'tree-name'; nm.textContent = s.name;
         const restoreBtn = makeRestoreBtn();
         restoreBtn.addEventListener('click', async e => {
@@ -2160,7 +2197,7 @@
           try { await window.api.restoreSet(s.id, manageTree); loadSetsList(); }
           catch (err) { console.error('restoreSet failed:', err); }
         });
-        r.append(ic, nm, restoreBtn); li.appendChild(r); listUl.appendChild(li);
+        r.append(nm, restoreBtn); li.appendChild(r); listUl.appendChild(li);
       });
     }
     disclosure.addEventListener('click', () => {
@@ -2228,7 +2265,7 @@
   document.getElementById('setsDeleteBtn').addEventListener('click', async () => {
     if (!selectedSetPath) return;
     const name = selectedSetName || 'this set';
-    if (!window.confirm('Archive "' + name + '"? It will be removed from your list — an admin can restore it if you need it back.')) return;
+    if (!window.confirm('Move "' + name + '" to Trash? You can restore it from there any time.')) return;
     try {
       await window.api.archiveSet(selectedSetPath);
       loadSetsList();
@@ -2254,20 +2291,48 @@
   });
 
   document.getElementById('newFolderBtn').addEventListener('click', async () => {
-    const name = window.prompt('New folder name', 'New Folder');
-    if (!name) return;
-    try { await window.api.createFolder(name, null); loadSetsList(); }
-    catch (err) { console.error('createFolder failed:', err); }
+    try {
+      const created = await window.api.createFolder('New Folder', null);
+      await loadSetsList();
+      const row = document.querySelector('#setTree .tree-row[data-folder-id="' + created.id + '"]');
+      const nameEl = row && row.querySelector('.tree-name');
+      if (nameEl) {
+        startInlineRename(nameEl, created.name, async next => {
+          try { await window.api.renameFolder(created.id, next); loadSetsList(); }
+          catch (err) { console.error('renameFolder failed:', err); }
+        });
+      }
+    } catch (err) {
+      console.error('createFolder failed:', err);
+    }
   });
 
   // ===================== IMPORT PANEL =====================
   const importPanel = document.getElementById('importPanel');
 
+  // Same right-hand-slot takeover as the notes panel (see
+  // positionAndOpenNotesPanel) — the import browser lives in the home-panel
+  // slot where the app logo normally sits, rather than squeezing in as its
+  // own narrow sidebar alongside the editor. On narrow layouts, where that
+  // slot is hidden, it falls back to a sidebar inside the editor instead.
   async function openImportPanel() {
+    const homePanel = document.getElementById('homePanel');
+    const inHome = getComputedStyle(homePanel).display !== 'none';
+    if (inHome) {
+      homePanel.appendChild(importPanel);
+      importPanel.classList.add('in-home');
+      homePanel.classList.add('importing');
+    } else {
+      editorWrap.appendChild(importPanel);
+      importPanel.classList.remove('in-home');
+    }
     importPanel.classList.add('open');
     await renderSetBrowser(document.getElementById('importTree'), { mode: 'import-source', excludeSetId: filePath });
   }
-  function closeImportPanel() { importPanel.classList.remove('open'); }
+  function closeImportPanel() {
+    importPanel.classList.remove('open');
+    document.getElementById('homePanel').classList.remove('importing');
+  }
   window.closeImportPanel = closeImportPanel;
 
   document.getElementById('importBtn').addEventListener('click', () => {
