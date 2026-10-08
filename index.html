@@ -2001,6 +2001,7 @@
       loadSetsList();
     } catch (err) {
       console.error('Set-browser move failed:', err);
+      alert('That move/copy failed: ' + (err.message || err));
     }
   }
 
@@ -2010,7 +2011,7 @@
     row.addEventListener('dragstart', e => {
       e.stopPropagation();
       e.dataTransfer.setData(TREE_MOVE_TYPE, JSON.stringify({ kind, id }));
-      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.effectAllowed = 'copyMove';
       row.classList.add('dragging');
     });
     row.addEventListener('dragend', () => row.classList.remove('dragging'));
@@ -2018,6 +2019,7 @@
       if (!e.dataTransfer.types.includes(TREE_MOVE_TYPE)) return;
       e.preventDefault();
       e.stopPropagation();
+      e.dataTransfer.dropEffect = (e.altKey && kind !== 'folder') ? 'copy' : 'move';
       const zone = kind === 'folder' ? dragZoneForEvent(e, row) : (dragZoneForEvent(e, row) === 'below' ? 'below' : 'above');
       row.classList.remove('drag-over-above', 'drag-over-below', 'drag-over-into');
       row.classList.add('drag-over-' + zone);
@@ -2335,11 +2337,25 @@
   document.getElementById('setsDupBtn').addEventListener('click', async () => {
     if (!selectedSetPath) return;
     try {
+      const src = manageTree && manageTree.sets.find(s => s.id === selectedSetPath);
       const data = await window.api.readCSV(selectedSetPath);
-      const created = await window.api.duplicateCSV(selectedSetPath, data.rows, data.name);
-      await openSet(created.path);
+      const created = await window.api.duplicateCSV(selectedSetPath, data.rows, (src && src.name) || data.name);
+      if (src) {
+        const { folders, sets } = childrenOf(manageTree, src.folderId || '');
+        const sibs = [
+          ...folders.map(f => ({ kind: 'folder', id: f.id })),
+          ...sets.map(x => ({ kind: 'set', id: x.id }))
+        ];
+        const at = sibs.findIndex(x => x.kind === 'set' && x.id === src.id);
+        sibs.splice(at + 1, 0, { kind: 'set', id: created.path });
+        await window.api.moveSet(created.path, src.folderId || null, 0);
+        await window.api.reorderSiblings(sibs);
+        if (src.folderId) treeOpenFolders.add(src.folderId);
+      }
+      await loadSetsList();
     } catch (err) {
       console.error('duplicateCSV failed:', err);
+      alert('Could not duplicate the set: ' + (err.message || err));
     }
   });
 
