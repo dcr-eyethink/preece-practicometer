@@ -91,7 +91,10 @@
   .tree-row.dragging { opacity: 0.4; }
   .tree-disclosure { width: 26px; flex-shrink: 0; text-align: center; color: #555; font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 0; margin: -4px 0; }
   .tree-disclosure.empty { visibility: hidden; }
-  .tree-icon { width: 20px; height: 20px; flex-shrink: 0; object-fit: contain; }
+  .tree-icon { width: 22px; height: 22px; flex-shrink: 0; object-fit: contain; display: inline-flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1; }
+  .sets-sort-row { display: flex; align-items: center; gap: 6px; margin: 6px 0 4px; font-size: 13px; color: #666; }
+  .sets-sort-row button { border: 1px solid #c0ccee; background: #fff; border-radius: 12px; padding: 2px 10px; font-size: 13px; cursor: pointer; color: #444; }
+  .sets-sort-row button.active { background: #e8f0fe; color: #1a56db; border-color: #1a56db; }
   .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tree-name[contenteditable="true"] { outline: 1px solid #a0b4f0; border-radius: 4px; padding: 0 2px; white-space: normal; }
   .tree-row-actions { display: none; gap: 4px; flex-shrink: 0; }
@@ -814,6 +817,7 @@
       <button class="icon-action-btn" id="setsDupBtn" disabled data-tip="Duplicate the selected practice set under a new name."><img src="icons/duplicate.png" alt="Duplicate"></button>
       <button class="icon-action-btn" id="setsImportBtn" data-tip="Browse your sets in a second pane — drag a set or an item from it to copy that into another set, or drag within this list to file/reorder (hold Option/Alt to copy instead of move)."><img src="icons/import.png" alt="Import"></button>
     </div>
+    <div class="sets-sort-row">Sort: <button id="sortNameBtn" data-tip="Sort sets and folders alphabetically by name. Click again to go back to your own order.">Name</button><button id="sortDateBtn" data-tip="Sort by most recently modified first. Click again to go back to your own order.">Modified</button></div>
     <div class="set-tree" id="setTree"></div>
     <div id="setsEmpty" class="sets-empty" style="display:none">No practice sets yet — create one to get started.</div>
   </div>
@@ -1922,13 +1926,19 @@
     document.getElementById('setsDupBtn').disabled = !enabled;
   }
 
+  let treeSortMode = 'manual';
+  function sortCmp(a, b) {
+    if (treeSortMode === 'name') return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+    if (treeSortMode === 'date') return (b.modified || '').localeCompare(a.modified || '');
+    return a.position - b.position;
+  }
   function childrenOf(tree, parentId, opts) {
     const folders = tree.folders
       .filter(f => !f.trashed && (f.parentFolderId || '') === (parentId || ''))
-      .sort((a, b) => a.position - b.position);
+      .sort(sortCmp);
     const sets = tree.sets
       .filter(s => !s.archived && (s.folderId || '') === (parentId || '') && (!opts || s.id !== opts.excludeSetId))
-      .sort((a, b) => a.position - b.position);
+      .sort(sortCmp);
     return { folders, sets };
   }
 
@@ -2298,6 +2308,15 @@
   async function loadSetsList() {
     await renderSetBrowser(document.getElementById('setTree'), { mode: 'manage' });
   }
+
+  function setSortMode(mode) {
+    treeSortMode = treeSortMode === mode ? 'manual' : mode;
+    document.getElementById('sortNameBtn').classList.toggle('active', treeSortMode === 'name');
+    document.getElementById('sortDateBtn').classList.toggle('active', treeSortMode === 'date');
+    loadSetsList();
+  }
+  document.getElementById('sortNameBtn').addEventListener('click', () => setSortMode('name'));
+  document.getElementById('sortDateBtn').addEventListener('click', () => setSortMode('date'));
 
   document.getElementById('openSetBtn').addEventListener('click', () => { if (selectedSetPath) openSet(selectedSetPath); });
 

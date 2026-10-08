@@ -144,19 +144,19 @@
   // than breaking the whole set browser until someone runs it.
   async function listAllFoldersAndSets() {
     requireClient();
-    let foldersRes = await client.from(FOLDERS_TABLE).select('id, name, parent_folder_id, position, trashed');
+    let foldersRes = await client.from(FOLDERS_TABLE).select('id, name, parent_folder_id, position, trashed, created_at');
     if (foldersRes.error && foldersRes.error.code === '42P01') foldersRes = { data: [] };
     else if (foldersRes.error) throw foldersRes.error;
 
-    let setsRes = await client.from(TABLE).select('id, name, folder_id, position, archived');
+    let setsRes = await client.from(TABLE).select('id, name, folder_id, position, archived, updated_at');
     if (setsRes.error && setsRes.error.code === '42703') {
-      setsRes = await client.from(TABLE).select('id, name, archived');
+      setsRes = await client.from(TABLE).select('id, name, archived, updated_at');
     }
     if (setsRes.error) throw setsRes.error;
 
     return {
-      folders: (foldersRes.data || []).map(f => ({ id: f.id, name: f.name, parentFolderId: f.parent_folder_id, position: f.position, trashed: !!f.trashed })),
-      sets: (setsRes.data || []).map(s => ({ id: s.id, name: s.name, folderId: s.folder_id || null, position: s.position || 0, archived: !!s.archived }))
+      folders: (foldersRes.data || []).map(f => ({ id: f.id, name: f.name, parentFolderId: f.parent_folder_id, position: f.position, trashed: !!f.trashed, modified: f.created_at || '' })),
+      sets: (setsRes.data || []).map(s => ({ id: s.id, name: s.name, folderId: s.folder_id || null, position: s.position || 0, archived: !!s.archived, modified: s.updated_at || '' }))
     };
   }
 
