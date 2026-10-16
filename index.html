@@ -290,11 +290,11 @@
   .chord-section-label { font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; margin-bottom: 4px; }
   .key-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
   .piano-svg { display: block; width: 100%; margin-top: 0.25rem; }
-  .cg-key-row { display: flex; gap: 10px; align-items: stretch; }
+  .cg-key-row { display: flex; flex-direction: column; gap: 6px; }
   .cg-key-row #keyButtons { flex: 1 1 auto; min-width: 0; }
-  .cg-mode-col { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; flex: 0 0 150px; }
+  .cg-mode-col { display: flex; gap: 6px; justify-content: center; }
   .cg-mode-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px; border: 2px solid transparent; background: none; border-radius: 12px; font-size: 12px; font-weight: 600; color: #445; cursor: pointer; }
-  .cg-mode-btn img { width: 100%; max-width: 56px; aspect-ratio: 1; }
+  .cg-mode-btn img { width: 56px; aspect-ratio: 1; }
   .cg-mode-btn:hover { border-color: #7090e0; }
   .cg-mode-btn.active { border-color: #7090e0; color: #112; }
   .chord-cell { flex-direction: column; gap: 1px; }
