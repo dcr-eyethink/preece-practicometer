@@ -961,7 +961,7 @@
         <div id="keyButtons" data-tip="Click a key to see common chords in that key."></div>
         <div class="cg-mode-col" id="cgModeCol">
           <button class="cg-mode-btn active" data-mode="random" data-tip="Random: the key's chords in a shuffled order.">Random</button>
-          <button class="cg-mode-btn" data-mode="blues" data-tip="Blues: a 12-bar blues (I-IV-V) in the chosen key. Not randomised.">Blues</button>
+          <button class="cg-mode-btn" data-mode="blues" data-tip="Blues: a 12-bar blues (I7-IV7-V7) in the chosen key. Not randomised.">Blues</button>
           <button class="cg-mode-btn" data-mode="pop" data-tip="Pop: random grid built from common 2, 3 and 4 chord pop progressions.">Pop</button>
           <button class="cg-mode-btn" data-mode="jazz" data-tip="Jazz: random grid built from typical jazz movements (ii-V-I, turnarounds...).">Jazz</button>
         </div>
@@ -1576,7 +1576,7 @@
   const NOTE_PC = { C:0, Db:1, 'C#':1, D:2, Eb:3, 'D#':3, E:4, F:5, 'F#':6, Gb:6, G:7, Ab:8, 'G#':8, A:9, Bb:10, 'A#':10, B:11 };
   const ROMAN = ['I','♭II','II','♭III','III','IV','♯IV','V','♭VI','VI','♭VII','VII'];
   function chordNumeral(key, ch) {
-    const m = /^([A-G][b#]?)(m?)/.exec(ch);
+    const m = /^([A-G][b#]?)(m(?!aj))?/.exec(ch);
     if (!m) return '';
     const r = ROMAN[(NOTE_PC[m[1]] - NOTE_PC[key] + 12) % 12];
     return m[2] ? r.toLowerCase() : r;
@@ -1587,11 +1587,15 @@
   const POP_PROGS = ['I IV','I V','vi IV','IV V','I vi','I IV V','I V IV','vi IV I','I vi IV','I V vi IV','I vi IV V','vi IV I V','I IV vi V','I V vi iii','I bVII IV I'].map(prog);
   const JAZZ_PROGS = ['ii V','ii V I','iii vi ii V','I vi ii V','I VI ii V','ii bII I','I iii vi ii','IV iv I','I bIII bVI bII','iii VI ii V','I II ii V','ii V I vi','IV bVII I'].map(prog);
   const BLUES_12 = prog('I I I I IV IV I I V IV I V');
-  function stepChord(key, [semi, minor]) {
-    return KEYS[(NOTE_PC[key] + semi) % 12] + (minor ? 'm' : '');
+  const JAZZ_DOMINANT = new Set([7, 2, 9, 1, 10]); // V, II, VI, bII, bVII as major steps
+  function stepChord(key, [semi, minor], sevenths) {
+    const root = KEYS[(NOTE_PC[key] + semi) % 12];
+    if (!sevenths) return root + (minor ? 'm' : '');
+    if (minor) return root + 'm7';
+    return root + (sevenths === 'blues' || JAZZ_DOMINANT.has(semi) ? '7' : 'maj7');
   }
   function buildChordSequence(key) {
-    if (cgMode === 'blues') return BLUES_12.map(s => stepChord(key, s));
+    if (cgMode === 'blues') return BLUES_12.map(s => stepChord(key, s, 'blues'));
     if (cgMode === 'pop' || cgMode === 'jazz') {
       const progs = cgMode === 'pop' ? POP_PROGS : JAZZ_PROGS;
       const out = [];
@@ -1602,7 +1606,7 @@
         last = p;
         out.push(...p);
       }
-      return out.slice(0, 12).map(s => stepChord(key, s));
+      return out.slice(0, 12).map(s => stepChord(key, s, cgMode === 'jazz' ? 'jazz' : null));
     }
     return shuffle(CHORD_DATA[key]);
   }

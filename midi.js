@@ -160,8 +160,10 @@
 
   // Parses a chord-grid label like 'Ebm' / 'F#' into { rootName, type }.
   function parseTriad(label) {
-    const m = /^([A-G][b#]?)(m?)$/.exec(label || '');
-    return m ? { rootName: m[1], type: m[2] ? 'min' : 'maj' } : null;
+    const m = /^([A-G][b#]?)(maj7|m7|7|m|)$/.exec(label || '');
+    if (!m) return null;
+    const types = { '': 'maj', m: 'min', maj7: 'maj7', m7: 'min7', 7: 'dom7' };
+    return { rootName: m[1], type: types[m[2]] };
   }
 
   // Do these notes spell the chord/note shown in a chord-grid or circle-of-5ths square?
