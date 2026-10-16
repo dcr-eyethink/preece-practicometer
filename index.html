@@ -290,6 +290,14 @@
   .chord-section-label { font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; margin-bottom: 4px; }
   .key-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
   .piano-svg { display: block; width: 100%; margin-top: 0.25rem; }
+  .cg-key-row { display: flex; gap: 10px; align-items: stretch; }
+  .cg-key-row #keyButtons { flex: 1 1 auto; min-width: 0; }
+  .cg-mode-col { display: flex; flex-direction: column; gap: 4px; flex: 0 0 74px; }
+  .cg-mode-btn { flex: 1; border: 2px solid #c8d8f8; background: #f0f4ff; border-radius: 10px; font-size: 13px; font-weight: 600; color: #445; cursor: pointer; }
+  .cg-mode-btn:hover { border-color: #7090e0; }
+  .cg-mode-btn.active { border-color: #7090e0; background: #e0e8ff; color: #112; }
+  .chord-cell { flex-direction: column; gap: 1px; }
+  .chord-num { font-size: 11px; font-weight: 600; color: #7a86a8; line-height: 1; }
   .chord-grid-panel { display: none; margin-top: 1rem; }
   .chord-grid-panel.visible { display: block; }
   .chord-grid-selected-key { font-size: 11px; color: #888; margin-bottom: 6px; text-align: center; }
@@ -949,7 +957,15 @@
         <h2>Chord Grid</h2>
         <img class="panel-icon panel-icon-lg" id="cgPanelIcon" alt="">
       </div>
-      <div id="keyButtons" data-tip="Click a key to see common chords in that key."></div>
+      <div class="cg-key-row">
+        <div id="keyButtons" data-tip="Click a key to see common chords in that key."></div>
+        <div class="cg-mode-col" id="cgModeCol">
+          <button class="cg-mode-btn active" data-mode="random" data-tip="Random: the key's chords in a shuffled order.">Random</button>
+          <button class="cg-mode-btn" data-mode="blues" data-tip="Blues: a 12-bar blues (I-IV-V) in the chosen key. Not randomised.">Blues</button>
+          <button class="cg-mode-btn" data-mode="pop" data-tip="Pop: random grid built from common 2, 3 and 4 chord pop progressions.">Pop</button>
+          <button class="cg-mode-btn" data-mode="jazz" data-tip="Jazz: random grid built from typical jazz movements (ii-V-I, turnarounds...).">Jazz</button>
+        </div>
+      </div>
       <div class="chord-grid-panel" id="chordGridPanel">
         <div class="chord-grid" id="chordGrid"></div>
       </div>
@@ -1555,16 +1571,64 @@
     chordCells.forEach((c, i) => c.classList.toggle('active', i === idx));
   }
 
+  // ---- Grid modes: random / blues / pop / jazz ----
+  let cgMode = 'random';
+  const NOTE_PC = { C:0, Db:1, 'C#':1, D:2, Eb:3, 'D#':3, E:4, F:5, 'F#':6, Gb:6, G:7, Ab:8, 'G#':8, A:9, Bb:10, 'A#':10, B:11 };
+  const ROMAN = ['I','♭II','II','♭III','III','IV','♯IV','V','♭VI','VI','♭VII','VII'];
+  function chordNumeral(key, ch) {
+    const m = /^([A-G][b#]?)(m?)/.exec(ch);
+    if (!m) return '';
+    const r = ROMAN[(NOTE_PC[m[1]] - NOTE_PC[key] + 12) % 12];
+    return m[2] ? r.toLowerCase() : r;
+  }
+  // Progressions as [semitones above the key, isMinor] steps.
+  const D = { I:[0,0], ii:[2,1], iii:[4,1], IV:[5,0], iv:[5,1], V:[7,0], vi:[9,1], bVII:[10,0], bVI:[8,0], bII:[1,0], bIII:[3,0], II:[2,0], VI:[9,0] };
+  const prog = s => s.split(' ').map(n => D[n]);
+  const POP_PROGS = ['I IV','I V','vi IV','IV V','I vi','I IV V','I V IV','vi IV I','I vi IV','I V vi IV','I vi IV V','vi IV I V','I IV vi V','I V vi iii','I bVII IV I'].map(prog);
+  const JAZZ_PROGS = ['ii V','ii V I','iii vi ii V','I vi ii V','I VI ii V','ii bII I','I iii vi ii','IV iv I','I bIII bVI bII','iii VI ii V','I II ii V','ii V I vi','IV bVII I'].map(prog);
+  const BLUES_12 = prog('I I I I IV IV I I V IV I V');
+  function stepChord(key, [semi, minor]) {
+    return KEYS[(NOTE_PC[key] + semi) % 12] + (minor ? 'm' : '');
+  }
+  function buildChordSequence(key) {
+    if (cgMode === 'blues') return BLUES_12.map(s => stepChord(key, s));
+    if (cgMode === 'pop' || cgMode === 'jazz') {
+      const progs = cgMode === 'pop' ? POP_PROGS : JAZZ_PROGS;
+      const out = [];
+      let last = null;
+      while (out.length < 12) {
+        let p;
+        do { p = progs[Math.floor(Math.random() * progs.length)]; } while (p === last && progs.length > 1);
+        last = p;
+        out.push(...p);
+      }
+      return out.slice(0, 12).map(s => stepChord(key, s));
+    }
+    return shuffle(CHORD_DATA[key]);
+  }
+  document.getElementById('cgModeCol').addEventListener('click', e => {
+    const b = e.target.closest('.cg-mode-btn');
+    if (!b) return;
+    cgMode = b.dataset.mode;
+    document.querySelectorAll('#cgModeCol .cg-mode-btn').forEach(x => x.classList.toggle('active', x === b));
+    if (currentChordKey) showChordGrid(currentChordKey);
+  });
+
   function showChordGrid(key) {
     currentChordKey = key;
     refreshPiano();
-    const chords = shuffle(CHORD_DATA[key]);
+    const chords = buildChordSequence(key);
     const grid = document.getElementById('chordGrid');
     grid.innerHTML = '';
     chordCells = chords.map((ch, i) => {
       const cell = document.createElement('div');
       cell.className = 'chord-cell';
-      cell.textContent = musicalChord(ch);
+      const nm = document.createElement('span');
+      nm.textContent = musicalChord(ch);
+      const num = document.createElement('span');
+      num.className = 'chord-num';
+      num.textContent = chordNumeral(key, ch);
+      cell.append(nm, num);
       cell.dataset.chord = ch;
       cell.style.cursor = 'pointer';
       cell.setAttribute('data-tip', 'Click to select this chord. It advances automatically on the beat if the metronome is running.');
