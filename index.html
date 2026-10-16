@@ -292,10 +292,11 @@
   .piano-svg { display: block; width: 100%; margin-top: 0.25rem; }
   .cg-key-row { display: flex; gap: 10px; align-items: stretch; }
   .cg-key-row #keyButtons { flex: 1 1 auto; min-width: 0; }
-  .cg-mode-col { display: flex; flex-direction: column; gap: 4px; flex: 0 0 74px; }
-  .cg-mode-btn { flex: 1; border: 2px solid #c8d8f8; background: #f0f4ff; border-radius: 10px; font-size: 13px; font-weight: 600; color: #445; cursor: pointer; }
+  .cg-mode-col { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; flex: 0 0 150px; }
+  .cg-mode-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px; border: 2px solid transparent; background: none; border-radius: 12px; font-size: 12px; font-weight: 600; color: #445; cursor: pointer; }
+  .cg-mode-btn img { width: 100%; max-width: 56px; aspect-ratio: 1; }
   .cg-mode-btn:hover { border-color: #7090e0; }
-  .cg-mode-btn.active { border-color: #7090e0; background: #e0e8ff; color: #112; }
+  .cg-mode-btn.active { border-color: #7090e0; color: #112; }
   .chord-cell { flex-direction: column; gap: 1px; }
   .chord-num { font-size: 11px; font-weight: 600; color: #7a86a8; line-height: 1; }
   .chord-grid-panel { display: none; margin-top: 1rem; }
@@ -960,10 +961,10 @@
       <div class="cg-key-row">
         <div id="keyButtons" data-tip="Click a key to see common chords in that key."></div>
         <div class="cg-mode-col" id="cgModeCol">
-          <button class="cg-mode-btn active" data-mode="random" data-tip="Random: the key's chords in a shuffled order.">Random</button>
-          <button class="cg-mode-btn" data-mode="blues" data-tip="Blues: a 12-bar blues (I7-IV7-V7) in the chosen key. Not randomised.">Blues</button>
-          <button class="cg-mode-btn" data-mode="pop" data-tip="Pop: random grid built from common 2, 3 and 4 chord pop progressions.">Pop</button>
-          <button class="cg-mode-btn" data-mode="jazz" data-tip="Jazz: random grid built from typical jazz movements (ii-V-I, turnarounds...).">Jazz</button>
+          <button class="cg-mode-btn active" data-mode="random" data-tip="Random: the key's chords in a shuffled order."><img src="icons/mode-random.png" alt="Random"><span>Random</span></button>
+          <button class="cg-mode-btn" data-mode="blues" data-tip="Blues: a 12-bar blues (I7-IV7-V7) in the chosen key. Not randomised."><img src="icons/mode-blues.png" alt="Blues"><span>Blues</span></button>
+          <button class="cg-mode-btn" data-mode="pop" data-tip="Pop: random grid built from common 2, 3 and 4 chord pop progressions."><img src="icons/mode-pop.png" alt="Pop"><span>Pop</span></button>
+          <button class="cg-mode-btn" data-mode="jazz" data-tip="Jazz: random grid built from typical jazz movements (ii-V-I, turnarounds...)."><img src="icons/mode-jazz.png" alt="Jazz"><span>Jazz</span></button>
         </div>
       </div>
       <div class="chord-grid-panel" id="chordGridPanel">
