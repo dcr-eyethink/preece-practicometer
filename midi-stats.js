@@ -179,22 +179,29 @@
     recBtn.classList.toggle('on', recording);
     recBtn.setAttribute('aria-label', recording ? 'Stop recording' : 'Start recording');
   }
-  // Provisional 0-100 scores (100 = ideal); the curves are guesses until
-  // calibrated against stored recordings (see saveRecording).
+  // 0-100 scores (100 = ideal).
   const clamp100 = x => Math.max(0, Math.min(100, Math.round(x)));
+  // Calibrated against four stored recordings (good/bad piece, good/bad scale).
+  // Robust statistics (median / quartiles), because one held or stray note
+  // blows up a mean/SD and made good and bad playing look alike.
+  function quantile(sorted, p) {
+    const x = (sorted.length - 1) * p, lo = Math.floor(x);
+    return sorted[lo] + (sorted[Math.min(lo + 1, sorted.length - 1)] - sorted[lo]) * (x - lo);
+  }
   function computeScores() {
-    const d = recVals.duration, t = recVals.timing;
+    const d = recVals.duration.slice().sort((a, b) => a - b), t = recVals.timing;
     let duration = null, gap = null, blur = null;
-    if (d.length >= 2) {
-      const st = meanSD(d);
-      duration = clamp100(100 * Math.exp(-(st.sd / (st.mean || 1)) / 0.5)); // low relative spread = consistent
+    if (d.length >= 4) {
+      const med = quantile(d, 0.5) || 1;
+      const rel = (quantile(d, 0.75) - quantile(d, 0.25)) / med; // spread of the middle half
+      duration = clamp100(100 * (1 - rel / 0.6));
     }
-    const gaps = t.filter(v => v >= 0);
-    if (gaps.length >= 2) {
-      const st = meanSD(gaps);
-      gap = clamp100(100 * Math.exp(-(st.mean + st.sd) / 300)); // small and steady
+    const gaps = t.filter(v => v >= 0).sort((a, b) => a - b);
+    if (gaps.length >= 4) {
+      const typical = quantile(gaps, 0.5) + (quantile(gaps, 0.75) - quantile(gaps, 0.25)); // small and steady
+      gap = clamp100(100 * Math.exp(-typical / 250));
     }
-    if (t.length) blur = clamp100(100 * (1 - t.filter(v => v < 0).length / t.length)); // share of clean joins
+    if (t.length >= 4) blur = clamp100(100 * (1 - (t.filter(v => v < -20).length / t.length) / 0.7)); // overlaps under 20ms count as clean
     return { duration, gap, blur };
   }
   const REC_KEY = 'midiStatsRecordings';
