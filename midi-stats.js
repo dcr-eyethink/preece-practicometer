@@ -163,13 +163,15 @@
   // Rec control + results, sitting under the two plots.
   const recBar = document.createElement('div');
   recBar.className = 'midi-rec-bar';
-  recBar.innerHTML = '<button class="midi-rec-btn" data-tip="Record: starts collecting every note duration and gap. Press again to stop and see the mean and variance over the whole recording."></button><span class="midi-rec-time"></span>';
+  recBar.innerHTML = '<button class="midi-rec-btn" data-tip="Record: starts collecting every note duration and gap. Press again to stop and see the mean and variance over the whole recording."></button><span class="midi-rec-time"></span><button class="midi-live-btn" style="display:none" data-tip="Clear the recording results and go back to the live stream.">Live</button>';
   const recSummary = document.createElement('div');
   recSummary.className = 'midi-rec-summary';
   wrap.appendChild(recBar);
   wrap.appendChild(recSummary);
   const recBtn = recBar.querySelector('.midi-rec-btn');
   const recTime = recBar.querySelector('.midi-rec-time');
+  const liveBtn = recBar.querySelector('.midi-live-btn');
+  liveBtn.addEventListener('click', () => { recSummary.innerHTML = ''; recTime.textContent = ''; liveBtn.style.display = 'none'; });
   let recTick = null;
 
   function fmtSecs(ms) { const t = Math.round(ms / 1000); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
@@ -190,6 +192,7 @@
       recVals.duration = []; recVals.timing = [];
       recording = true; recStart = performance.now();
       recSummary.innerHTML = '';
+      liveBtn.style.display = 'none';
       recTime.textContent = '0:00';
       recTick = setInterval(() => { recTime.textContent = fmtSecs(performance.now() - recStart); }, 500);
     } else {
@@ -198,6 +201,7 @@
       recTime.textContent = fmtSecs(recElapsed);
       recSummary.innerHTML = ROWS.map(summaryLine).join('') +
         '<div class="midi-rec-note">over ' + fmtSecs(recElapsed) + ' of playing</div>';
+      liveBtn.style.display = '';
     }
     setRecBtn();
   });
