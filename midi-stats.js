@@ -163,7 +163,7 @@
   // Rec control + results, sitting under the two plots.
   const recBar = document.createElement('div');
   recBar.className = 'midi-rec-bar';
-  recBar.innerHTML = '<button class="midi-rec-btn" data-tip="Record: starts collecting every note duration and gap. Press again to stop and see the mean and variance over the whole recording."></button><span class="midi-rec-time"></span><button class="midi-live-btn" style="display:none" data-tip="Clear the recording results and go back to the live stream.">Live</button>';
+  recBar.innerHTML = '<button class="midi-rec-btn" data-tip="Record: starts collecting every note duration and gap. Press again to stop and see three scores out of 100 for the whole recording: Duration, Gap and Blur."></button><span class="midi-rec-time"></span><button class="midi-live-btn" style="display:none" data-tip="Clear the recording results and go back to the live stream.">Live</button>';
   const recSummary = document.createElement('div');
   recSummary.className = 'midi-rec-summary';
   wrap.appendChild(recBar);
@@ -179,13 +179,49 @@
     recBtn.classList.toggle('on', recording);
     recBtn.setAttribute('aria-label', recording ? 'Stop recording' : 'Start recording');
   }
-  function summaryLine(r) {
-    const v = recVals[r.key];
-    if (!v.length) return '<div><b>' + r.label + '</b>: no notes recorded</div>';
-    const st = meanSD(v);
-    const sign = r.bipolar && st.mean >= 0 ? '+' : '';
-    const mean = r.bipolar ? sign + (st.mean < 0 ? '−' : '') + Math.round(Math.abs(st.mean)) : Math.round(st.mean);
-    return '<div><b>' + r.label + '</b>: mean ' + mean + 'ms · variance ' + Math.round(st.sd * st.sd) + ' ms² (SD ' + Math.round(st.sd) + 'ms) · n=' + v.length + '</div>';
+  // Provisional 0-100 scores (100 = ideal); the curves are guesses until
+  // calibrated against stored recordings (see saveRecording).
+  const clamp100 = x => Math.max(0, Math.min(100, Math.round(x)));
+  function computeScores() {
+    const d = recVals.duration, t = recVals.timing;
+    let duration = null, gap = null, blur = null;
+    if (d.length >= 2) {
+      const st = meanSD(d);
+      duration = clamp100(100 * Math.exp(-(st.sd / (st.mean || 1)) / 0.5)); // low relative spread = consistent
+    }
+    const gaps = t.filter(v => v >= 0);
+    if (gaps.length >= 2) {
+      const st = meanSD(gaps);
+      gap = clamp100(100 * Math.exp(-(st.mean + st.sd) / 300)); // small and steady
+    }
+    if (t.length) blur = clamp100(100 * (1 - t.filter(v => v < 0).length / t.length)); // share of clean joins
+    return { duration, gap, blur };
+  }
+  const REC_KEY = 'midiStatsRecordings';
+  function loadRecordings() { try { return JSON.parse(localStorage.getItem(REC_KEY) || '[]'); } catch (e) { return []; } }
+  function saveRecording(scores) {
+    const all = loadRecordings();
+    all.push({ at: new Date().toISOString(), seconds: Math.round(recElapsed / 1000), scores, duration: recVals.duration.map(Math.round), timing: recVals.timing.map(Math.round) });
+    try { localStorage.setItem(REC_KEY, JSON.stringify(all.slice(-100))); } catch (e) { /* ignore */ }
+  }
+  function exportRecordings() {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(loadRecordings(), null, 1)], { type: 'application/json' }));
+    a.download = 'practicometer-recordings.json';
+    a.click();
+  }
+  function scoreLine(label, v, tip) {
+    return '<div class="midi-score" data-tip="' + tip + '"><span>' + label + '</span><b>' + (v == null ? '–' : v) + '</b></div>';
+  }
+  function showScores() {
+    const sc = computeScores();
+    saveRecording(sc);
+    recSummary.innerHTML =
+      scoreLine('Duration', sc.duration, 'How consistent your note lengths were (100 = all the same).') +
+      scoreLine('Gap', sc.gap, 'How small and steady the gaps between notes were, when there was a gap (100 = tiny, even gaps).') +
+      scoreLine('Blur', sc.blur, 'How rarely notes overlapped (100 = never blurred).') +
+      '<a href="#" class="midi-rec-export">save recordings</a>';
+    recSummary.querySelector('.midi-rec-export').addEventListener('click', e => { e.preventDefault(); exportRecordings(); });
   }
   recBtn.addEventListener('click', () => {
     if (!recording) {
@@ -199,8 +235,7 @@
       recording = false; recElapsed = performance.now() - recStart;
       clearInterval(recTick); recTick = null;
       recTime.textContent = fmtSecs(recElapsed);
-      recSummary.innerHTML = ROWS.map(summaryLine).join('') +
-        '<div class="midi-rec-note">over ' + fmtSecs(recElapsed) + ' of playing</div>';
+      showScores();
       liveBtn.style.display = '';
     }
     setRecBtn();

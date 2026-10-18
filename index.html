@@ -502,7 +502,9 @@
   .midi-live-btn { font: inherit; font-size: 10px; padding: 1px 7px; border-radius: 8px; border: 1px solid #3a6fe0; background: #3a6fe0; color: #fff; cursor: pointer; margin-left: auto; }
   .midi-rec-time { font-size: 10px; color: #7a86a8; }
   .midi-rec-summary { font-size: 10px; color: #3a4668; line-height: 1.4; }
-  .midi-rec-note { color: #9aa4c0; }
+  .midi-score { display: flex; justify-content: space-between; gap: 8px; }
+  .midi-score b { color: #1a56db; }
+  .midi-rec-export { color: #9aa4c0; font-size: 9px; }
   .midi-stats { width: 100%; display: flex; flex-direction: column; gap: 3px; }
   .midi-stat-row { display: flex; align-items: center; gap: 5px; }
   .midi-stat-label { font-size: 9px; color: #889; width: 46px; flex-shrink: 0; line-height: 1.1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2926,7 +2928,7 @@
       + "Use the four icons under the keyboard to choose how the grid is built: the dice give a random shuffle of the key's chords; the guitar gives a 12-bar blues (I7, IV7, V7) in that key, always in the same order; the microphone builds a random pop grid from common 2, 3 and 4 chord progressions (such as I-V-vi-IV); and the saxophone builds a random jazz grid from typical jazz movements (such as ii-V-I and turnarounds) using 7th chords. Click an icon again, or click the key again, for a fresh grid.\n\n"
       + "Each square also shows its chord number under the name, so in the key of C, G is V and Am is vi (minor chords are lower case).\n\n"
       + "If your MIDI keyboard is connected, the chords will turn green when played.\n\n"
-      + "With a MIDI keyboard connected, the small MIDI box shows what you play. Click its 📊 button for live stats on note length and gaps between notes. Click the red record circle to start recording, then the stop square to see the mean and variance for the whole recording; click Live to go back to the live stream.\n\n"
+      + "With a MIDI keyboard connected, the small MIDI box shows what you play. Click its 📊 button for live stats on note length and gaps between notes. Click the red record circle to start recording, then the stop square to see three scores out of 100: Duration (how consistent your note lengths were), Gap (how small and steady the gaps between notes were) and Blur (how rarely notes overlapped). These scores are provisional. Recordings are stored so they can be calibrated; click \"save recordings\" to download them. Click Live to go back to the live stream.\n\n"
       + "If you stop playing for a minute during practice, a window asks if you are still playing, so you can pause, finish or continue. This only happens when a MIDI device is connected.\n\n"
       + "For more difficult challenges, practice different rhythms, embellishments, or passing notes. Or you could practice 2-5-1 transitions into each chord.",
     c5: "Click to generate a random sequence of notes from the circle of 5ths.\n\n"
