@@ -163,15 +163,15 @@
   // Rec control + results, sitting under the two plots.
   const recBar = document.createElement('div');
   recBar.className = 'midi-rec-bar';
-  recBar.innerHTML = '<button class="midi-rec-btn" data-tip="Record: starts collecting every note duration and gap. Press again to stop and see three scores out of 100 for the whole recording: Duration, Gap and Blur."></button><span class="midi-rec-time"></span><button class="midi-live-btn" style="display:none" data-tip="Clear the recording results and go back to the live stream.">Live</button>';
-  const recSummary = document.createElement('div');
-  recSummary.className = 'midi-rec-summary';
+  recBar.innerHTML = '<button class="midi-rec-btn" data-tip="Record: starts collecting every note duration and gap. Press again to stop and see three scores out of 100 for the whole recording: Duration, Gap and Blur."></button><span class="midi-rec-time"></span><span class="midi-rec-scores"></span><button class="midi-save-btn" style="display:none" data-tip="Download all stored recordings as a file.">⤓</button><button class="midi-live-btn" style="display:none" data-tip="Clear the recording results and go back to the live stream.">Live</button>';
   wrap.appendChild(recBar);
-  wrap.appendChild(recSummary);
   const recBtn = recBar.querySelector('.midi-rec-btn');
   const recTime = recBar.querySelector('.midi-rec-time');
+  const recSummary = recBar.querySelector('.midi-rec-scores');
+  const saveBtn = recBar.querySelector('.midi-save-btn');
+  saveBtn.addEventListener('click', () => exportRecordings());
   const liveBtn = recBar.querySelector('.midi-live-btn');
-  liveBtn.addEventListener('click', () => { recSummary.innerHTML = ''; recTime.textContent = ''; liveBtn.style.display = 'none'; });
+  liveBtn.addEventListener('click', () => { recSummary.innerHTML = ''; recTime.textContent = ''; liveBtn.style.display = 'none'; saveBtn.style.display = 'none'; });
   let recTick = null;
 
   function fmtSecs(ms) { const t = Math.round(ms / 1000); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
@@ -211,32 +211,30 @@
     a.click();
   }
   function scoreLine(label, v, tip) {
-    return '<div class="midi-score" data-tip="' + tip + '"><span>' + label + '</span><b>' + (v == null ? '–' : v) + '</b></div>';
+    return '<span class="midi-score" data-tip="' + tip + '">' + label + ' <b>' + (v == null ? '–' : v) + '</b></span>';
   }
   function showScores() {
     const sc = computeScores();
     saveRecording(sc);
     recSummary.innerHTML =
-      scoreLine('Duration', sc.duration, 'How consistent your note lengths were (100 = all the same).') +
-      scoreLine('Gap', sc.gap, 'How small and steady the gaps between notes were, when there was a gap (100 = tiny, even gaps).') +
-      scoreLine('Blur', sc.blur, 'How rarely notes overlapped (100 = never blurred).') +
-      '<a href="#" class="midi-rec-export">save recordings</a>';
-    recSummary.querySelector('.midi-rec-export').addEventListener('click', e => { e.preventDefault(); exportRecordings(); });
+      scoreLine('Dur', sc.duration, 'Duration score: how consistent your note lengths were (100 = all the same).') +
+      scoreLine('Gap', sc.gap, 'Gap score: how small and steady the gaps between notes were, when there was a gap (100 = tiny, even gaps).') +
+      scoreLine('Blur', sc.blur, 'Blur score: how rarely notes overlapped (100 = never blurred).');
   }
   recBtn.addEventListener('click', () => {
     if (!recording) {
       recVals.duration = []; recVals.timing = [];
       recording = true; recStart = performance.now();
       recSummary.innerHTML = '';
-      liveBtn.style.display = 'none';
+      liveBtn.style.display = 'none'; saveBtn.style.display = 'none';
       recTime.textContent = '0:00';
       recTick = setInterval(() => { recTime.textContent = fmtSecs(performance.now() - recStart); }, 500);
     } else {
       recording = false; recElapsed = performance.now() - recStart;
       clearInterval(recTick); recTick = null;
-      recTime.textContent = fmtSecs(recElapsed);
+      recTime.textContent = '';
       showScores();
-      liveBtn.style.display = '';
+      liveBtn.style.display = ''; saveBtn.style.display = '';
     }
     setRecBtn();
   });
