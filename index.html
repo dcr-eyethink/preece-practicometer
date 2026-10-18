@@ -294,6 +294,8 @@
   .cg-key-row #keyButtons { flex: 1 1 auto; min-width: 0; }
   .cg-mode-col { display: flex; gap: 6px; justify-content: center; }
   .cg-mode-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px; border: 2px solid transparent; background: none; border-radius: 12px; font-size: 12px; font-weight: 600; color: #445; cursor: pointer; }
+  .cg-level-text { font-size: 11px; color: #5a6688; line-height: 1.5; margin-top: 8px; text-align: left; }
+  .cg-level-text b { color: #1a3a9a; }
   .cg-mode-btn img { width: 56px; aspect-ratio: 1; }
   .cg-mode-btn:hover { border-color: #7090e0; }
   .cg-mode-btn.active { border-color: #7090e0; color: #112; }
@@ -977,14 +979,15 @@
         <div id="keyButtons" data-tip="Click a key to see common chords in that key."></div>
         <div class="cg-mode-col" id="cgModeCol">
           <button class="cg-mode-btn active" data-mode="random" data-tip="Random: the key's chords in a shuffled order."><img src="icons/mode-random.png" alt="Random"><span>Random</span></button>
-          <button class="cg-mode-btn" data-mode="blues" data-tip="Blues: a 12-bar blues (I7-IV7-V7) in the chosen key. Not randomised."><img src="icons/mode-blues.png" alt="Blues"><span>Blues</span></button>
-          <button class="cg-mode-btn" data-mode="pop" data-tip="Pop: random grid built from common 2, 3 and 4 chord pop progressions."><img src="icons/mode-pop.png" alt="Pop"><span>Pop</span></button>
-          <button class="cg-mode-btn" data-mode="jazz" data-tip="Jazz: random grid built from typical jazz movements (ii-V-I, turnarounds...)."><img src="icons/mode-jazz.png" alt="Jazz"><span>Jazz</span></button>
+          <button class="cg-mode-btn" data-mode="blues" data-tip="Blues: a 12-bar blues in the chosen key. Click again for harder levels (more variation)."><img src="icons/mode-blues.png" alt="Blues"><span>Blues</span></button>
+          <button class="cg-mode-btn" data-mode="pop" data-tip="Pop: grid built from common pop progressions. Click again for harder levels."><img src="icons/mode-pop.png" alt="Pop"><span>Pop</span></button>
+          <button class="cg-mode-btn" data-mode="jazz" data-tip="Jazz: grid built from jazz movements, starting with ii-V-I. Click again for harder levels."><img src="icons/mode-jazz.png" alt="Jazz"><span>Jazz</span></button>
         </div>
       </div>
       <div class="chord-grid-panel" id="chordGridPanel">
         <div class="chord-grid" id="chordGrid"></div>
       </div>
+      <div class="cg-level-text" id="cgLevelText"></div>
     </div>
     <div id="rndPanel">
       <div class="panel-title-row">
@@ -1598,41 +1601,91 @@
     return m[2] ? r.toLowerCase() : r;
   }
   // Progressions as [semitones above the key, isMinor] steps.
-  const D = { I:[0,0], ii:[2,1], iii:[4,1], IV:[5,0], iv:[5,1], V:[7,0], vi:[9,1], bVII:[10,0], bVI:[8,0], bII:[1,0], bIII:[3,0], II:[2,0], VI:[9,0] };
+  const D = { v:[7,1], III:[4,0], I:[0,0], ii:[2,1], iii:[4,1], IV:[5,0], iv:[5,1], V:[7,0], vi:[9,1], bVII:[10,0], bVI:[8,0], bII:[1,0], bIII:[3,0], II:[2,0], VI:[9,0] };
   const prog = s => s.split(' ').map(n => D[n]);
   const POP_PROGS = ['I IV','I V','vi IV','IV V','I vi','I IV V','I V IV','vi IV I','I vi IV','I V vi IV','I vi IV V','vi IV I V','I IV vi V','I V vi iii','I bVII IV I'].map(prog);
   const JAZZ_PROGS = ['ii V','ii V I','iii vi ii V','I vi ii V','I VI ii V','ii bII I','I iii vi ii','IV iv I','I bIII bVI bII','iii VI ii V','I II ii V','ii V I vi','IV bVII I'].map(prog);
   const BLUES_12 = prog('I I I I IV IV I I V IV I V');
-  const JAZZ_DOMINANT = new Set([7, 2, 9, 1, 10]); // V, II, VI, bII, bVII as major steps
+  // Level 2 blues: a few standard 12-bar variants, one picked at random.
+  const BLUES_L2 = ['I IV I I IV IV I I V IV I V','I IV I I IV IV I VI ii V I V','I I I I IV IV I I ii V I V','I IV I I IV iv I VI ii V I V'].map(prog);
+  // Level 3 blues: jazz-blues form, each bar picks one of its options at random.
+  const BLUES_L3 = [['I'],['IV','iv'],['I'],['I','v'],['IV'],['IV','iv','bVII'],['I'],['VI','iii'],['ii'],['V','bII'],['I','iii'],['V','bII','VI']].map(o => o.map(n => D[n]));
+  const POP_L1 = ['I V vi IV','vi IV I V','I vi IV V','I IV vi V'].map(prog);
+  const POP_L3 = ['I bVII IV I','I V vi iii IV I IV V','vi V IV V','I iii IV iv','I bVI bVII I','vi IV I V','I III vi IV','IV V iii vi','I V vi iii','I vi ii V','IV iv I V','I bIII IV V'].map(prog);
+  const JAZZ_L1 = prog('ii V I');
+  const JAZZ_L3 = ['iii VI ii V','III VI II V','ii bII I','iv bVII I','I bIII bVI bII','I vi ii bII','ii V iii VI','iii VI ii V I','I VI ii V','IV bVII iii VI ii V','I bIII ii bII'].map(prog);
+  const MODE_LEVELS = {
+    random: ['The key\'s own chords in a shuffled order.'],
+    blues: ['Level 1: the plain 12-bar blues, the same every time.',
+            'Level 2: standard 12-bar variants (quick change, turnarounds with ii-V), picked at random.',
+            'Level 3: jazz blues, where bars can swap in minor, tritone and passing chords at random.'],
+    pop: ['Level 1: a classic 4-chord loop (like I-V-vi-IV), repeated.',
+          'Level 2: random 2, 3 and 4 chord pop progressions.',
+          'Level 3: wider pop and rock moves (borrowed chords, vi-V-IV-V, bVII), with 7th chords.'],
+    jazz: ['Level 1: ii-V-I over and over.',
+           'Level 2: typical jazz movements (turnarounds, ii-V-I-vi, I-vi-ii-V) with 7th chords, at random.',
+           'Level 3: advanced movement (secondary dominants, backdoor ii-V, tritone substitutions) at random.']
+  };
+  const cgLevels = { blues: 1, pop: 1, jazz: 1 };
+  const JAZZ_DOMINANT = new Set([7, 2, 9, 1, 10, 4]); // V, II, VI, bII, bVII as major steps
   function stepChord(key, [semi, minor], sevenths) {
     const root = KEYS[(NOTE_PC[key] + semi) % 12];
     if (!sevenths) return root + (minor ? 'm' : '');
     if (minor) return root + 'm7';
     return root + (sevenths === 'blues' || JAZZ_DOMINANT.has(semi) ? '7' : 'maj7');
   }
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  function fillFrom(progs, last) {
+    const out = [];
+    while (out.length < 12) {
+      let p;
+      do { p = pick(progs); } while (p === last && progs.length > 1);
+      last = p;
+      out.push(...p);
+    }
+    return out.slice(0, 12);
+  }
   function buildChordSequence(key) {
-    if (cgMode === 'blues') return BLUES_12.map(s => stepChord(key, s, 'blues'));
-    if (cgMode === 'pop' || cgMode === 'jazz') {
-      const progs = cgMode === 'pop' ? POP_PROGS : JAZZ_PROGS;
-      const out = [];
-      let last = null;
-      while (out.length < 12) {
-        let p;
-        do { p = progs[Math.floor(Math.random() * progs.length)]; } while (p === last && progs.length > 1);
-        last = p;
-        out.push(...p);
-      }
-      return out.slice(0, 12).map(s => stepChord(key, s, cgMode === 'jazz' ? 'jazz' : null));
+    const lv = cgLevels[cgMode];
+    if (cgMode === 'blues') {
+      const steps = lv === 1 ? BLUES_12 : lv === 2 ? pick(BLUES_L2) : BLUES_L3.map(pick);
+      return steps.map(s => stepChord(key, s, 'blues'));
+    }
+    if (cgMode === 'pop') {
+      const steps = fillFrom(lv === 1 ? [pick(POP_L1)] : lv === 2 ? POP_PROGS : POP_L3);
+      return steps.map(s => stepChord(key, s, lv === 3 ? 'jazz' : null));
+    }
+    if (cgMode === 'jazz') {
+      let steps;
+      if (lv === 1) steps = fillFrom([JAZZ_L1]);
+      else if (lv === 2) steps = fillFrom(JAZZ_PROGS);
+      else steps = fillFrom(JAZZ_L3).map(s => (s[0] === 7 && !s[1] && Math.random() < 0.4) ? [1, 0] : s); // tritone-sub some V chords
+      return steps.map(s => stepChord(key, s, 'jazz'));
     }
     return shuffle(CHORD_DATA[key]);
+  }
+  function updateModeUI() {
+    document.querySelectorAll('#cgModeCol .cg-mode-btn').forEach(x => {
+      const m = x.dataset.mode;
+      x.classList.toggle('active', m === cgMode);
+      x.querySelector('span').textContent = x.dataset.label + (m !== 'random' && m === cgMode ? ' ' + cgLevels[m] : '');
+    });
+    const descs = MODE_LEVELS[cgMode];
+    document.getElementById('cgLevelText').innerHTML = descs.map((t, i) => cgMode !== 'random' && i === cgLevels[cgMode] - 1 ? '<b>' + t + '</b>' : t).join('<br>') +
+      (cgMode !== 'random' ? '<br><i>Click the style again to go up a level.</i>' : '');
   }
   document.getElementById('cgModeCol').addEventListener('click', e => {
     const b = e.target.closest('.cg-mode-btn');
     if (!b) return;
-    cgMode = b.dataset.mode;
-    document.querySelectorAll('#cgModeCol .cg-mode-btn').forEach(x => x.classList.toggle('active', x === b));
+    const m = b.dataset.mode;
+    if (m === cgMode && m !== 'random') cgLevels[m] = cgLevels[m] % 3 + 1; // same style again: next level
+    else { cgMode = m; if (m !== 'random') cgLevels[m] = 1; }
+    updateModeUI();
     if (currentChordKey) showChordGrid(currentChordKey);
   });
+
+  document.querySelectorAll('#cgModeCol .cg-mode-btn').forEach(x => { x.dataset.label = x.querySelector('span').textContent; });
+  updateModeUI();
 
   function showChordGrid(key) {
     currentChordKey = key;
@@ -2924,7 +2977,7 @@
   const DEFAULT_FUNCTION_NOTES = {
     chordgrid: "Press a note to generate a random chord sequence in that key.\n\n"
       + "Practice the chords, transitioning between them, and choosing inversions. If you turn on the metronome, a new chord will be highlighted on each new bar. Click chords directly to jump to them.\n\n"
-      + "Use the four icons under the keyboard to choose how the grid is built: the dice give a random shuffle of the key's chords; the guitar gives a 12-bar blues (I7, IV7, V7) in that key, always in the same order; the microphone builds a random pop grid from common 2, 3 and 4 chord progressions (such as I-V-vi-IV); and the saxophone builds a random jazz grid from typical jazz movements (such as ii-V-I and turnarounds) using 7th chords. Click an icon again, or click the key again, for a fresh grid.\n\n"
+      + "Use the four icons under the keyboard to choose how the grid is built: the dice give a random shuffle of the key's chords; the guitar, microphone and saxophone give blues, pop and jazz grids. Each of those three styles has three levels. The first click gives level 1, and clicking the same icon again goes up to level 2, then 3, then back to 1 (the icon shows the level). Blues goes from the plain 12-bar, to standard variations, to a jazz blues with random substitutions. Pop goes from a repeating 4-chord loop, to random common progressions, to wider rock and pop moves with 7th chords. Jazz goes from ii-V-I over and over, to typical jazz movements, to advanced moves like secondary dominants and tritone substitutions. A line of text under the grid describes each level. Click the key again for a fresh grid.\n\n"
       + "Each square also shows its chord number under the name, so in the key of C, G is V and Am is vi (minor chords are lower case).\n\n"
       + "If your MIDI keyboard is connected, the chords will turn green when played.\n\n"
       + "With a MIDI keyboard connected, the small MIDI box shows what you play. Click its 📊 button for live stats on note length and gaps between notes. Click the red record circle to start recording, then the stop square to see three scores out of 100: Duration (how consistent your note lengths were), Gap (how small and steady the gaps between notes were) and Blur (how rarely notes overlapped). Recordings are stored so the scoring can be tuned; click the ⤓ button to download them. Click Live to go back to the live stream.\n\n"
