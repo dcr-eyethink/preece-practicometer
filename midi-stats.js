@@ -62,7 +62,14 @@
   const stats = {};
   ROWS.forEach(r => { stats[r.key] = { values: [], times: [] }; });
 
+  // Optional recording: while on, every value is also kept in full (the
+  // rolling window above only holds the last 16), so stopping can report the
+  // mean and variance over the whole stretch.
+  let recording = false, recStart = 0, recElapsed = 0;
+  const recVals = { duration: [], timing: [] };
+
   function push(key, v) {
+    if (recording) recVals[key].push(v);
     const s = stats[key];
     s.values.push(v);
     s.times.push(performance.now());
@@ -152,6 +159,49 @@
       value: row.querySelector('.midi-stat-value')
     };
   });
+
+  // Rec control + results, sitting under the two plots.
+  const recBar = document.createElement('div');
+  recBar.className = 'midi-rec-bar';
+  recBar.innerHTML = '<button class="midi-rec-btn" data-tip="Record: starts collecting every note duration and gap. Press again to stop and see the mean and variance over the whole recording."></button><span class="midi-rec-time"></span>';
+  const recSummary = document.createElement('div');
+  recSummary.className = 'midi-rec-summary';
+  wrap.appendChild(recBar);
+  wrap.appendChild(recSummary);
+  const recBtn = recBar.querySelector('.midi-rec-btn');
+  const recTime = recBar.querySelector('.midi-rec-time');
+  let recTick = null;
+
+  function fmtSecs(ms) { const t = Math.round(ms / 1000); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
+  function setRecBtn() {
+    recBtn.classList.toggle('on', recording);
+    recBtn.setAttribute('aria-label', recording ? 'Stop recording' : 'Start recording');
+  }
+  function summaryLine(r) {
+    const v = recVals[r.key];
+    if (!v.length) return '<div><b>' + r.label + '</b>: no notes recorded</div>';
+    const st = meanSD(v);
+    const sign = r.bipolar && st.mean >= 0 ? '+' : '';
+    const mean = r.bipolar ? sign + (st.mean < 0 ? '−' : '') + Math.round(Math.abs(st.mean)) : Math.round(st.mean);
+    return '<div><b>' + r.label + '</b>: mean ' + mean + 'ms · variance ' + Math.round(st.sd * st.sd) + ' ms² (SD ' + Math.round(st.sd) + 'ms) · n=' + v.length + '</div>';
+  }
+  recBtn.addEventListener('click', () => {
+    if (!recording) {
+      recVals.duration = []; recVals.timing = [];
+      recording = true; recStart = performance.now();
+      recSummary.innerHTML = '';
+      recTime.textContent = '0:00';
+      recTick = setInterval(() => { recTime.textContent = fmtSecs(performance.now() - recStart); }, 500);
+    } else {
+      recording = false; recElapsed = performance.now() - recStart;
+      clearInterval(recTick); recTick = null;
+      recTime.textContent = fmtSecs(recElapsed);
+      recSummary.innerHTML = ROWS.map(summaryLine).join('') +
+        '<div class="midi-rec-note">over ' + fmtSecs(recElapsed) + ' of playing</div>';
+    }
+    setRecBtn();
+  });
+  setRecBtn();
 
   function drawDiamond(ctx, xMid, xLo, xHi, midY, halfH, color) {
     ctx.fillStyle = color;

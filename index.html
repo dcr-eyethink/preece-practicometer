@@ -489,6 +489,19 @@
   /* ---- Live MIDI stats (duration / blur-gap timing) ----
      Lives inside the fixed-height MIDI box, in place of the "notes being
      played" text, so turning it on never changes the panel's layout. */
+  .idle-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+  .idle-box { background: #fff; border-radius: 12px; padding: 20px 24px; max-width: 340px; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
+  .idle-box h3 { margin: 0 0 6px; }
+  .idle-box p { margin: 0 0 14px; color: #666; }
+  .idle-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .idle-btns button { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid #b8c2e0; background: #f4f6fc; cursor: pointer; }
+  .idle-btns button.primary { background: #3a6fe0; color: #fff; border-color: #3a6fe0; }
+  .midi-rec-bar { display: flex; align-items: center; gap: 6px; }
+  .midi-rec-btn { width: 14px; height: 14px; padding: 0; border-radius: 50%; border: 1.5px solid #c0392b; background: #e05050; cursor: pointer; }
+  .midi-rec-btn.on { border-radius: 3px; background: #c0392b; }
+  .midi-rec-time { font-size: 10px; color: #7a86a8; }
+  .midi-rec-summary { font-size: 10px; color: #3a4668; line-height: 1.4; }
+  .midi-rec-note { color: #9aa4c0; }
   .midi-stats { width: 100%; display: flex; flex-direction: column; gap: 3px; }
   .midi-stat-row { display: flex; align-items: center; gap: 5px; }
   .midi-stat-label { font-size: 9px; color: #889; width: 46px; flex-shrink: 0; line-height: 1.1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -3732,6 +3745,43 @@
   goBtn.addEventListener('click', startPracticeTimer);
   pauseBtn.addEventListener('click', () => { stopPracticeTimer(); stopSessionTimer(); });
   restartBtn.addEventListener('click', () => loadPracticeItem(practiceIdx, true));
+
+  // ── "Are you still playing?" ──
+  // Only while a practice timer is running and a MIDI keyboard is connected:
+  // a minute with no notes pops a prompt, so a forgotten session doesn't keep
+  // logging time. No MIDI device (or no MIDI at all) means no check.
+  const IDLE_MS = 60000;
+  let lastMidiAt = Date.now(), idleWasRunning = false, idleModal = null;
+  function midiPresent() {
+    const M = window.MidiInput;
+    const st = M && M.getStatus && M.getStatus();
+    return !!(st && st.state === 'ready' && st.names && st.names.length);
+  }
+  function hideIdleModal() { if (idleModal) { idleModal.remove(); idleModal = null; } lastMidiAt = Date.now(); }
+  function showIdleModal() {
+    idleModal = document.createElement('div');
+    idleModal.className = 'idle-overlay';
+    idleModal.innerHTML = '<div class="idle-box"><h3>Are you still playing?</h3><p>No MIDI notes for a minute.</p><div class="idle-btns"><button data-a="pause">Pause practice</button><button data-a="finish">Finish practice</button><button data-a="continue" class="primary">Continue</button></div></div>';
+    idleModal.addEventListener('click', e => {
+      const act = e.target.dataset && e.target.dataset.a;
+      if (!act) return;
+      hideIdleModal();
+      if (act === 'pause') pauseBtn.click();
+      else if (act === 'finish') document.getElementById('practiceClose').click();
+    });
+    document.body.appendChild(idleModal);
+  }
+  function hookIdleMidi() {
+    if (window.MidiInput) window.MidiInput.onNoteOn(() => { lastMidiAt = Date.now(); });
+    else setTimeout(hookIdleMidi, 500);
+  }
+  hookIdleMidi();
+  setInterval(() => {
+    const running = practiceActive && !!timerId;
+    if (!running || !midiPresent()) { idleWasRunning = false; lastMidiAt = Date.now(); if (idleModal && !running) hideIdleModal(); return; }
+    if (!idleWasRunning) { idleWasRunning = true; lastMidiAt = Date.now(); }
+    if (!idleModal && Date.now() - lastMidiAt >= IDLE_MS) showIdleModal();
+  }, 5000);
   nextBtn.addEventListener('click', () => loadPracticeItem(practiceIdx + 1, true));
 
   // Enters practice view at a given row — used by the main practice button

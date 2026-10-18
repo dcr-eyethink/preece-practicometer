@@ -659,9 +659,24 @@
   // freshly randomized. See saveActiveRowSettings/dispatchActiveRow in
   // index.html.
   function getSettings() {
-    return { staircaseActive: staircase.active, level: staircase.level, baseNotes: Array.from(state.activeBaseNotes) };
+    const out = {
+      staircaseActive: staircase.active, level: staircase.level, baseNotes: Array.from(state.activeBaseNotes),
+      // In staircase mode the live sets belong to the ladder; the player's own picks are in the snapshots.
+      intervals: Array.from((staircase.active && manualIntervalsSnapshot) || state.activeIntervals),
+      directions: Array.from((staircase.active && manualDirectionsSnapshot) || state.activeDirections)
+    };
+    try { localStorage.setItem('earSettings', JSON.stringify(out)); } catch (e) { /* ignore */ }
+    return out;
   }
   function applySavedSettings(settings) {
+    if (!settings) { try { settings = JSON.parse(localStorage.getItem('earSettings') || 'null'); } catch (e) { settings = null; } }
+    const okList = (l, valid) => Array.isArray(l) && l.length && l.every(v => valid.includes(v));
+    if (settings && (okList(settings.intervals, [2, 3, 4, 5, 6, 7, 8]) || okList(settings.directions, ['up', 'down']))) {
+      if (staircase.active) exitStaircase();
+      if (okList(settings.intervals, [2, 3, 4, 5, 6, 7, 8])) state.activeIntervals = new Set(settings.intervals);
+      if (okList(settings.directions, ['up', 'down'])) state.activeDirections = new Set(settings.directions);
+      buildIntervalButtons();
+    }
     if (settings && Array.isArray(settings.baseNotes) && settings.baseNotes.length) {
       state.activeBaseNotes = new Set(settings.baseNotes);
     } else {
@@ -995,6 +1010,7 @@
     });
 
     document.getElementById('earBackBtn').addEventListener('click', () => {
+      getSettings(); // also stashes the knobs for the next direct open
       if (window.captureActiveRowSettings) window.captureActiveRowSettings();
       if (window.closeFunctionNotes) window.closeFunctionNotes();
       stopSession();
