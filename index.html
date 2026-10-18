@@ -1622,7 +1622,7 @@
     pop: ['Level 1: a classic 4-chord loop (like I-V-vi-IV), repeated.',
           'Level 2: random 2, 3 and 4 chord pop progressions.',
           'Level 3: wider pop and rock moves (borrowed chords, vi-V-IV-V, bVII), with 7th chords.'],
-    jazz: ['Level 1: ii-V-I over and over.',
+    jazz: ['Level 1: ii-V-I sequences, each one landing on a different chord of the key (ii-V-I into C, then into Em, G and so on).',
            'Level 2: typical jazz movements (turnarounds, ii-V-I-vi, I-vi-ii-V) with 7th chords, at random.',
            'Level 3: advanced movement (secondary dominants, backdoor ii-V, tritone substitutions) at random.']
   };
@@ -1645,6 +1645,15 @@
     }
     return out.slice(0, 12);
   }
+  // Level 1 jazz: four ii-V-I's, each landing on a different chord of the key
+  // (I first, then three others). Into a minor chord the ii is half-diminished.
+  function jazzTwoFiveOnes(key) {
+    const targets = [[0, 0], [2, 1], [4, 1], [5, 0], [7, 0], [9, 1]];
+    const rest = shuffle(targets.slice(1)).slice(0, 3);
+    const root = semi => KEYS[(NOTE_PC[key] + semi) % 12];
+    return [targets[0], ...rest].flatMap(([t, minor]) =>
+      [root(t + 2) + (minor ? 'm7b5' : 'm7'), root(t + 7) + '7', root(t) + (minor ? 'm7' : 'maj7')]);
+  }
   function buildChordSequence(key) {
     const lv = cgLevels[cgMode];
     if (cgMode === 'blues') {
@@ -1657,7 +1666,7 @@
     }
     if (cgMode === 'jazz') {
       let steps;
-      if (lv === 1) steps = fillFrom([JAZZ_L1]);
+      if (lv === 1) return jazzTwoFiveOnes(key);
       else if (lv === 2) steps = fillFrom(JAZZ_PROGS);
       else steps = fillFrom(JAZZ_L3).map(s => (s[0] === 7 && !s[1] && Math.random() < 0.4) ? [1, 0] : s); // tritone-sub some V chords
       return steps.map(s => stepChord(key, s, 'jazz'));
@@ -2977,7 +2986,7 @@
   const DEFAULT_FUNCTION_NOTES = {
     chordgrid: "Press a note to generate a random chord sequence in that key.\n\n"
       + "Practice the chords, transitioning between them, and choosing inversions. If you turn on the metronome, a new chord will be highlighted on each new bar. Click chords directly to jump to them.\n\n"
-      + "Use the four icons under the keyboard to choose how the grid is built: the dice give a random shuffle of the key's chords; the guitar, microphone and saxophone give blues, pop and jazz grids. Each of those three styles has three levels. The first click gives level 1, and clicking the same icon again goes up to level 2, then 3, then back to 1 (the icon shows the level). Blues goes from the plain 12-bar, to standard variations, to a jazz blues with random substitutions. Pop goes from a repeating 4-chord loop, to random common progressions, to wider rock and pop moves with 7th chords. Jazz goes from ii-V-I over and over, to typical jazz movements, to advanced moves like secondary dominants and tritone substitutions. A line of text under the grid describes each level. Click the key again for a fresh grid.\n\n"
+      + "Use the four icons under the keyboard to choose how the grid is built: the dice give a random shuffle of the key's chords; the guitar, microphone and saxophone give blues, pop and jazz grids. Each of those three styles has three levels. The first click gives level 1, and clicking the same icon again goes up to level 2, then 3, then back to 1 (the icon shows the level). Blues goes from the plain 12-bar, to standard variations, to a jazz blues with random substitutions. Pop goes from a repeating 4-chord loop, to random common progressions, to wider rock and pop moves with 7th chords. Jazz goes from four ii-V-Is each landing on a different chord of the key (such as Dm7-G7-Cmaj7, then Fm7b5-B7-Em7 into iii), to typical jazz movements, to advanced moves like secondary dominants and tritone substitutions. A line of text under the grid describes each level. Click the key again for a fresh grid.\n\n"
       + "Each square also shows its chord number under the name, so in the key of C, G is V and Am is vi (minor chords are lower case).\n\n"
       + "If your MIDI keyboard is connected, the chords will turn green when played.\n\n"
       + "With a MIDI keyboard connected, the small MIDI box shows what you play. Click its 📊 button for live stats on note length and gaps between notes. Click the red record circle to start recording, then the stop square to see three scores out of 100: Duration (how consistent your note lengths were), Gap (how small and steady the gaps between notes were) and Blur (how rarely notes overlapped). Recordings are stored so the scoring can be tuned; click the ⤓ button to download them. Click Live to go back to the live stream.\n\n"

@@ -14,6 +14,7 @@
     min: { required: [0, 3, 7], optional: [] },
     maj7: { required: [0, 4, 11], optional: [7] },
     min7: { required: [0, 3, 10], optional: [7] },
+    m7b5: { required: [0, 3, 6, 10], optional: [] },
     dom7: { required: [0, 4, 10], optional: [7] }
   };
 
@@ -160,9 +161,9 @@
 
   // Parses a chord-grid label like 'Ebm' / 'F#' into { rootName, type }.
   function parseTriad(label) {
-    const m = /^([A-G][b#]?)(maj7|m7|7|m|)$/.exec(label || '');
+    const m = /^([A-G][b#]?)(maj7|m7b5|m7|7|m|)$/.exec(label || '');
     if (!m) return null;
-    const types = { '': 'maj', m: 'min', maj7: 'maj7', m7: 'min7', 7: 'dom7' };
+    const types = { '': 'maj', m: 'min', maj7: 'maj7', m7: 'min7', m7b5: 'm7b5', 7: 'dom7' };
     return { rootName: m[1], type: types[m[2]] };
   }
 
