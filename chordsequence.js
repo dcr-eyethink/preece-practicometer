@@ -321,10 +321,15 @@
   // freshly randomized. See saveActiveRowSettings/dispatchActiveRow in
   // index.html.
   function getSettings() {
-    return { staircaseActive: staircase.active, level: staircase.level };
+    return { staircaseActive: staircase.active, level: staircase.level, seqLen: (staircase.active && manualSeqLenSnapshot) || currentSeqLen };
   }
   function applySavedSettings(settings) {
     const btn = document.getElementById('csStaircaseBtn');
+    if (settings && [1, 2, 3, 4].includes(settings.seqLen) && !staircase.active && settings.seqLen !== currentSeqLen) {
+      currentSeqLen = settings.seqLen;
+      document.querySelectorAll('#csModeRow .cs-mode-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.len) === currentSeqLen));
+      if (!settings.staircaseActive) newTurn();
+    }
     if (!settings || !settings.staircaseActive) {
       if (staircase.active) exitStaircase();
       if (btn) btn.classList.remove('active');
@@ -488,6 +493,7 @@
     document.getElementById('csStaircaseBtn').addEventListener('click', () => {
       if (staircase.active) exitStaircase(); else enterStaircase();
       document.getElementById('csStaircaseBtn').classList.toggle('active', staircase.active);
+      if (window.persistCurrentRowSettings) window.persistCurrentRowSettings();
     });
 
     document.querySelectorAll('#csModeRow .cs-mode-btn').forEach(btn => {
@@ -497,6 +503,7 @@
         btn.classList.add('active');
         currentSeqLen = Number(btn.dataset.len);
         newTurn();
+        if (window.persistCurrentRowSettings) window.persistCurrentRowSettings();
       });
     });
 

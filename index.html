@@ -3410,6 +3410,8 @@
     persistActiveRowSettings(rowIdx);
   }
   window.captureActiveRowSettings = captureActiveRowSettings;
+  // Saves the open function's current knobs straight away (used by the ear / chord-sequence panels when a setting is changed).
+  window.persistCurrentRowSettings = () => persistActiveRowSettings(settingsTargetRowIdx);
 
   // Shows whatever the active practice-list row calls for in the middle
   // panel: a learning function, an active score, or (for an ordinary task,

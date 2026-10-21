@@ -254,6 +254,7 @@
     });
   }
 
+  function persistNow() { if (window.persistCurrentRowSettings) window.persistCurrentRowSettings(); }
   function toggleBaseNote(pc) {
     if (state.activeBaseNotes.has(pc)) {
       if (state.activeBaseNotes.size === 1) return; // at least one must stay on
@@ -261,6 +262,7 @@
     } else {
       state.activeBaseNotes.add(pc);
     }
+    persistNow();
     renderBaseNoteCheckboxes();
   }
 
@@ -671,10 +673,11 @@
   function applySavedSettings(settings) {
     if (!settings) { try { settings = JSON.parse(localStorage.getItem('earSettings') || 'null'); } catch (e) { settings = null; } }
     const okList = (l, valid) => Array.isArray(l) && l.length && l.every(v => valid.includes(v));
-    if (settings && (okList(settings.intervals, [2, 3, 4, 5, 6, 7, 8]) || okList(settings.directions, ['up', 'down']))) {
+    if (settings) {
+      // A saved item always brings its own set; an older save without one gets the defaults, never another item's leftovers.
       if (staircase.active) exitStaircase();
-      if (okList(settings.intervals, [2, 3, 4, 5, 6, 7, 8])) state.activeIntervals = new Set(settings.intervals);
-      if (okList(settings.directions, ['up', 'down'])) state.activeDirections = new Set(settings.directions);
+      state.activeIntervals = new Set(okList(settings.intervals, [2, 3, 4, 5, 6, 7, 8]) ? settings.intervals : [2, 3, 4, 5, 6, 7, 8]);
+      state.activeDirections = new Set(okList(settings.directions, ['up', 'down']) ? settings.directions : ['up']);
       buildIntervalButtons();
     }
     if (settings && Array.isArray(settings.baseNotes) && settings.baseNotes.length) {
@@ -1009,6 +1012,8 @@
       if (window.openNotesForFunction) window.openNotesForFunction('ear-play');
     });
 
+    document.getElementById('earIntervalRow').addEventListener('click', persistNow);
+    document.getElementById('earStaircaseBtn').addEventListener('click', persistNow);
     document.getElementById('earBackBtn').addEventListener('click', () => {
       getSettings(); // also stashes the knobs for the next direct open
       if (window.captureActiveRowSettings) window.captureActiveRowSettings();
