@@ -1691,6 +1691,7 @@
     else { cgMode = m; if (m !== 'random') cgLevels[m] = 1; }
     updateModeUI();
     if (currentChordKey) showChordGrid(currentChordKey);
+    if (typeof persistActiveRowSettings === 'function') persistActiveRowSettings(settingsTargetRowIdx);
   });
 
   document.querySelectorAll('#cgModeCol .cg-mode-btn').forEach(x => { x.dataset.label = x.querySelector('span').textContent; });
@@ -1848,6 +1849,11 @@
     document.getElementById('rndPanel').style.display = isCG ? 'none' : 'block';
     window.setActiveTopBarIcon(isCG ? 'chordToggleBtn' : 'rndToggleBtn');
     if (isCG) {
+      if (settings && ['random', 'blues', 'pop', 'jazz'].includes(settings.cgMode)) {
+        cgMode = settings.cgMode;
+        if (settings.cgLevels) ['blues', 'pop', 'jazz'].forEach(m => { const l = settings.cgLevels[m]; if (l >= 1 && l <= 3) cgLevels[m] = l; });
+        updateModeUI();
+      }
       const key = (settings && settings.key) || currentChordKey;
       if (key) showChordGrid(key);
     } else {
@@ -3352,7 +3358,7 @@
   function computeActiveRowSettings(row, hasLevels) {
     let settings = null;
     switch (row.functionId) {
-      case 'chordgrid': settings = currentChordKey ? { key: currentChordKey, bpm } : null; break;
+      case 'chordgrid': settings = currentChordKey ? { key: currentChordKey, bpm, cgMode, cgLevels: Object.assign({}, cgLevels) } : null; break;
       case 'c5': settings = { mode: rndCurrentMode, bpm }; break;
       case 'ear-echo': case 'ear-play':
         settings = window.EarTrainer && window.EarTrainer.getSettings ? window.EarTrainer.getSettings() : null;
