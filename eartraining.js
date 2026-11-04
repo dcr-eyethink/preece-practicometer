@@ -71,11 +71,28 @@
 
   let score = loadScore();
 
+  // Practice-list sessions: pressing Start in a practice list zeroes the score and
+  // shows the % achieved the last time this function was used in that list.
+  const LAST_KEY = 'earLastPct:';
+  let sessionSet = null, lastPct = null;
+  function lastKey() { return LAST_KEY + sessionSet; }
+  window.addEventListener('practice-session-start', e => {
+    sessionSet = (e.detail && e.detail.setName) || '';
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem(lastKey())); } catch (err) {}
+    lastPct = typeof v === 'number' ? v : null;
+    score.correct = 0; score.total = 0;
+    saveScore();
+    updateScoreDisplay();
+  });
+  window.addEventListener('practice-session-end', () => { sessionSet = null; lastPct = null; updateScoreDisplay(); });
+
   function updateScoreDisplay() {
     const el = document.getElementById('earScore');
     if (!el) return;
     const pct = score.total ? Math.round((score.correct / score.total) * 100) : null;
     let text = `Score: ${score.correct}/${score.total} (${pct === null ? '—' : pct + '%'})`;
+    if (sessionSet !== null) text += ` · Last time: ${lastPct === null ? '—' : lastPct + '%'}`;
     if (score.staircaseBest > 0) text += ` · Best level: ${score.staircaseBest}/${STAIRCASE_LEVELS.length}`;
     el.textContent = text;
   }
@@ -89,6 +106,7 @@
   function recordAttempt(isCorrect) {
     score.total++;
     if (isCorrect) score.correct++;
+    if (sessionSet !== null) { try { localStorage.setItem(lastKey(), JSON.stringify(Math.round(score.correct / score.total * 100))); } catch (e) {} }
     saveScore();
     updateScoreDisplay();
   }

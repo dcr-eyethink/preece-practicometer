@@ -3812,7 +3812,7 @@
   function goToItem(idx) { loadPracticeItem(idx, true); }
   function startPracticeTimer() {
     if (timerId) return;
-    if (!sessionStarted) { sessionStarted = true; startSessionTimer(); } else resumeSessionTimer();
+    if (!sessionStarted) { sessionStarted = true; startSessionTimer(); window.dispatchEvent(new CustomEvent('practice-session-start', { detail: { setName: currentSetName } })); } else resumeSessionTimer();
     goBtn.style.display = 'none'; pauseBtn.style.display = '';
     timerId = setInterval(() => { remainSec--; updateCircle(); if (remainSec === 0 && totalSec > 0) playChime(); }, 1000);
   }
@@ -3885,6 +3885,7 @@
   document.getElementById('practiceClose').addEventListener('click', () => {
     finalizeFreeplayElapsed();
     captureActiveRowSettings();
+    window.dispatchEvent(new Event('practice-session-end'));
     stopPracticeTimer(); stopSessionTimer();
     finishPracticeLogSession();
     if (notesOpen) closeNotes();
