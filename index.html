@@ -1098,7 +1098,6 @@
         <div class="practice-controls" id="practiceControls">
           <div class="practice-controls-row">
             <button class="pbtn pbtn-go pbtn-lg" id="goBtn" data-tip="Start the countdown for this item."><img src="icons/go.png" alt="Go"></button>
-            <button class="pbtn pbtn-pause pbtn-lg" id="pauseBtn" style="display:none" data-tip="Pause the countdown."><img src="icons/pause.png" alt="Pause"></button>
           </div>
           <div class="practice-controls-row">
             <button class="pbtn pbtn-restart" id="restartBtn" data-tip="Restart the countdown for this item from the beginning."><img src="icons/restart.png" alt="Restart"></button>
@@ -3267,7 +3266,7 @@
   const practicePanel = document.getElementById('practicePanel');
   const timerFg = document.getElementById('timerFg'), timerText = document.getElementById('timerText'), timerWrap = document.getElementById('timerWrap');
   const activityEl = document.getElementById('practiceActivity'), indexEl = document.getElementById('practiceIndex');
-  const goBtn = document.getElementById('goBtn'), pauseBtn = document.getElementById('pauseBtn'), nextBtn = document.getElementById('nextBtn');
+  const goBtn = document.getElementById('goBtn'), nextBtn = document.getElementById('nextBtn');
   const restartBtn = document.getElementById('restartBtn');
   const doneEl = document.getElementById('practiceDone'), controlsEl = document.getElementById('practiceControls');
   const sessionTimeEl = document.getElementById('sessionTime');
@@ -3477,7 +3476,7 @@
     else if ((row.notes || '').trim()) { openNotesForRow(idx); notesAuto = true; }
     else if (notesOpen) closeNotes();
     const mins = parseFloat(row.time) || 0; totalSec = Math.round(mins * 60); remainSec = totalSec;
-    goBtn.style.display = ''; pauseBtn.style.display = 'none'; updateCircle();
+    goBtn.style.display = ''; updateCircle();
     if (autoStart) startPracticeTimer();
   }
   // ── Notes panel ──
@@ -3813,13 +3812,12 @@
   function startPracticeTimer() {
     if (timerId) return;
     if (!sessionStarted) { sessionStarted = true; startSessionTimer(); window.dispatchEvent(new CustomEvent('practice-session-start', { detail: { setName: currentSetName } })); } else resumeSessionTimer();
-    goBtn.style.display = 'none'; pauseBtn.style.display = '';
+    goBtn.style.display = 'none';
     timerId = setInterval(() => { remainSec--; updateCircle(); if (remainSec === 0 && totalSec > 0) playChime(); }, 1000);
   }
-  function stopPracticeTimer() { if (timerId) { clearInterval(timerId); timerId = null; } goBtn.style.display = ''; pauseBtn.style.display = 'none'; }
+  function stopPracticeTimer() { if (timerId) { clearInterval(timerId); timerId = null; } goBtn.style.display = ''; }
 
   goBtn.addEventListener('click', startPracticeTimer);
-  pauseBtn.addEventListener('click', () => { stopPracticeTimer(); stopSessionTimer(); });
   restartBtn.addEventListener('click', () => loadPracticeItem(practiceIdx, true));
 
   // ── "Are you still playing?" ──
@@ -3834,26 +3832,36 @@
     return !!(st && st.state === 'ready' && st.names && st.names.length);
   }
   function hideIdleModal() { if (idleModal) { idleModal.remove(); idleModal = null; } lastMidiAt = Date.now(); }
+  // Pausing back-dates both timers to the moment the MIDI stopped, so the
+  // idle minute isn't counted. Any new MIDI note (or Continue) resumes.
   function showIdleModal() {
+    const lost = Math.max(0, Math.round((Date.now() - lastMidiAt) / 1000));
+    stopPracticeTimer(); stopSessionTimer();
+    remainSec += lost; sessionElapsed = Math.max(0, sessionElapsed - lost);
+    updateCircle(); sessionTimeEl.textContent = fmtTime(sessionElapsed);
     idleModal = document.createElement('div');
     idleModal.className = 'idle-overlay';
-    idleModal.innerHTML = '<div class="idle-box"><h3>Are you still playing?</h3><p>No MIDI notes for a minute.</p><div class="idle-btns"><button data-a="pause">Pause practice</button><button data-a="finish">Finish practice</button><button data-a="continue" class="primary">Continue</button></div></div>';
+    idleModal.innerHTML = '<div class="idle-box"><h3>Are you still playing?</h3><p>No MIDI notes for a minute. Timers are paused — play a note to continue.</p><div class="idle-btns"><button data-a="finish">Finish practice</button><button data-a="continue" class="primary">Continue</button></div></div>';
     idleModal.addEventListener('click', e => {
       const act = e.target.dataset && e.target.dataset.a;
       if (!act) return;
       hideIdleModal();
-      if (act === 'pause') pauseBtn.click();
-      else if (act === 'finish') document.getElementById('practiceClose').click();
+      if (act === 'finish') document.getElementById('practiceClose').click();
+      else startPracticeTimer();
     });
     document.body.appendChild(idleModal);
   }
   function hookIdleMidi() {
-    if (window.MidiInput) window.MidiInput.onNoteOn(() => { lastMidiAt = Date.now(); });
+    if (window.MidiInput) window.MidiInput.onNoteOn(() => {
+      if (idleModal) { hideIdleModal(); startPracticeTimer(); }
+      lastMidiAt = Date.now();
+    });
     else setTimeout(hookIdleMidi, 500);
   }
   hookIdleMidi();
   setInterval(() => {
     const running = practiceActive && !!timerId;
+    if (idleModal) return;
     if (!running || !midiPresent()) { idleWasRunning = false; lastMidiAt = Date.now(); if (idleModal && !running) hideIdleModal(); return; }
     if (!idleWasRunning) { idleWasRunning = true; lastMidiAt = Date.now(); }
     if (!idleModal && Date.now() - lastMidiAt >= IDLE_MS) showIdleModal();
