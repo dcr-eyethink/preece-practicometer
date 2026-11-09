@@ -1097,6 +1097,7 @@
         </div>
         <div class="practice-controls" id="practiceControls">
           <div class="practice-controls-row">
+            <button class="pbtn pbtn-pause pbtn-lg" id="pauseBtn" style="display:none" data-tip="Pause the countdown."><img src="icons/pause.png" alt="Pause"></button>
             <button class="pbtn pbtn-go pbtn-lg" id="goBtn" data-tip="Start the countdown for this item."><img src="icons/go.png" alt="Go"></button>
           </div>
           <div class="practice-controls-row">
@@ -3266,7 +3267,7 @@
   const practicePanel = document.getElementById('practicePanel');
   const timerFg = document.getElementById('timerFg'), timerText = document.getElementById('timerText'), timerWrap = document.getElementById('timerWrap');
   const activityEl = document.getElementById('practiceActivity'), indexEl = document.getElementById('practiceIndex');
-  const goBtn = document.getElementById('goBtn'), nextBtn = document.getElementById('nextBtn');
+  const goBtn = document.getElementById('goBtn'), pauseBtn = document.getElementById('pauseBtn'), nextBtn = document.getElementById('nextBtn');
   const restartBtn = document.getElementById('restartBtn');
   const doneEl = document.getElementById('practiceDone'), controlsEl = document.getElementById('practiceControls');
   const sessionTimeEl = document.getElementById('sessionTime');
@@ -3476,7 +3477,7 @@
     else if ((row.notes || '').trim()) { openNotesForRow(idx); notesAuto = true; }
     else if (notesOpen) closeNotes();
     const mins = parseFloat(row.time) || 0; totalSec = Math.round(mins * 60); remainSec = totalSec;
-    goBtn.style.display = ''; updateCircle();
+    goBtn.style.display = ''; pauseBtn.style.display = 'none'; updateCircle();
     if (autoStart) startPracticeTimer();
   }
   // ── Notes panel ──
@@ -3812,12 +3813,13 @@
   function startPracticeTimer() {
     if (timerId) return;
     if (!sessionStarted) { sessionStarted = true; startSessionTimer(); window.dispatchEvent(new CustomEvent('practice-session-start', { detail: { setName: currentSetName } })); } else resumeSessionTimer();
-    goBtn.style.display = 'none';
+    goBtn.style.display = 'none'; pauseBtn.style.display = '';
     timerId = setInterval(() => { remainSec--; updateCircle(); if (remainSec === 0 && totalSec > 0) playChime(); }, 1000);
   }
-  function stopPracticeTimer() { if (timerId) { clearInterval(timerId); timerId = null; } goBtn.style.display = ''; }
+  function stopPracticeTimer() { if (timerId) { clearInterval(timerId); timerId = null; } goBtn.style.display = ''; pauseBtn.style.display = 'none'; }
 
   goBtn.addEventListener('click', startPracticeTimer);
+  pauseBtn.addEventListener('click', () => { stopPracticeTimer(); stopSessionTimer(); });
   restartBtn.addEventListener('click', () => loadPracticeItem(practiceIdx, true));
 
   // ── "Are you still playing?" ──
