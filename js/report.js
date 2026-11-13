@@ -14,6 +14,7 @@
   .rep-head h2 { margin: 0; font-size: 20px; flex: 1; min-width: 160px; }
   .rep-head label { font-size: 13px; color: #556; display: flex; align-items: center; gap: 6px; }
   .rep-head input[type=date] { font: inherit; padding: 4px 6px; border: 1px solid #ccd; border-radius: 6px; }
+  .rep-quick button.on { background: #3b6fd8; color: #fff; border-color: #3b6fd8; }
   .rep-quick button { font: inherit; font-size: 12px; padding: 4px 9px; border: 1px solid #ccd; background: #f7f8fa; border-radius: 6px; cursor: pointer; }
   .rep-quick button:hover { background: #e8eeff; border-color: #7090e0; }
   .rep-stats { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
@@ -36,15 +37,18 @@
     <div class="rep-head">
       <h2>Practice report</h2>
       <span class="rep-quick">
-        <button data-days="7">7 days</button>
-        <button data-days="30">30 days</button>
-        <button data-days="90">90 days</button>
+        <button data-u="w" data-n="1">1 week</button>
+        <button data-u="w" data-n="2">2 weeks</button>
+        <button data-u="w" data-n="4">4 weeks</button>
+        <button data-u="m" data-n="3">3 months</button>
+        <button data-u="m" data-n="6">6 months</button>
+        <button data-u="m" data-n="12">Year</button>
       </span>
       <label>From <input type="date" id="repFrom"></label>
       <label>To <input type="date" id="repTo"></label>
     </div>
     <div class="rep-stats" id="repStats"></div>
-    <div class="rep-card"><h3>Minutes practised per day</h3><div id="repLine"></div></div>
+    <div class="rep-card"><h3 id="repLineTitle">Minutes practised per day</h3><div id="repLine"></div></div>
     <div class="rep-card"><h3>Total minutes per practice item</h3><div id="repBars"></div></div>
     <div class="rep-card"><h3>Average minutes per practice session of each item</h3><div id="repAvg"></div></div>`;
   document.body.appendChild(overlay);
@@ -58,11 +62,19 @@
   const dayKey = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const parseDay = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 
-  function setRange(days) {
-    const to = new Date();
-    const from = new Date(); from.setDate(from.getDate() - (days - 1));
+  // Current period: spec {u:'d'|'m', n} used to step back to previous periods; label for legends.
+  let spec = { u: 'd', n: 7 }, specLabel = 'week';
+  function setPreset(btn) {
+    const n = +btn.dataset.n, w = btn.dataset.u === 'w';
+    const to = new Date(), from = new Date();
+    if (w) from.setDate(from.getDate() - (7 * n - 1));
+    else { from.setMonth(from.getMonth() - n); from.setDate(from.getDate() + 1); }
     fromEl.value = dayKey(from); toEl.value = dayKey(to);
+    spec = w ? { u: 'd', n: 7 * n } : { u: 'm', n };
+    specLabel = btn.textContent.toLowerCase().replace(/^1 /, '');
+    overlay.querySelectorAll('.rep-quick button').forEach(x => x.classList.toggle('on', x === btn));
   }
+  const defaultBtn = () => overlay.querySelector('.rep-quick button');
 
   function position() { overlay.style.top = topBar.getBoundingClientRect().bottom + 'px'; }
   let open = false;
@@ -71,16 +83,17 @@
     position();
     overlay.classList.toggle('open', v);
     btn.classList.toggle('active', v);
-    if (v) { if (!fromEl.value) setRange(7); render(); }
+    if (v) { if (!fromEl.value) setPreset(defaultBtn()); render(); }
   }
   btn.addEventListener('click', () => setOpen(!open));
   // Clicking any other top-bar icon leaves the report and lets that click through.
   topBar.addEventListener('click', e => { if (open && !btn.contains(e.target)) setOpen(false); }, true);
   window.addEventListener('resize', () => { if (open) position(); });
   overlay.querySelectorAll('.rep-quick button').forEach(b =>
-    b.addEventListener('click', () => { setRange(+b.dataset.days); render(); }));
-  fromEl.addEventListener('change', render);
-  toEl.addEventListener('change', render);
+    b.addEventListener('click', () => { setPreset(b); render(); }));
+  const custom = () => { spec = null; overlay.querySelectorAll('.rep-quick button').forEach(x => x.classList.remove('on')); render(); };
+  fromEl.addEventListener('change', custom);
+  toEl.addEventListener('change', custom);
 
   const NS = 'http://www.w3.org/2000/svg';
   const PALETTE = ['#3b6fd8', '#e08a2e', '#2fa37a', '#c0508f', '#8a62d0', '#d1503f', '#2aa0c4', '#9a9a2e', '#6a7fa8', '#b5763a'];
@@ -106,33 +119,34 @@
     el.addEventListener('mouseleave', hideTip);
   }
 
-  function lineChart(host, days, refs) {
+  function lineChart(host, bins, refs, mode) {
     const W = 900, H = 290, L = 44, R = 16, T = 12, B = 44;
-    const max = Math.max(...days.map(d => d.min), ...refs.map(r => r.val));
+    const max = Math.max(...bins.map(d => d.val), ...refs.map(r => r.val));
     const ax = niceAxis(max);
-    const x = i => L + (days.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (days.length - 1));
+    const x = i => L + (bins.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (bins.length - 1));
     const y = v => T + (H - T - B) * (1 - v / ax.top);
     let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="${NS}" font-size="11" fill="#667">`;
     ax.ticks.forEach(t => {
       s += `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="#e6e9f0"/>` +
            `<text x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${t}</text>`;
     });
-    const every = Math.ceil(days.length / 12);
-    const wk = days.length <= 14; // room for weekday names
-    days.forEach((d, i) => {
+    const every = Math.ceil(bins.length / 12);
+    const wk = mode === 'day' && bins.length <= 14; // room for weekday names
+    bins.forEach((d, i) => {
       if (i % every) return;
-      const dm = d.date.getDate() + '/' + (d.date.getMonth() + 1);
-      s += wk
-        ? `<text x="${x(i)}" y="${H - 18}" text-anchor="middle" font-weight="600">${d.date.toLocaleDateString(undefined, { weekday: 'short' })}</text><text x="${x(i)}" y="${H - 5}" text-anchor="middle">${dm}</text>`
+      const dm = d.start.getDate() + '/' + (d.start.getMonth() + 1);
+      if (mode === 'month') s += `<text x="${x(i)}" y="${H - 12}" text-anchor="middle">${d.start.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })}</text>`;
+      else s += wk
+        ? `<text x="${x(i)}" y="${H - 18}" text-anchor="middle" font-weight="600">${d.start.toLocaleDateString(undefined, { weekday: 'short' })}</text><text x="${x(i)}" y="${H - 5}" text-anchor="middle">${dm}</text>`
         : `<text x="${x(i)}" y="${H - 12}" text-anchor="middle">${dm}</text>`;
     });
     refs.forEach(r => {
-      s += `<line data-ref="${esc(r.label)}" x1="${L}" x2="${W - R}" y1="${y(r.val)}" y2="${y(r.val)}" stroke="${r.color}" stroke-width="2" stroke-dasharray="${r.dash}"/>` +
-           `<line data-ref="${esc(r.label)}" x1="${L}" x2="${W - R}" y1="${y(r.val)}" y2="${y(r.val)}" stroke="transparent" stroke-width="12"/>`;
+      s += `<line x1="${L}" x2="${W - R}" y1="${y(r.val)}" y2="${y(r.val)}" stroke="${r.color}" stroke-opacity="${r.op}" stroke-width="6"/>` +
+           `<line data-ref="${esc(r.label)}" x1="${L}" x2="${W - R}" y1="${y(r.val)}" y2="${y(r.val)}" stroke="transparent" stroke-width="14"/>`;
     });
-    s += `<polyline fill="none" stroke="#3b6fd8" stroke-width="2.5" stroke-linejoin="round" points="${days.map((d, i) => x(i) + ',' + y(d.min)).join(' ')}"/>`;
-    days.forEach((d, i) => {
-      s += `<circle data-i="${i}" cx="${x(i)}" cy="${y(d.min)}" r="${days.length > 40 ? 3 : 4.5}" fill="#3b6fd8" stroke="#fff" stroke-width="1.5"/>`;
+    s += `<polyline fill="none" stroke="#3b6fd8" stroke-width="2.5" stroke-linejoin="round" points="${bins.map((d, i) => x(i) + ',' + y(d.val)).join(' ')}"/>`;
+    bins.forEach((d, i) => {
+      s += `<circle data-i="${i}" cx="${x(i)}" cy="${y(d.val)}" r="${bins.length > 40 ? 3 : 4.5}" fill="#3b6fd8" stroke="#fff" stroke-width="1.5"/>`;
     });
     s += '</svg>';
     host.innerHTML = s;
@@ -141,11 +155,11 @@
       hover(l, r.label + ': ' + fmtMin(r.val) + ' per day');
     });
     host.insertAdjacentHTML('beforeend', '<div class="rep-legend">' +
-      '<span><i style="background:#3b6fd8"></i>Daily minutes</span>' +
-      refs.map(r => `<span><i style="background:${r.color}"></i>${esc(r.label)}: ${fmtMin(r.val)}/day</span>`).join('') + '</div>');
+      `<span><i style="background:#3b6fd8"></i>${mode === 'day' ? 'Daily minutes' : 'Avg minutes/day per ' + mode}</span>` +
+      refs.map(r => `<span><i style="background:${r.color};opacity:${r.op};height:6px"></i>${esc(r.label)}: ${fmtMin(r.val)}/day</span>`).join('') + '</div>');
     host.querySelectorAll('circle').forEach(c => {
-      const d = days[+c.dataset.i];
-      hover(c, d.date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) + ': ' + fmtMin(d.min));
+      const d = bins[+c.dataset.i];
+      hover(c, d.tip + ': ' + fmtMin(d.val) + (mode === 'day' ? '' : ' per day'));
     });
   }
 
@@ -177,20 +191,21 @@
     try { entries = await window.api.listPracticeLog(); }
     catch (err) { console.error('Report: failed to load practice log', err); }
 
-    if (!fromEl.value || !toEl.value) setRange(7);
+    if (!fromEl.value || !toEl.value) setPreset(defaultBtn());
     let from = parseDay(fromEl.value), to = parseDay(toEl.value);
     if (from > to) { [from, to] = [to, from]; }
     const end = new Date(to); end.setDate(end.getDate() + 1);
+    const DAY = 86400000, spanDays = d => Math.round(d / DAY);
+    const nDays = spanDays(end - from);
+    if (!spec) { spec = { u: 'd', n: nDays }; specLabel = nDays + ' days'; }
 
-    const dayMap = new Map(), itemMap = new Map();
-    for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) dayMap.set(dayKey(d), 0);
+    const itemMap = new Map();
     let sessions = 0;
+    const inRange = [];
     entries.forEach(e => {
       const t = new Date(e.started_at);
       if (t < from || t >= end) return;
-      sessions++;
-      const k = dayKey(t);
-      dayMap.set(k, (dayMap.get(k) || 0) + (e.duration_sec || 0) / 60);
+      sessions++; inRange.push({ t, min: (e.duration_sec || 0) / 60 });
       (Array.isArray(e.activities) ? e.activities : []).forEach(a => {
         const m = parseFloat(a.minutes) || 0;
         if (!a.activity || m <= 0) return;
@@ -198,26 +213,52 @@
         it.min += m; it.count++; itemMap.set(a.activity, it);
       });
     });
-    const nDays = dayMap.size, DAY = 86400000;
-    const avgBefore = n => { // average daily minutes over the n days before `from`
-      const a = new Date(from); a.setDate(a.getDate() - n);
+
+    // Bins: days (<=31 days), weeks (<=200 days), otherwise calendar months.
+    const mode = nDays <= 31 ? 'day' : nDays <= 200 ? 'week' : 'month';
+    const bins = [];
+    for (let c = new Date(from); c < end;) {
+      const n = new Date(c);
+      if (mode === 'day') n.setDate(n.getDate() + 1);
+      else if (mode === 'week') n.setDate(n.getDate() + 7);
+      else { n.setMonth(n.getMonth() + 1, 1); }
+      const stop = n < end ? n : end;
+      bins.push({ start: new Date(c), stop: new Date(stop) });
+      c = n;
+    }
+    bins.forEach(b => {
+      const m = inRange.filter(r => r.t >= b.start && r.t < b.stop).reduce((a, r) => a + r.min, 0);
+      const d = spanDays(b.stop - b.start);
+      b.val = Math.round(m / d * 10) / 10;
+      const f = x => x.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+      const last = new Date(b.stop); last.setDate(last.getDate() - 1);
+      b.tip = mode === 'day' ? b.start.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+        : mode === 'week' ? 'Week of ' + f(b.start) + ' – ' + f(last) : b.start.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    });
+    document.getElementById('repLineTitle').textContent = mode === 'day' ? 'Minutes practised per day'
+      : 'Average minutes practised per day, by ' + mode;
+
+    // Reference averages (minutes per day): this period, previous period, previous 4 periods.
+    const back = (d, k) => { const r = new Date(d); if (spec.u === 'm') r.setMonth(r.getMonth() - spec.n * k); else r.setDate(r.getDate() - spec.n * k); return r; };
+    const avgRange = (a, b) => {
       let sec = 0;
-      entries.forEach(e => { const t = new Date(e.started_at); if (t >= a && t < from) sec += e.duration_sec || 0; });
-      return sec / 60 / n;
+      entries.forEach(e => { const t = new Date(e.started_at); if (t >= a && t < b) sec += e.duration_sec || 0; });
+      return sec / 60 / Math.max(1, spanDays(b - a));
     };
     const refs = [
-      { label: 'Previous ' + nDays + ' days avg', val: avgBefore(nDays), color: '#e08a2e', dash: '6 4' },
-      { label: 'Previous ' + nDays * 4 + ' days avg', val: avgBefore(nDays * 4), color: '#2fa37a', dash: '2 4' }
+      { label: 'This ' + specLabel + ' avg', val: avgRange(from, end), color: '#d9731a', op: 0.85 },
+      { label: 'Previous ' + specLabel + ' avg', val: avgRange(back(from, 1), from), color: '#d9731a', op: 0.65 },
+      { label: 'Previous 4 × ' + specLabel + ' avg', val: avgRange(back(from, 4), from), color: '#d9731a', op: 0.5 }
     ];
-    const days = [...dayMap].map(([k, min]) => ({ date: parseDay(k), min: Math.round(min * 10) / 10 }));
-    const total = days.reduce((a, d) => a + d.min, 0);
-    const active = days.filter(d => d.min > 0).length;
+    const days = bins;
+    const total = inRange.reduce((a, r) => a + r.min, 0);
+    const active = new Set(inRange.filter(r => r.min > 0).map(r => dayKey(r.t))).size;
     stats.innerHTML =
       `<div class="rep-stat"><b>${fmtMin(total)}</b><span>total practice</span></div>` +
       `<div class="rep-stat"><b>${sessions}</b><span>sessions</span></div>` +
-      `<div class="rep-stat"><b>${active} / ${days.length}</b><span>days practised</span></div>` +
-      `<div class="rep-stat"><b>${fmtMin(total / days.length)}</b><span>average per day</span></div>`;
-    lineChart(overlay.querySelector('#repLine'), days, refs);
+      `<div class="rep-stat"><b>${active} / ${nDays}</b><span>days practised</span></div>` +
+      `<div class="rep-stat"><b>${fmtMin(total / nDays)}</b><span>average per day</span></div>`;
+    lineChart(overlay.querySelector('#repLine'), bins, refs, mode);
     const items = [...itemMap.values()].sort((a, b) => b.min - a.min);
     items.forEach((it, i) => { it.color = PALETTE[i % PALETTE.length]; it.avg = it.min / it.count; });
     barChart(overlay.querySelector('#repBars'), items, 'min', '');
