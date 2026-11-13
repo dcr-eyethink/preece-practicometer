@@ -23,6 +23,8 @@
   .rep-card { border: 1px solid #e0e4ee; border-radius: 12px; padding: 14px 16px 10px; margin-bottom: 18px; }
   .rep-card h3 { margin: 0 0 8px; font-size: 15px; color: #334; }
   .rep-card svg { width: 100%; height: auto; display: block; }
+  .rep-legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: #556; padding: 4px 0 6px 44px; }
+  .rep-legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
   .rep-empty { color: #888; text-align: center; padding: 30px 0; }
   .rep-tip { position: fixed; pointer-events: none; background: #223; color: #fff; font-size: 12px; padding: 4px 8px; border-radius: 6px; z-index: 600; display: none; }
   `;
@@ -43,7 +45,8 @@
     </div>
     <div class="rep-stats" id="repStats"></div>
     <div class="rep-card"><h3>Minutes practised per day</h3><div id="repLine"></div></div>
-    <div class="rep-card"><h3>Minutes per practice item</h3><div id="repBars"></div></div>`;
+    <div class="rep-card"><h3>Total minutes per practice item</h3><div id="repBars"></div></div>
+    <div class="rep-card"><h3>Average minutes per practice session of each item</h3><div id="repAvg"></div></div>`;
   document.body.appendChild(overlay);
   const tip = document.createElement('div');
   tip.className = 'rep-tip';
@@ -80,6 +83,7 @@
   toEl.addEventListener('change', render);
 
   const NS = 'http://www.w3.org/2000/svg';
+  const PALETTE = ['#3b6fd8', '#e08a2e', '#2fa37a', '#c0508f', '#8a62d0', '#d1503f', '#2aa0c4', '#9a9a2e', '#6a7fa8', '#b5763a'];
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmtMin = m => m >= 60 ? Math.floor(m / 60) + 'h ' + Math.round(m % 60) + 'm' : Math.round(m) + 'm';
 
@@ -102,9 +106,9 @@
     el.addEventListener('mouseleave', hideTip);
   }
 
-  function lineChart(host, days) {
-    const W = 900, H = 280, L = 44, R = 16, T = 12, B = 34;
-    const max = Math.max(...days.map(d => d.min));
+  function lineChart(host, days, refs) {
+    const W = 900, H = 290, L = 44, R = 16, T = 12, B = 44;
+    const max = Math.max(...days.map(d => d.min), ...refs.map(r => r.val));
     const ax = niceAxis(max);
     const x = i => L + (days.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (days.length - 1));
     const y = v => T + (H - T - B) * (1 - v / ax.top);
@@ -114,8 +118,17 @@
            `<text x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${t}</text>`;
     });
     const every = Math.ceil(days.length / 12);
+    const wk = days.length <= 14; // room for weekday names
     days.forEach((d, i) => {
-      if (i % every === 0) s += `<text x="${x(i)}" y="${H - 12}" text-anchor="middle">${d.date.getDate()}/${d.date.getMonth() + 1}</text>`;
+      if (i % every) return;
+      const dm = d.date.getDate() + '/' + (d.date.getMonth() + 1);
+      s += wk
+        ? `<text x="${x(i)}" y="${H - 18}" text-anchor="middle" font-weight="600">${d.date.toLocaleDateString(undefined, { weekday: 'short' })}</text><text x="${x(i)}" y="${H - 5}" text-anchor="middle">${dm}</text>`
+        : `<text x="${x(i)}" y="${H - 12}" text-anchor="middle">${dm}</text>`;
+    });
+    refs.forEach(r => {
+      s += `<line data-ref="${esc(r.label)}" x1="${L}" x2="${W - R}" y1="${y(r.val)}" y2="${y(r.val)}" stroke="${r.color}" stroke-width="2" stroke-dasharray="${r.dash}"/>` +
+           `<line data-ref="${esc(r.label)}" x1="${L}" x2="${W - R}" y1="${y(r.val)}" y2="${y(r.val)}" stroke="transparent" stroke-width="12"/>`;
     });
     s += `<polyline fill="none" stroke="#3b6fd8" stroke-width="2.5" stroke-linejoin="round" points="${days.map((d, i) => x(i) + ',' + y(d.min)).join(' ')}"/>`;
     days.forEach((d, i) => {
@@ -123,29 +136,36 @@
     });
     s += '</svg>';
     host.innerHTML = s;
+    host.querySelectorAll('line[data-ref]').forEach(l => {
+      const r = refs.find(q => q.label === l.getAttribute('data-ref'));
+      hover(l, r.label + ': ' + fmtMin(r.val) + ' per day');
+    });
+    host.insertAdjacentHTML('beforeend', '<div class="rep-legend">' +
+      '<span><i style="background:#3b6fd8"></i>Daily minutes</span>' +
+      refs.map(r => `<span><i style="background:${r.color}"></i>${esc(r.label)}: ${fmtMin(r.val)}/day</span>`).join('') + '</div>');
     host.querySelectorAll('circle').forEach(c => {
       const d = days[+c.dataset.i];
       hover(c, d.date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) + ': ' + fmtMin(d.min));
     });
   }
 
-  function barChart(host, items) {
+  function barChart(host, items, key, unit) {
     if (!items.length) { host.innerHTML = '<div class="rep-empty">No itemised activity in this period.</div>'; return; }
     const rowH = 26, L = 190, R = 60, T = 6, W = 900, H = T + items.length * rowH + 6;
-    const max = Math.max(...items.map(i => i.min));
+    const max = Math.max(...items.map(i => i[key]));
     let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="${NS}" font-size="12" fill="#334">`;
     items.forEach((it, i) => {
-      const y = T + i * rowH, w = Math.max(2, (W - L - R) * it.min / max);
+      const y = T + i * rowH, w = Math.max(2, (W - L - R) * it[key] / max);
       const label = it.name.length > 28 ? it.name.slice(0, 27) + '…' : it.name;
       s += `<text x="${L - 8}" y="${y + 16}" text-anchor="end">${esc(label)}</text>` +
-           `<rect data-i="${i}" x="${L}" y="${y + 3}" width="${w}" height="${rowH - 8}" rx="3" fill="#3b6fd8"/>` +
-           `<text x="${L + w + 6}" y="${y + 16}" fill="#667">${fmtMin(it.min)}</text>`;
+           `<rect data-i="${i}" x="${L}" y="${y + 3}" width="${w}" height="${rowH - 8}" rx="3" fill="${it.color}"/>` +
+           `<text x="${L + w + 6}" y="${y + 16}" fill="#667">${fmtMin(it[key])}</text>`;
     });
     s += '</svg>';
     host.innerHTML = s;
     host.querySelectorAll('rect').forEach(r => {
       const it = items[+r.dataset.i];
-      hover(r, it.name + ': ' + fmtMin(it.min) + ' (' + it.count + ' session' + (it.count === 1 ? '' : 's') + ')');
+      hover(r, it.name + ': ' + fmtMin(it[key]) + unit + ' (total ' + fmtMin(it.min) + ', ' + it.count + ' session' + (it.count === 1 ? '' : 's') + ')');
     });
   }
 
@@ -178,6 +198,17 @@
         it.min += m; it.count++; itemMap.set(a.activity, it);
       });
     });
+    const nDays = dayMap.size, DAY = 86400000;
+    const avgBefore = n => { // average daily minutes over the n days before `from`
+      const a = new Date(from); a.setDate(a.getDate() - n);
+      let sec = 0;
+      entries.forEach(e => { const t = new Date(e.started_at); if (t >= a && t < from) sec += e.duration_sec || 0; });
+      return sec / 60 / n;
+    };
+    const refs = [
+      { label: 'Previous ' + nDays + ' days avg', val: avgBefore(nDays), color: '#e08a2e', dash: '6 4' },
+      { label: 'Previous ' + nDays * 4 + ' days avg', val: avgBefore(nDays * 4), color: '#2fa37a', dash: '2 4' }
+    ];
     const days = [...dayMap].map(([k, min]) => ({ date: parseDay(k), min: Math.round(min * 10) / 10 }));
     const total = days.reduce((a, d) => a + d.min, 0);
     const active = days.filter(d => d.min > 0).length;
@@ -186,7 +217,10 @@
       `<div class="rep-stat"><b>${sessions}</b><span>sessions</span></div>` +
       `<div class="rep-stat"><b>${active} / ${days.length}</b><span>days practised</span></div>` +
       `<div class="rep-stat"><b>${fmtMin(total / days.length)}</b><span>average per day</span></div>`;
-    lineChart(overlay.querySelector('#repLine'), days);
-    barChart(overlay.querySelector('#repBars'), [...itemMap.values()].sort((a, b) => b.min - a.min));
+    lineChart(overlay.querySelector('#repLine'), days, refs);
+    const items = [...itemMap.values()].sort((a, b) => b.min - a.min);
+    items.forEach((it, i) => { it.color = PALETTE[i % PALETTE.length]; it.avg = it.min / it.count; });
+    barChart(overlay.querySelector('#repBars'), items, 'min', '');
+    barChart(overlay.querySelector('#repAvg'), items.slice().sort((a, b) => b.avg - a.avg), 'avg', ' avg/session');
   }
 })();
