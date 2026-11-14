@@ -246,9 +246,9 @@
       return sec / 60 / Math.max(1, spanDays(b - a));
     };
     const refs = [
-      { label: 'This ' + specLabel + ' avg', val: avgRange(from, end), color: '#d9731a', op: 0.85 },
-      { label: 'Previous ' + specLabel + ' avg', val: avgRange(back(from, 1), from), color: '#d9731a', op: 0.65 },
-      { label: 'Previous 4 × ' + specLabel + ' avg', val: avgRange(back(from, 4), from), color: '#d9731a', op: 0.5 }
+      { label: 'This ' + specLabel + ' avg', val: avgRange(from, end), color: '#d62828', op: 0.4 },
+      { label: 'Previous ' + specLabel + ' avg', val: avgRange(back(from, 1), from), color: '#f07b1d', op: 0.3 },
+      { label: 'Previous 4 × ' + specLabel + ' avg', val: avgRange(back(from, 4), from), color: '#f4b942', op: 0.22 }
     ];
     const days = bins;
     const total = inRange.reduce((a, r) => a + r.min, 0);
