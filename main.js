@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, ipcMain, systemPreferences, shell, safeStorage } = require('electron');
+const { app, BrowserWindow, Menu, session, ipcMain, systemPreferences, shell, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { execFile } = require('child_process');
@@ -68,6 +68,23 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  // Electron shows no right-click menu by default, so misspelling
+  // suggestions never appear. Build one: suggestions, add-to-dictionary,
+  // and the usual edit commands.
+  win.webContents.on('context-menu', (_e, p) => {
+    const items = [];
+    if (p.misspelledWord) {
+      for (const sug of p.dictionarySuggestions.slice(0, 6)) items.push({ label: sug, click: () => win.webContents.replaceMisspelling(sug) });
+      if (!p.dictionarySuggestions.length) items.push({ label: 'No suggestions', enabled: false });
+      items.push({ type: 'separator' });
+      items.push({ label: 'Add to Dictionary', click: () => win.webContents.session.addWordToSpellCheckerDictionary(p.misspelledWord) });
+      items.push({ type: 'separator' });
+    }
+    if (p.isEditable) items.push({ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' });
+    else if (p.selectionText) items.push({ role: 'copy' });
+    if (items.length) Menu.buildFromTemplate(items).popup({ window: win });
   });
 
   mainWindow = win;

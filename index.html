@@ -3855,6 +3855,12 @@
     });
     document.body.appendChild(idleModal);
   }
+  function hookFreeplayExtras() {
+    const M = window.MidiInput;
+    if (M && M.onNoteOff) { M.onNoteOff(() => fpTouch()); if (M.onPedal) M.onPedal(() => fpTouch()); }
+    else setTimeout(hookFreeplayExtras, 500);
+  }
+  hookFreeplayExtras();
   function hookIdleMidi() {
     if (window.MidiInput) window.MidiInput.onNoteOn(() => {
       if (idleModal) { hideIdleModal(); startPracticeTimer(); }
@@ -3877,7 +3883,7 @@
   // outside a practice session ask whether to log it as "Free play"; if yes,
   // time counts from that first note until 2 minutes pass with no notes.
   const FP_GAP_MS = 120000;
-  let fpState = 'none', fpStart = 0, fpLast = 0, fpLogId = null, fpBeat = null, fpToast = null, fpQuietUntil = 0;
+  let fpLastNoteAt = 0, fpState = 'none', fpStart = 0, fpLast = 0, fpLogId = null, fpBeat = null, fpToast = null, fpQuietUntil = 0;
   function fpElapsedSec() { return Math.max(1, Math.round((fpLast - fpStart) / 1000)); }
   function fpPayload() { const s = fpElapsedSec(); return { durationSec: s, activities: [{ activity: 'Free play', minutes: Math.round(s / 6) / 10, level: null }] }; }
   function fpRemoveToast() { if (fpToast) { fpToast.remove(); fpToast = null; } }
@@ -3893,13 +3899,13 @@
   function fpAct(a) {
     if (a === 'no') { fpState = 'none'; fpQuietUntil = Date.now() + FP_GAP_MS; fpRemoveToast(); }
     else if (a === 'yes') {
-      fpState = 'logging'; fpLast = Date.now();
+      fpState = 'logging';
       fpRender();
       if (window.api && window.api.startPracticeLog) {
         window.api.startPracticeLog('Free play').then(id => {
           fpLogId = id;
           if (fpState !== 'logging') { window.api.finishPracticeLog(id, fpPayload()).catch(() => {}); fpLogId = null; return; }
-          fpBeat = setInterval(() => { if (fpLogId) window.api.updatePracticeLog(fpLogId, fpPayload()).catch(() => {}); }, 20000);
+          fpBeat = setInterval(() => { if (fpLogId) window.api.updatePracticeLog(fpLogId, fpPayload()).catch(e => console.error('free-play log update failed', e)); }, 20000);
         }).catch(err => console.error('Failed to start free-play log:', err));
       }
     } else if (a === 'stop') fpEnd();
@@ -3909,14 +3915,15 @@
   }
   function fpEnd() {
     if (fpBeat) { clearInterval(fpBeat); fpBeat = null; }
-    if (fpLogId && window.api && window.api.finishPracticeLog) window.api.finishPracticeLog(fpLogId, fpPayload()).catch(() => {});
-    fpLogId = null; fpState = 'none'; fpQuietUntil = Date.now() + 5000; fpRemoveToast();
+    if (fpLogId && window.api && window.api.finishPracticeLog) window.api.finishPracticeLog(fpLogId, fpPayload()).catch(e => console.error('free-play log finish failed', e));
+    fpLogId = null; fpState = 'none'; fpQuietUntil = 0; fpRemoveToast();
   }
+  function fpTouch() { if (fpState === 'logging' || fpState === 'asking') fpLast = Date.now(); }
   function freeplayNote() {
     if (practiceActive) return;
     const now = Date.now();
-    if (fpState === 'logging' || fpState === 'asking') { fpLast = now; return; }
-    if (now < fpQuietUntil) { fpQuietUntil = now + FP_GAP_MS; return; }
+    if (fpState === 'logging' || fpState === 'asking') { fpLast = now; fpLastNoteAt = now; return; }
+    if (now < fpQuietUntil) { if (now - fpLastNoteAt > FP_GAP_MS) fpQuietUntil = 0; else { fpLastNoteAt = now; return; } }
     fpState = 'asking'; fpStart = fpLast = now;
     fpToastShow('<div style="margin-bottom:8px">Would you like me to log this as <b>free play</b>?</div><button data-a="yes" style="font:inherit;padding:4px 12px;border-radius:8px;border:1px solid #3a6fe0;background:#3a6fe0;color:#fff;cursor:pointer">Yes, log it</button> <button data-a="no" style="font:inherit;padding:4px 12px;border-radius:8px;border:1px solid #b8c2e0;background:#f4f6fc;cursor:pointer">No</button>');
   }
