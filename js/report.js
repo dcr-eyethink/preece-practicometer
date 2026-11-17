@@ -49,7 +49,7 @@
     </div>
     <div class="rep-stats" id="repStats"></div>
     <div class="rep-card"><h3 id="repLineTitle">Minutes practised per day</h3><div id="repLine"></div></div>
-    <div class="rep-card"><h3>Average minutes per day, per practice item</h3><div id="repBars"></div></div>
+    <div class="rep-card"><h3>Total minutes per practice item</h3><div id="repBars"></div></div>
     <div class="rep-card"><h3>Average minutes per practice session of each item</h3><div id="repAvg"></div></div>`;
   document.body.appendChild(overlay);
   const tip = document.createElement('div');
@@ -163,35 +163,23 @@
     });
   }
 
-  const BAR_STYLE = [
-    { fill: '#2f6fe0', op: 0.5, name: 'This period' },
-    { fill: '#f07b1d', op: 0.65, name: 'Previous period' },
-    { fill: '#f07b1d', op: 0.3, name: 'Period before' }
-  ];
-  // items[i].v = [this, previous, before]; three bars per item.
-  function barChart(host, items, unit) {
+  function barChart(host, items, key, unit) {
     if (!items.length) { host.innerHTML = '<div class="rep-empty">No itemised activity in this period.</div>'; return; }
-    const bh = 9, gap = 1, rowH = 3 * (bh + gap) + 10, L = 190, R = 60, T = 22, W = 900, H = T + items.length * rowH + 6;
-    const max = Math.max(...items.flatMap(i => i.v)) || 1;
+    const rowH = 26, L = 190, R = 60, T = 6, W = 900, H = T + items.length * rowH + 6;
+    const max = Math.max(...items.map(i => i[key]));
     let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="${NS}" font-size="12" fill="#334">`;
-    BAR_STYLE.forEach((b, k) => {
-      s += `<rect x="${L + k * 150}" y="4" width="12" height="10" rx="2" fill="${b.fill}" fill-opacity="${b.op}"/><text x="${L + k * 150 + 17}" y="13" fill="#667">${b.name}</text>`;
-    });
     items.forEach((it, i) => {
-      const y = T + i * rowH;
+      const y = T + i * rowH, w = Math.max(2, (W - L - R) * it[key] / max);
       const label = it.name.length > 28 ? it.name.slice(0, 27) + '…' : it.name;
-      s += `<text x="${L - 8}" y="${y + 18}" text-anchor="end">${esc(label)}</text>`;
-      it.v.forEach((val, k) => {
-        const w = val > 0 ? Math.max(2, (W - L - R) * val / max) : 0, by = y + 2 + k * (bh + gap);
-        s += `<rect data-i="${i}" data-k="${k}" x="${L}" y="${by}" width="${w}" height="${bh}" rx="2" fill="${BAR_STYLE[k].fill}" fill-opacity="${BAR_STYLE[k].op}"/>` +
-             `<text x="${L + w + 6}" y="${by + 8}" font-size="10" fill="#667">${val > 0 ? fmtMin(val) : ''}</text>`;
-      });
+      s += `<text x="${L - 8}" y="${y + 16}" text-anchor="end">${esc(label)}</text>` +
+           `<rect data-i="${i}" x="${L}" y="${y + 3}" width="${w}" height="${rowH - 8}" rx="3" fill="${it.color}"/>` +
+           `<text x="${L + w + 6}" y="${y + 16}" fill="#667">${fmtMin(it[key])}</text>`;
     });
     s += '</svg>';
     host.innerHTML = s;
-    host.querySelectorAll('rect[data-i]').forEach(r => {
-      const it = items[+r.dataset.i], k = +r.dataset.k;
-      hover(r, it.name + ' — ' + BAR_STYLE[k].name.toLowerCase() + ': ' + fmtMin(it.v[k]) + unit);
+    host.querySelectorAll('rect').forEach(r => {
+      const it = items[+r.dataset.i];
+      hover(r, it.name + ': ' + fmtMin(it[key]) + unit + ' (total ' + fmtMin(it.min) + ', ' + it.count + ' session' + (it.count === 1 ? '' : 's') + ')');
     });
   }
 
@@ -258,9 +246,9 @@
       return sec / 60 / Math.max(1, spanDays(b - a));
     };
     const refs = [
-      { label: 'This ' + specLabel + ' avg', val: avgRange(from, end), color: '#d62828', op: 0.4 },
-      { label: 'Previous ' + specLabel + ' avg', val: avgRange(back(from, 1), from), color: '#f07b1d', op: 0.3 },
-      { label: 'Previous 4 × ' + specLabel + ' avg', val: avgRange(back(from, 4), from), color: '#f4b942', op: 0.22 }
+      { label: 'This ' + specLabel + ' avg', val: avgRange(from, end), color: '#2f6fe0', op: 0.4 },
+      { label: 'Previous ' + specLabel + ' avg', val: avgRange(back(from, 1), from), color: '#f07b1d', op: 0.55 },
+      { label: 'Previous 4 × ' + specLabel + ' avg', val: avgRange(back(from, 4), from), color: '#f07b1d', op: 0.25 }
     ];
     const days = bins;
     const total = inRange.reduce((a, r) => a + r.min, 0);
@@ -272,26 +260,9 @@
       `<div class="rep-stat"><b>${fmtMin(total / nDays)}</b><span>average per day</span></div>` +
       `<div class="rep-stat"><b>${active ? fmtMin(total / active) : '–'}</b><span>average per day played</span></div>`;
     lineChart(overlay.querySelector('#repLine'), bins, refs, mode);
-    // Per-item stats for this period and the two before it.
-    const periods = [[from, end], [back(from, 1), from], [back(from, 2), back(from, 1)]];
-    const maps = periods.map(([a, b]) => {
-      const m = new Map();
-      entries.forEach(en => {
-        const t = new Date(en.started_at);
-        if (t < a || t >= b) return;
-        (Array.isArray(en.activities) ? en.activities : []).forEach(x => {
-          const mm = parseFloat(x.minutes) || 0;
-          if (!x.activity || mm <= 0) return;
-          const it = m.get(x.activity) || { min: 0, count: 0 };
-          it.min += mm; it.count++; m.set(x.activity, it);
-        });
-      });
-      return m;
-    });
-    const names = [...new Set(maps.flatMap(m => [...m.keys()]))];
-    const mk = f => names.map(n => ({ name: n, v: maps.map((m, k) => { const it = m.get(n); return it ? f(it, spanDays(periods[k][1] - periods[k][0])) : 0; }) }))
-      .sort((a, b) => b.v[0] - a.v[0] || b.v[1] - a.v[1] || b.v[2] - a.v[2]);
-    barChart(overlay.querySelector('#repBars'), mk((it, d) => it.min / Math.max(1, d)), ' per day');
-    barChart(overlay.querySelector('#repAvg'), mk(it => it.min / it.count), ' avg/session');
+    const items = [...itemMap.values()].sort((a, b) => b.min - a.min);
+    items.forEach((it, i) => { it.color = PALETTE[i % PALETTE.length]; it.avg = it.min / it.count; });
+    barChart(overlay.querySelector('#repBars'), items, 'min', '');
+    barChart(overlay.querySelector('#repAvg'), items.slice().sort((a, b) => b.avg - a.avg), 'avg', ' avg/session');
   }
 })();
