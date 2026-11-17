@@ -3879,62 +3879,46 @@
   }, 5000);
 
   // ── Free play ──
-  // MIDI is watched even when no practice set is running. The first notes
-  // outside a practice session ask whether to log it as "Free play"; if yes,
-  // time counts from that first note; silences over 30s pause the clock and it resumes with new notes. Only Stop ends it.
+  // MIDI is watched even outside a practice set. One window shows how many
+  // minutes of actual playing there have been since the first note (silences
+  // over 30s don't count) and offers to log it as "Free play" or ignore it.
   const FP_GAP_MS = 120000, FP_PAUSE_MS = 30000;
-  let fpActiveMs = 0, fpFirstAt = 0;
+  let fpState = 'none', fpFirstAt = 0, fpLast = 0, fpActiveMs = 0, fpLastNoteAt = 0, fpToast = null, fpQuietUntil = 0;
   const fpClock = t => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  let fpLastNoteAt = 0, fpState = 'none', fpStart = 0, fpLast = 0, fpLogId = null, fpBeat = null, fpToast = null, fpQuietUntil = 0;
-  function fpElapsedSec() { return Math.max(1, Math.round(fpActiveMs / 1000)); }
-  function fpCount(now) { const g = now - fpLast; if (g > 0 && g <= FP_PAUSE_MS) fpActiveMs += g; fpLast = now; }
-  function fpPayload() { const s = fpElapsedSec(); return { durationSec: s, activities: [{ activity: 'Free play', minutes: Math.round(s / 6) / 10, level: null }] }; }
   function fpRemoveToast() { if (fpToast) { fpToast.remove(); fpToast = null; } }
-  function fpToastShow(html) {
+  function fpCount(now) { const g = now - fpLast; if (g > 0 && g <= FP_PAUSE_MS) fpActiveMs += g; fpLast = now; }
+  function fpRender() {
+    if (fpState !== 'asking') return;
     if (!fpToast) {
       fpToast = document.createElement('div');
       fpToast.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:9998;background:#fff;border:1px solid #b8c2e0;border-radius:12px;padding:12px 16px;box-shadow:0 6px 24px rgba(0,0,0,.2);font-size:14px;max-width:300px';
       fpToast.addEventListener('click', e => { const a = e.target.dataset && e.target.dataset.a; if (a) fpAct(a); });
       document.body.appendChild(fpToast);
     }
-    fpToast.innerHTML = html;
+    const m = Math.floor(fpActiveMs / 60000), sec = Math.floor(fpActiveMs / 1000) % 60;
+    fpToast.innerHTML = '<div style="margin-bottom:8px">There&rsquo;s been <b>' + (m ? m + ' min ' : '') + sec + ' s</b> of activity since <b>' + fpClock(fpFirstAt) + '</b>.</div>'
+      + '<button data-a="log" style="font:inherit;padding:4px 12px;border-radius:8px;border:1px solid #3a6fe0;background:#3a6fe0;color:#fff;cursor:pointer">Log as free play</button> '
+      + '<button data-a="ignore" style="font:inherit;padding:4px 12px;border-radius:8px;border:1px solid #b8c2e0;background:#f4f6fc;cursor:pointer">Ignore</button>';
   }
   function fpAct(a) {
-    if (a === 'no') { fpState = 'none'; fpQuietUntil = Date.now() + FP_GAP_MS; fpRemoveToast(); }
-    else if (a === 'yes') {
-      fpState = 'logging';
-      fpRender();
-      if (window.api && window.api.startPracticeLog) {
-        window.api.startPracticeLog('Free play').then(id => {
-          fpLogId = id;
-          if (window.api.updatePracticeLogEntry) window.api.updatePracticeLogEntry(id, { startedAt: new Date(fpFirstAt).toISOString() }).catch(() => {});
-          if (fpState !== 'logging') { window.api.finishPracticeLog(id, fpPayload()).catch(() => {}); fpLogId = null; return; }
-          fpBeat = setInterval(() => { if (fpLogId) window.api.updatePracticeLog(fpLogId, fpPayload()).catch(e => console.error('free-play log update failed', e)); }, 20000);
-        }).catch(err => console.error('Failed to start free-play log:', err));
-      }
-    } else if (a === 'stop') fpEnd();
+    const secs = Math.max(1, Math.round(fpActiveMs / 1000)), startedAt = new Date(fpFirstAt).toISOString();
+    fpState = 'none'; fpQuietUntil = Date.now() + FP_GAP_MS; fpRemoveToast();
+    if (a !== 'log' || !window.api || !window.api.startPracticeLog) return;
+    window.api.startPracticeLog('Free play').then(async id => {
+      if (window.api.updatePracticeLogEntry) await window.api.updatePracticeLogEntry(id, { startedAt }).catch(() => {});
+      await window.api.finishPracticeLog(id, { durationSec: secs, activities: [{ activity: 'Free play', minutes: Math.round(secs / 6) / 10, level: null }] });
+    }).catch(err => console.error('Failed to log free play:', err));
   }
-  function fpRender() {
-    if (fpState === 'logging' && fpToast) fpToastShow('<b>Logging free play</b> from ' + fpClock(fpFirstAt) + ' &middot; ' + Math.floor(fpElapsedSec() / 60) + ' min active (' + fmtTime(fpElapsedSec()) + ')' + ' <button data-a="stop" style="margin-left:8px;font:inherit;padding:2px 10px;border-radius:8px;border:1px solid #b8c2e0;background:#f4f6fc;cursor:pointer">Stop</button>');
-  }
-  function fpEnd() {
-    if (fpBeat) { clearInterval(fpBeat); fpBeat = null; }
-    if (fpLogId && window.api && window.api.finishPracticeLog) window.api.finishPracticeLog(fpLogId, fpPayload()).catch(e => console.error('free-play log finish failed', e));
-    fpLogId = null; fpState = 'none'; fpQuietUntil = 0; fpRemoveToast();
-  }
-  function fpTouch() { if (fpState === 'logging' || fpState === 'asking') fpCount(Date.now()); }
+  function fpTouch() { if (fpState === 'asking') { fpCount(Date.now()); fpRender(); } }
   function freeplayNote() {
     if (practiceActive) return;
     const now = Date.now();
-    if (fpState === 'logging' || fpState === 'asking') { fpCount(now); fpLastNoteAt = now; return; }
+    if (fpState === 'asking') { fpCount(now); fpLastNoteAt = now; fpRender(); return; }
     if (now < fpQuietUntil) { if (now - fpLastNoteAt > FP_GAP_MS) fpQuietUntil = 0; else { fpLastNoteAt = now; return; } }
-    fpState = 'asking'; fpStart = fpLast = fpFirstAt = now; fpActiveMs = 0;
-    fpToastShow('<div style="margin-bottom:8px">Would you like me to log this as <b>free play</b>, from ' + fpClock(now) + ' onwards?</div><button data-a="yes" style="font:inherit;padding:4px 12px;border-radius:8px;border:1px solid #3a6fe0;background:#3a6fe0;color:#fff;cursor:pointer">Yes, log it</button> <button data-a="no" style="font:inherit;padding:4px 12px;border-radius:8px;border:1px solid #b8c2e0;background:#f4f6fc;cursor:pointer">No</button>');
+    fpState = 'asking'; fpFirstAt = fpLast = fpLastNoteAt = now; fpActiveMs = 0; fpRender();
   }
   setInterval(() => {
-    const now = Date.now();
-    if (practiceActive && fpState !== 'none') { if (fpState === 'logging') fpEnd(); else { fpState = 'none'; fpRemoveToast(); } return; }
-    if (fpState === 'logging') fpRender();
+    if (practiceActive && fpState !== 'none') { fpState = 'none'; fpRemoveToast(); }
   }, 1000);
   nextBtn.addEventListener('click', () => loadPracticeItem(practiceIdx + 1, true));
 
