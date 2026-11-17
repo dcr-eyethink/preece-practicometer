@@ -3312,7 +3312,7 @@
   function finishPracticeLogSession() {
     if (logHeartbeatId) { clearInterval(logHeartbeatId); logHeartbeatId = null; }
     if (practiceLogId && window.api && window.api.finishPracticeLog) {
-      window.api.finishPracticeLog(practiceLogId, { durationSec: sessionElapsed, activities: sessionActivities }).catch(err => console.error('Failed to finalize practice log:', err));
+      window.api.finishPracticeLog(practiceLogId, { durationSec: sessionElapsed, activities: sessionActivities }).then(() => showDayTotal()).catch(err => console.error('Failed to finalize practice log:', err));
     }
     practiceLogId = null;
   }
@@ -3865,6 +3865,7 @@
     if (window.MidiInput) window.MidiInput.onNoteOn(() => {
       if (idleModal) { hideIdleModal(); startPracticeTimer(); }
       lastMidiAt = Date.now();
+      if (practiceActive && !timerId && practiceIdx < rows.length) startPracticeTimer();
       freeplayNote();
     });
     else setTimeout(hookIdleMidi, 500);
@@ -3882,13 +3883,13 @@
   // MIDI is watched even outside a practice set. One window shows how many
   // minutes of actual playing there have been since the first note (silences
   // over 30s don't count) and offers to log it as "Free play" or ignore it.
-  const FP_GAP_MS = 120000, FP_PAUSE_MS = 30000;
+  const FP_GAP_MS = 120000, FP_PAUSE_MS = 30000, FP_MIN_MS = 60000;
   let fpState = 'none', fpFirstAt = 0, fpLast = 0, fpActiveMs = 0, fpLastNoteAt = 0, fpToast = null, fpQuietUntil = 0;
   const fpClock = t => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   function fpRemoveToast() { if (fpToast) { fpToast.remove(); fpToast = null; } }
   function fpCount(now) { const g = now - fpLast; if (g > 0 && g <= FP_PAUSE_MS) fpActiveMs += g; fpLast = now; }
   function fpRender() {
-    if (fpState !== 'asking') return;
+    if (fpState !== 'asking' || (!fpToast && fpActiveMs < FP_MIN_MS)) return;
     if (!fpToast) {
       fpToast = document.createElement('div');
       fpToast.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:9998;background:#fff;border:1px solid #b8c2e0;border-radius:12px;padding:12px 16px;box-shadow:0 6px 24px rgba(0,0,0,.2);font-size:14px;max-width:300px';
@@ -3907,12 +3908,42 @@
     window.api.startPracticeLog('Free play').then(async id => {
       if (window.api.updatePracticeLogEntry) await window.api.updatePracticeLogEntry(id, { startedAt }).catch(() => {});
       await window.api.finishPracticeLog(id, { durationSec: secs, activities: [{ activity: 'Free play', minutes: Math.round(secs / 6) / 10, level: null }] });
+      showDayTotal();
     }).catch(err => console.error('Failed to log free play:', err));
+  }
+  async function showDayTotal() {
+    let mins = null;
+    try {
+      const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+      const list = await window.api.listPracticeLog();
+      mins = Math.round(list.filter(e => new Date(e.started_at) >= d0).reduce((a, e) => a + (e.duration_sec || 0), 0) / 60);
+    } catch (e) { return; }
+    if (!document.getElementById('fpConfettiCss')) {
+      const st = document.createElement('style'); st.id = 'fpConfettiCss';
+      st.textContent = '@keyframes fpFall{to{transform:translateY(110vh) rotate(720deg);opacity:.9}}@keyframes fpPop{from{transform:translate(-50%,-50%) scale(.6);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}';
+      document.head.appendChild(st);
+    }
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;inset:0;z-index:10000;pointer-events:none;overflow:hidden';
+    const cols = ['#e63946', '#f4a261', '#2a9d8f', '#3a6fe0', '#e9c46a', '#9b5de5'];
+    for (let i = 0; i < 90; i++) {
+      const c = document.createElement('i');
+      c.style.cssText = 'position:absolute;top:-20px;left:' + Math.random() * 100 + '%;width:' + (6 + Math.random() * 6) + 'px;height:' + (10 + Math.random() * 8) + 'px;background:' + cols[i % cols.length] + ';opacity:.95;animation:fpFall ' + (2.2 + Math.random() * 2) + 's ' + Math.random() * 0.8 + 's ease-in forwards';
+      box.appendChild(c);
+    }
+    const card = document.createElement('div');
+    card.style.cssText = 'position:absolute;left:50%;top:40%;background:#fff;border-radius:16px;padding:22px 32px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.3);animation:fpPop .35s ease-out forwards;pointer-events:auto;cursor:pointer';
+    card.innerHTML = '<div style="font-size:34px">🎉</div><div style="font-size:15px;color:#555;margin:4px 0">Practice today</div><div style="font-size:32px;font-weight:700;color:#3a6fe0">' + mins + ' min' + (mins === 1 ? '' : 's') + '</div><div style="font-size:13px;color:#777;margin-top:4px">Nice work!</div>';
+    const close = () => box.remove();
+    card.addEventListener('click', close);
+    box.appendChild(card); document.body.appendChild(box);
+    setTimeout(close, 6000);
   }
   function fpTouch() { if (fpState === 'asking') { fpCount(Date.now()); fpRender(); } }
   function freeplayNote() {
     if (practiceActive) return;
     const now = Date.now();
+    if (fpState === 'asking' && !fpToast && now - fpLast > FP_GAP_MS) fpState = 'none';
     if (fpState === 'asking') { fpCount(now); fpLastNoteAt = now; fpRender(); return; }
     if (now < fpQuietUntil) { if (now - fpLastNoteAt > FP_GAP_MS) fpQuietUntil = 0; else { fpLastNoteAt = now; return; } }
     fpState = 'asking'; fpFirstAt = fpLast = fpLastNoteAt = now; fpActiveMs = 0; fpRender();
