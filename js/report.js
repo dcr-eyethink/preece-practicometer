@@ -269,7 +269,8 @@
       `<div class="rep-stat"><b>${fmtMin(total)}</b><span>total practice</span></div>` +
       `<div class="rep-stat"><b>${sessions}</b><span>sessions</span></div>` +
       `<div class="rep-stat"><b>${active} / ${nDays}</b><span>days practised</span></div>` +
-      `<div class="rep-stat"><b>${fmtMin(total / nDays)}</b><span>average per day</span></div>`;
+      `<div class="rep-stat"><b>${fmtMin(total / nDays)}</b><span>average per day</span></div>` +
+      `<div class="rep-stat"><b>${active ? fmtMin(total / active) : '–'}</b><span>average per day played</span></div>`;
     lineChart(overlay.querySelector('#repLine'), bins, refs, mode);
     // Per-item stats for this period and the two before it.
     const periods = [[from, end], [back(from, 1), from], [back(from, 2), back(from, 1)]];
