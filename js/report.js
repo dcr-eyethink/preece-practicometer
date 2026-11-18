@@ -203,7 +203,7 @@
     let sessions = 0;
     const inRange = [];
     entries.forEach(e => {
-      const t = new Date(e.started_at);
+      const t = new Date(new Date(e.started_at).getTime() - 4 * 3600000);
       if (t < from || t >= end) return;
       sessions++; inRange.push({ t, min: (e.duration_sec || 0) / 60 });
       (Array.isArray(e.activities) ? e.activities : []).forEach(a => {
@@ -242,7 +242,7 @@
     const back = (d, k) => { const r = new Date(d); if (spec.u === 'm') r.setMonth(r.getMonth() - spec.n * k); else r.setDate(r.getDate() - spec.n * k); return r; };
     const avgRange = (a, b) => {
       let sec = 0;
-      entries.forEach(e => { const t = new Date(e.started_at); if (t >= a && t < b) sec += e.duration_sec || 0; });
+      entries.forEach(e => { const t = new Date(new Date(e.started_at).getTime() - 4 * 3600000); if (t >= a && t < b) sec += e.duration_sec || 0; });
       return sec / 60 / Math.max(1, spanDays(b - a));
     };
     const refs = [

@@ -3312,7 +3312,8 @@
   function finishPracticeLogSession() {
     if (logHeartbeatId) { clearInterval(logHeartbeatId); logHeartbeatId = null; }
     if (practiceLogId && window.api && window.api.finishPracticeLog) {
-      window.api.finishPracticeLog(practiceLogId, { durationSec: sessionElapsed, activities: sessionActivities }).then(() => showDayTotal()).catch(err => console.error('Failed to finalize practice log:', err));
+      const logId = practiceLogId;
+      window.api.finishPracticeLog(practiceLogId, { durationSec: sessionElapsed, activities: sessionActivities }).then(() => showDayTotal(logId, sessionElapsed)).catch(err => console.error('Failed to finalize practice log:', err));
     }
     practiceLogId = null;
   }
@@ -3908,15 +3909,19 @@
     window.api.startPracticeLog('Free play').then(async id => {
       if (window.api.updatePracticeLogEntry) await window.api.updatePracticeLogEntry(id, { startedAt }).catch(() => {});
       await window.api.finishPracticeLog(id, { durationSec: secs, activities: [{ activity: 'Free play', minutes: Math.round(secs / 6) / 10, level: null }] });
-      showDayTotal();
+      showDayTotal(id, secs);
     }).catch(err => console.error('Failed to log free play:', err));
   }
-  async function showDayTotal() {
+  async function showDayTotal(newId, newSecs) {
     let mins = null;
     try {
-      const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+      const d0 = new Date(Date.now() - 4 * 3600000); d0.setHours(4, 0, 0, 0); // the practice day rolls over at 4am
       const list = await window.api.listPracticeLog();
-      mins = Math.round(list.filter(e => new Date(e.started_at) >= d0).reduce((a, e) => a + (e.duration_sec || 0), 0) / 60);
+      let tot = list.filter(e => new Date(e.started_at) >= d0).reduce((a, e) => a + (Number(e.duration_sec) || 0), 0);
+      const mine = newId != null ? list.find(e => e.id === newId) : null;
+      if (newId != null && !(mine && Number(mine.duration_sec) > 0)) tot += newSecs || 0;
+      console.log('day total', { tot, entries: list.length, mine });
+      mins = Math.round(tot / 60);
     } catch (e) { return; }
     if (!document.getElementById('fpConfettiCss')) {
       const st = document.createElement('style'); st.id = 'fpConfettiCss';
