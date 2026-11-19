@@ -101,10 +101,11 @@
   const fmtMin = m => m >= 60 ? Math.floor(m / 60) + 'h ' + Math.round(m % 60) + 'm' : Math.round(m) + 'm';
 
   // Round the axis maximum up to a tidy value and return tick values.
-  function niceAxis(max) {
+  function niceAxis(max, minutes) {
     if (max <= 0) return { top: 10, ticks: [0, 5, 10] };
     const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw)));
-    const step = [1, 2, 5, 10].map(f => f * mag).find(s => s >= raw);
+    let step = [1, 2, 5, 10].map(f => f * mag).find(s => s >= raw);
+    if (minutes && max > 15) step = max / 30 <= 8 ? 30 : 60; // minute axes: gridlines every 30 min (60 once crowded)
     const ticks = []; for (let v = 0; v <= max + step; v += step) { ticks.push(v); if (v >= max) break; }
     return { top: ticks[ticks.length - 1], ticks };
   }
@@ -122,7 +123,7 @@
   function lineChart(host, bins, refs, mode) {
     const W = 900, H = 290, L = 44, R = 16, T = 12, B = 44;
     const max = Math.max(...bins.map(d => d.val), ...refs.map(r => r.val));
-    const ax = niceAxis(max);
+    const ax = niceAxis(max, true);
     const x = i => L + (bins.length === 1 ? (W - L - R) / 2 : i * (W - L - R) / (bins.length - 1));
     const y = v => T + (H - T - B) * (1 - v / ax.top);
     let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="${NS}" font-size="11" fill="#667">`;
